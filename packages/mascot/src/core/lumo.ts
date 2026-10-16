@@ -3,6 +3,10 @@
  * docs/reference/lumo-mascot.html (originally three r149). Geometry, shaders, palette, rig
  * targets and easing are unchanged; only types and module structure were added.
  *
+ * Deliberate deviation: colors handed to three's built-in materials go through rawColor() so they
+ * keep their r149 values under r152+ color management (see rawColor), and additive materials use
+ * r149's blend factors (see ADDITIVE). The host renderer must use linear output and no tone mapping.
+ *
  * Product behaviors (listening, searching, walking, ...) live in ./companion.ts and are layered
  * on top of this rig, never baked into it.
  */
@@ -25,6 +29,40 @@ import {
 const TAU = Math.PI * 2;
 const v3 = (hex: number) =>
   new THREE.Vector3(((hex >> 16) & 255) / 255, ((hex >> 8) & 255) / 255, (hex & 255) / 255);
+/**
+ * Color fidelity across three.js versions.
+ *
+ * The reference was authored on three r149, where color management was off: a hex color such as
+ * 0x5566ff went to the GPU as the raw components (0x55/255, ...), the renderer wrote linear output
+ * with no tone mapping, and the canvas showed those numbers directly. On three r152+ with
+ * ColorManagement enabled, `new THREE.Color(hex)` (and `material.color = hex`) treats hex as sRGB
+ * and converts it to the linear working space, so the additive aura, motes, ground glow and pulse
+ * ring render noticeably darker than the original.
+ *
+ * `rawColor()` builds the Color from the raw hex components declared as *linear* values. That is
+ * an identity conversion when ColorManagement is on and a no-op when it is off, so the GPU receives
+ * exactly the r149 values either way. The renderer must match r149's output as well:
+ * `outputColorSpace = LinearSRGBColorSpace` and `toneMapping = NoToneMapping` (in R3F:
+ * `<Canvas linear flat>`). ShaderMaterial uniforms already use raw Vector3 values (v3), which
+ * three never converts.
+ */
+export const rawColor = (hex: number) =>
+  new THREE.Color().setRGB(((hex >> 16) & 255) / 255, ((hex >> 8) & 255) / 255, (hex & 255) / 255, THREE.LinearSRGBColorSpace);
+/**
+ * Additive blending exactly as three r149 issued it: gl.blendFunc(SRC_ALPHA, ONE) for color AND
+ * alpha. Since r15x, AdditiveBlending uses blendFuncSeparate(SRC_ALPHA, ONE, ONE, ONE), which writes
+ * more alpha into a transparent canvas; the browser then lets less of the page background show
+ * through the glow, so the aura and ground glow look darker over the stage than the original.
+ */
+export const ADDITIVE = {
+  blending: THREE.CustomBlending,
+  blendEquation: THREE.AddEquation,
+  blendSrc: THREE.SrcAlphaFactor,
+  blendDst: THREE.OneFactor,
+  blendEquationAlpha: THREE.AddEquation,
+  blendSrcAlpha: THREE.SrcAlphaFactor,
+  blendDstAlpha: THREE.OneFactor,
+} as const;
 export const damp = (a: number, b: number, k: number, dt: number) => a + (b - a) * (1 - Math.exp(-k * dt));
 export const clamp = (x: number, a: number, b: number) => Math.min(b, Math.max(a, x));
 export const mix = (a: number, b: number, t: number) => a + (b - a) * t;
@@ -207,7 +245,7 @@ export class Lumo extends THREE.Group<LumoEventMap> {
 
     // Aura behind everything
     const spriteMat = (color: number, opacity: number, map: THREE.Texture = tex.glow) => {
-      const m = new THREE.SpriteMaterial({ map, color, transparent: true, opacity, blending: THREE.AdditiveBlending, depthWrite: false });
+      const m = new THREE.SpriteMaterial({ map, color: rawColor(color), transparent: true, opacity, ...ADDITIVE, depthWrite: false });
       this._disposables.push(m); return m;
     };
     const aura = new THREE.Sprite(spriteMat(P.aura, 0.3)); aura.position.set(0, 0.15, -1.1); aura.scale.setScalar(6);
@@ -217,7 +255,7 @@ export class Lumo extends THREE.Group<LumoEventMap> {
     // Halo: a slow orbit ring plus a finely ticked outer ring
     const halo = new THREE.Group(); halo.name = 'halo'; halo.position.set(0, 0.32, -0.75); halo.rotation.x = -0.1;
     const ringMat = (color: number, mode: number) => {
-      const m = new THREE.ShaderMaterial({ vertexShader: VERT, fragmentShader: RING_FRAG, transparent: true, blending: THREE.AdditiveBlending, depthWrite: false,
+      const m = new THREE.ShaderMaterial({ vertexShader: VERT, fragmentShader: RING_FRAG, transparent: true, ...ADDITIVE, depthWrite: false,
         uniforms: { uColor: { value: v3(color) }, uPhase: { value: 0 }, uIntensity: { value: 1 }, uMode: { value: mode } } });
       this._disposables.push(m); return m;
     };
@@ -250,7 +288,7 @@ export class Lumo extends THREE.Group<LumoEventMap> {
     const discMat = this._mat(DISC_FRAG, { uCenter: { value: v3(P.discCenter) }, uEdge: { value: v3(P.discEdge) }, uRing: { value: v3(P.discRing) }, uGlow: U.glow });
     const irisMat = this._mat(IRIS_FRAG, { uIn: { value: v3(P.irisIn) }, uOut: { value: v3(P.irisOut) }, uPupil: { value: v3(P.pupil) }, uSclera: { value: v3(P.sclera) }, uCircuit: { value: v3(P.circuit) }, uDilate: U.dilate, uGlow: U.glow, uTime: U.time });
     const lidMat = this._mat(LID_FRAG, { uColor: { value: v3(P.lid) }, uLine: { value: v3(P.gold) }, uRim: { value: v3(P.rim) } }, { side: THREE.DoubleSide });
-    const shineMat = new THREE.MeshBasicMaterial({ color: 0xffffff }); this._disposables.push(shineMat);
+    const shineMat = new THREE.MeshBasicMaterial({ color: rawColor(0xffffff) }); this._disposables.push(shineMat);
     const topLidGeo = new THREE.SphereGeometry(1, 40, 20, 0, TAU, 0, Math.PI / 2);
     const botLidGeo = new THREE.SphereGeometry(1, 40, 20, 0, TAU, Math.PI / 2, Math.PI / 2);
     const smallSphere = new THREE.SphereGeometry(1, 20, 12);
@@ -347,7 +385,7 @@ export class Lumo extends THREE.Group<LumoEventMap> {
     rig.add(pulse);
 
     // Ground glow
-    const groundMat = new THREE.MeshBasicMaterial({ map: tex.glow, color: P.aura, transparent: true, opacity: 0.3, blending: THREE.AdditiveBlending, depthWrite: false });
+    const groundMat = new THREE.MeshBasicMaterial({ map: tex.glow, color: rawColor(P.aura), transparent: true, opacity: 0.3, ...ADDITIVE, depthWrite: false });
     const plane = new THREE.PlaneGeometry(1, 1); this._disposables.push(groundMat, plane);
     const ground = new THREE.Mesh(plane, groundMat); ground.rotation.x = -Math.PI / 2; ground.position.y = -1.85; ground.scale.set(3.6, 3.6, 1);
     this.add(ground);
@@ -363,7 +401,7 @@ export class Lumo extends THREE.Group<LumoEventMap> {
     }
     pg.setAttribute('position', new THREE.BufferAttribute(pos, 3));
     pg.setAttribute('aSeed', new THREE.BufferAttribute(seed, 1));
-    const pm = new THREE.ShaderMaterial({ vertexShader: PARTICLE_VERT, fragmentShader: PARTICLE_FRAG, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending,
+    const pm = new THREE.ShaderMaterial({ vertexShader: PARTICLE_VERT, fragmentShader: PARTICLE_FRAG, transparent: true, depthWrite: false, ...ADDITIVE,
       uniforms: { uTime: U.time, uSize: { value: 7 }, uPR: { value: this.opts.pixelRatio }, uA: { value: v3(P.spark) }, uB: { value: v3(P.warm) }, uOpacity: { value: 0.8 } } });
     const points = new THREE.Points(pg, pm); points.frustumCulled = false; points.name = 'particles';
     this.add(points);
