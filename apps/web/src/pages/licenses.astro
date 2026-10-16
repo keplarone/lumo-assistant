@@ -1,0 +1,45 @@
+---
+import Base from '../layouts/Base.astro';
+import PageHead from '../components/PageHead.astro';
+import { FONTS, PACKAGES } from '../data/licenses';
+import { SITE } from '../data/site';
+---
+
+<Base title="Open-source licenses" description="The fonts and major open-source software used by the Lumo app and website, and their licenses.">
+  <PageHead eyebrow="Legal" title="Open-source licenses" lede="Lumo is built on excellent open-source work. These are the major components and their licenses." />
+  <div class="container prose">
+    <h2 id="fonts">Fonts</h2>
+    <p>
+      All three typefaces are self-hosted and licensed under the <a href="https://openfontlicense.org/open-font-license-official-text/">SIL Open Font License, Version 1.1</a>.
+      The fonts may be used, studied, modified and redistributed freely, provided they are not sold on their own.
+    </p>
+    <div class="table-wrap">
+      <table>
+        <caption class="sr-only">Fonts</caption>
+        <thead><tr><th scope="col">Font</th><th scope="col">Used for</th><th scope="col">Copyright</th><th scope="col">License</th></tr></thead>
+        <tbody>
+          {FONTS.map((f) => (
+            <tr><td><a href={f.url}>{f.name}</a></td><td>{f.use}</td><td>{f.copyright}</td><td>{f.license}</td></tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+
+    <h2 id="software">Software</h2>
+    <div class="table-wrap">
+      <table>
+        <caption class="sr-only">Software packages</caption>
+        <thead><tr><th scope="col">Component</th><th scope="col">Used for</th><th scope="col">License</th></tr></thead>
+        <tbody>
+          {PACKAGES.map((p) => (
+            <tr><td><a href={p.url}>{p.name}</a></td><td>{p.use}</td><td>{p.license}</td></tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+    <p>
+      This list covers the major components. The complete dependency tree, with exact versions, is in the lockfiles of the
+      <a href={SITE.repo}>source repository</a>.
+    </p>
+  </div>
+</Base>

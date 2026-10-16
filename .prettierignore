@@ -1,0 +1,9 @@
+pnpm-lock.yaml
+docs/reference/
+**/target/
+**/dist/
+**/gen/
+**/test-results/
+**/playwright-report/
+apps/web/.astro/
+**/node_modules/

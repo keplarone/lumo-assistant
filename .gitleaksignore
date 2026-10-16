@@ -1,0 +1,2 @@
+# Test fixture, not a secret: the example license key "A1B2C3-D4E5F6" in license.rs unit tests.
+06d7acb10cc276c317d91b5add0e2b76b692f6fc:apps/desktop/src-tauri/src/license.rs:generic-api-key:110

@@ -1,0 +1,6 @@
+---
+/* Emits nothing unless PUBLIC_ANALYTICS_ENDPOINT was set at build time. See src/lib/analytics.ts. */
+import { ANALYTICS_ENDPOINT, ANALYTICS_SNIPPET } from '../lib/analytics';
+---
+
+{ANALYTICS_ENDPOINT && <script is:inline data-endpoint={ANALYTICS_ENDPOINT} set:html={ANALYTICS_SNIPPET} />}

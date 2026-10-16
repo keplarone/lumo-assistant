@@ -1,7 +1,7 @@
 // GLSL for the Lumo mascot, copied verbatim from docs/reference/lumo-mascot.html.
 // Do not edit casually: these shaders define the established look of the character.
 
-export const VERT = /* glsl */`
+export const VERT = /* glsl */ `
   varying vec3 vN; varying vec3 vV; varying vec3 vObj; varying vec3 vObjN;
   void main(){
     vObj = position; vObjN = normal;
@@ -10,13 +10,15 @@ export const VERT = /* glsl */`
     vV = normalize(-mv.xyz);
     gl_Position = projectionMatrix * mv;
   }`;
-export const COMMON = /* glsl */`
+export const COMMON = /* glsl */ `
   varying vec3 vN; varying vec3 vV; varying vec3 vObj; varying vec3 vObjN;
   const vec3 LDIR = vec3(-0.43, 0.72, 0.54);
   float hash3(vec3 p){ p = fract(p * 0.3183099 + 0.1); p *= 17.0; return fract(p.x * p.y * p.z * (p.x + p.y + p.z)); }
 `;
 
-export const BODY_FRAG = COMMON + /* glsl */`
+export const BODY_FRAG =
+  COMMON +
+  /* glsl */ `
   uniform float uTime; uniform float uGlow;
   uniform vec3 uTop; uniform vec3 uBot; uniform vec3 uRim; uniform vec3 uGold; uniform vec3 uSpark;
   void main(){
@@ -43,7 +45,9 @@ export const BODY_FRAG = COMMON + /* glsl */`
     gl_FragColor = vec4(col, 1.0);
   }`;
 
-export const DISC_FRAG = COMMON + /* glsl */`
+export const DISC_FRAG =
+  COMMON +
+  /* glsl */ `
   uniform vec3 uCenter; uniform vec3 uEdge; uniform vec3 uRing; uniform float uGlow;
   void main(){
     vec3 N = normalize(vN); vec3 V = normalize(vV);
@@ -59,7 +63,9 @@ export const DISC_FRAG = COMMON + /* glsl */`
     gl_FragColor = vec4(col, 1.0);
   }`;
 
-export const IRIS_FRAG = COMMON + /* glsl */`
+export const IRIS_FRAG =
+  COMMON +
+  /* glsl */ `
   uniform vec3 uIn; uniform vec3 uOut; uniform vec3 uPupil; uniform vec3 uSclera; uniform vec3 uCircuit;
   uniform float uDilate; uniform float uGlow; uniform float uTime;
   void main(){
@@ -84,7 +90,9 @@ export const IRIS_FRAG = COMMON + /* glsl */`
     gl_FragColor = vec4(col, 1.0);
   }`;
 
-export const LID_FRAG = COMMON + /* glsl */`
+export const LID_FRAG =
+  COMMON +
+  /* glsl */ `
   uniform vec3 uColor; uniform vec3 uLine; uniform vec3 uRim;
   void main(){
     vec3 N = normalize(vN); if (!gl_FrontFacing) N = -N; vec3 V = normalize(vV);
@@ -96,7 +104,9 @@ export const LID_FRAG = COMMON + /* glsl */`
     gl_FragColor = vec4(col, 1.0);
   }`;
 
-export const LIT_FRAG = COMMON + /* glsl */`
+export const LIT_FRAG =
+  COMMON +
+  /* glsl */ `
   uniform vec3 uColor; uniform vec3 uRim; uniform float uRimAmt; uniform vec3 uEmissive;
   void main(){
     vec3 N = normalize(vN); if (!gl_FrontFacing) N = -N; vec3 V = normalize(vV);
@@ -108,7 +118,9 @@ export const LIT_FRAG = COMMON + /* glsl */`
     gl_FragColor = vec4(col, 1.0);
   }`;
 
-export const CRYSTAL_FRAG = COMMON + /* glsl */`
+export const CRYSTAL_FRAG =
+  COMMON +
+  /* glsl */ `
   uniform vec3 uBase; uniform vec3 uTip; uniform float uPulse; uniform float uTime;
   void main(){
     vec3 N = normalize(vN); vec3 V = normalize(vV);
@@ -122,7 +134,7 @@ export const CRYSTAL_FRAG = COMMON + /* glsl */`
     gl_FragColor = vec4(col, 1.0);
   }`;
 
-export const FEATHER_VERT = /* glsl */`
+export const FEATHER_VERT = /* glsl */ `
   attribute vec2 aTS;
   varying vec2 vTS; varying vec3 vN; varying vec3 vV; varying float vPhase;
   void main(){
@@ -134,7 +146,7 @@ export const FEATHER_VERT = /* glsl */`
     vV = normalize(-mv.xyz);
     gl_Position = projectionMatrix * mv;
   }`;
-export const FEATHER_FRAG = /* glsl */`
+export const FEATHER_FRAG = /* glsl */ `
   uniform vec3 uRoot; uniform vec3 uMid; uniform vec3 uEdge; uniform vec3 uTip;
   uniform float uTime; uniform float uGlow;
   varying vec2 vTS; varying vec3 vN; varying vec3 vV; varying float vPhase;
@@ -162,7 +174,9 @@ export const FEATHER_FRAG = /* glsl */`
     gl_FragColor = vec4(col, 1.0);
   }`;
 
-export const RING_FRAG = COMMON + /* glsl */`
+export const RING_FRAG =
+  COMMON +
+  /* glsl */ `
   uniform vec3 uColor; uniform float uPhase; uniform float uIntensity; uniform float uMode;
   void main(){
     float a = atan(vObj.y, vObj.x);
@@ -175,7 +189,7 @@ export const RING_FRAG = COMMON + /* glsl */`
     gl_FragColor = vec4(uColor * v * uIntensity, 1.0);
   }`;
 
-export const PARTICLE_VERT = /* glsl */`
+export const PARTICLE_VERT = /* glsl */ `
   attribute float aSeed;
   uniform float uTime; uniform float uSize; uniform float uPR;
   varying float vA; varying float vSeed;
@@ -192,7 +206,7 @@ export const PARTICLE_VERT = /* glsl */`
     vA = tw * edge; vSeed = aSeed;
     gl_PointSize = uSize * (0.35 + aSeed) * uPR * (8.0 / -mv.z);
   }`;
-export const PARTICLE_FRAG = /* glsl */`
+export const PARTICLE_FRAG = /* glsl */ `
   uniform vec3 uA; uniform vec3 uB; uniform float uOpacity;
   varying float vA; varying float vSeed;
   void main(){

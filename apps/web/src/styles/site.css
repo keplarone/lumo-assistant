@@ -1,0 +1,459 @@
+/*
+ * Website layer on top of @lumo/ui. Layout, marketing type at display sizes and section patterns only.
+ * Every color comes from the --lu-* tokens; the only gradient outside 3D scenes is --lu-stage.
+ */
+
+:root {
+  --site-max: 76rem;
+  --site-gutter: clamp(1rem, 4vw, 2.5rem);
+  --site-section: clamp(4.5rem, 10vw, 8rem);
+  --site-header-h: 3.75rem;
+  scroll-padding-top: calc(var(--site-header-h) + var(--lu-space-4));
+}
+
+html {
+  background: var(--lu-bg);
+}
+
+body {
+  font-size: 1rem;
+  line-height: var(--lu-leading-relaxed);
+  overflow-x: clip;
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+main {
+  flex: 1;
+}
+main:focus {
+  outline: none;
+}
+
+.container {
+  width: 100%;
+  max-width: var(--site-max);
+  margin-inline: auto;
+  padding-inline: var(--site-gutter);
+}
+
+.lu-button {
+  text-decoration: none !important;
+}
+
+/* ── Skip link ─────────────────────────────────────────────────────────────── */
+.skip-link {
+  position: absolute;
+  left: var(--lu-space-4);
+  top: -100px;
+  z-index: var(--lu-z-tooltip);
+  padding: var(--lu-space-2) var(--lu-space-3);
+  border-radius: var(--lu-radius-sm);
+  background: var(--lu-accent);
+  color: var(--lu-text-on-accent);
+  font-weight: var(--lu-weight-medium);
+}
+.skip-link:focus,
+.skip-link:focus-visible {
+  top: var(--lu-space-3);
+}
+
+/* ── Type ──────────────────────────────────────────────────────────────────── */
+.display,
+.h-display {
+  font-family: var(--lu-font-display);
+  font-weight: var(--lu-weight-semibold);
+  letter-spacing: var(--lu-tracking-display);
+  line-height: 1.04;
+  color: var(--lu-text);
+  text-wrap: balance;
+}
+.display {
+  font-size: clamp(2.5rem, 6.4vw, var(--lu-text-5xl));
+}
+.h-display {
+  font-size: clamp(1.875rem, 4vw, var(--lu-text-3xl));
+  line-height: 1.1;
+}
+.h3 {
+  font-size: var(--lu-text-lg);
+  font-weight: var(--lu-weight-semibold);
+  letter-spacing: var(--lu-tracking-title);
+  line-height: var(--lu-leading-snug);
+  color: var(--lu-text);
+}
+.eyebrow {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--lu-space-2);
+  font-family: var(--lu-font-mono);
+  font-size: var(--lu-text-xs);
+  font-weight: 500;
+  letter-spacing: var(--lu-tracking-caps);
+  text-transform: uppercase;
+  color: var(--lu-text-tertiary);
+}
+.lede {
+  font-size: clamp(1.0625rem, 1.6vw, 1.25rem);
+  line-height: 1.55;
+  color: var(--lu-text-secondary);
+  max-width: 38rem;
+  text-wrap: pretty;
+}
+.muted {
+  color: var(--lu-text-secondary);
+}
+.small {
+  font-size: var(--lu-text-md);
+}
+.mono {
+  font-family: var(--lu-font-mono);
+}
+
+/* ── Header ────────────────────────────────────────────────────────────────── */
+.site-header {
+  position: sticky;
+  top: 0;
+  z-index: var(--lu-z-sticky);
+  background: var(--lu-bg);
+  box-shadow: 0 1px 0 var(--lu-line-subtle);
+}
+.header-inner {
+  height: var(--site-header-h);
+  display: flex;
+  align-items: center;
+  gap: var(--lu-space-6);
+}
+.brand {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--lu-space-2);
+  color: var(--lu-text);
+  text-decoration: none !important;
+  border-radius: var(--lu-radius-sm);
+}
+.brand-name {
+  font-family: var(--lu-font-display);
+  font-weight: var(--lu-weight-bold);
+  font-size: 1.1875rem;
+  letter-spacing: -0.02em;
+}
+/* ── Footer ────────────────────────────────────────────────────────────────── */
+.site-footer {
+  margin-top: var(--site-section);
+  padding-block: var(--lu-space-8);
+  border-top: 1px solid var(--lu-line-subtle);
+  font-size: var(--lu-text-sm);
+  color: var(--lu-text-tertiary);
+}
+.footer-inner {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--lu-space-3) var(--lu-space-6);
+}
+.footer-links {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--lu-space-1) var(--lu-space-5);
+}
+.footer-links a {
+  display: inline-flex;
+  align-items: center;
+  min-height: 1.5rem;
+  color: var(--lu-text-secondary);
+}
+.footer-links a:hover {
+  color: var(--lu-text);
+}
+
+/* ── Sections ──────────────────────────────────────────────────────────────── */
+.section {
+  padding-block: var(--site-section);
+}
+.section + .section {
+  padding-top: 0;
+}
+.section-head {
+  display: grid;
+  gap: var(--lu-space-4);
+  max-width: 44rem;
+  margin-bottom: clamp(var(--lu-space-10), 5vw, var(--lu-space-16));
+}
+.section-head.center {
+  margin-inline: auto;
+  text-align: center;
+  justify-items: center;
+}
+.page-head {
+  padding-block: clamp(var(--lu-space-16), 9vw, 7.5rem) clamp(var(--lu-space-10), 5vw, var(--lu-space-16));
+  display: grid;
+  gap: var(--lu-space-5);
+  max-width: 50rem;
+}
+
+.grid {
+  display: grid;
+  gap: var(--lu-space-4);
+}
+.grid-2 {
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 22rem), 1fr));
+}
+.grid-3 {
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 17rem), 1fr));
+}
+
+/* A quiet panel. Cards are flat surfaces; borders only when they carry meaning. */
+.panel {
+  background: var(--lu-surface-1);
+  border-radius: var(--lu-radius-lg);
+  padding: clamp(var(--lu-space-5), 3vw, var(--lu-space-8));
+  min-width: 0;
+}
+.panel > * + * {
+  margin-top: var(--lu-space-3);
+}
+.panel-title {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--lu-space-2) var(--lu-space-3);
+}
+.panel p {
+  color: var(--lu-text-secondary);
+}
+.panel .note {
+  font-size: var(--lu-text-sm);
+  color: var(--lu-text-tertiary);
+}
+.icon-tile {
+  width: 2.25rem;
+  height: 2.25rem;
+  display: grid;
+  place-items: center;
+  border-radius: var(--lu-radius-md);
+  background: var(--lu-surface-3);
+  color: var(--lu-text-secondary);
+}
+.icon-tile svg {
+  width: 18px;
+  height: 18px;
+}
+
+/* ── Prose (docs, legal) ───────────────────────────────────────────────────── */
+.prose {
+  max-width: 44rem;
+  color: var(--lu-text-secondary);
+}
+.prose h2 {
+  font-family: var(--lu-font-display);
+  font-size: clamp(1.5rem, 3vw, var(--lu-text-2xl));
+  letter-spacing: -0.02em;
+  color: var(--lu-text);
+  margin: var(--lu-space-16) 0 var(--lu-space-4);
+}
+.prose h2:first-child {
+  margin-top: 0;
+}
+.prose h3 {
+  font-size: 1.0625rem;
+  color: var(--lu-text);
+  margin: var(--lu-space-8) 0 var(--lu-space-2);
+}
+.prose p,
+.prose ul,
+.prose ol,
+.prose table,
+.prose .lu-callout,
+.prose pre {
+  margin: 0 0 var(--lu-space-4);
+}
+.prose ul,
+.prose ol {
+  padding-left: 1.25rem;
+}
+.prose li + li {
+  margin-top: var(--lu-space-1-5);
+}
+.prose strong {
+  color: var(--lu-text);
+  font-weight: var(--lu-weight-semibold);
+}
+.prose a {
+  text-decoration: underline;
+  text-decoration-color: color-mix(in oklch, var(--lu-accent-text) 45%, transparent);
+}
+.prose code {
+  padding: 0.1em 0.35em;
+  border-radius: var(--lu-radius-xs);
+  background: var(--lu-surface-2);
+  color: var(--lu-text);
+}
+.prose pre {
+  padding: var(--lu-space-4);
+  border-radius: var(--lu-radius-md);
+  background: var(--lu-bg-sunken);
+  overflow-x: auto;
+}
+.prose pre code {
+  padding: 0;
+  background: none;
+}
+.table-wrap {
+  overflow-x: auto;
+  margin: 0 0 var(--lu-space-4);
+}
+.prose table,
+.table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: var(--lu-text-md);
+}
+.prose th,
+.prose td,
+.table th,
+.table td {
+  text-align: left;
+  vertical-align: top;
+  padding: var(--lu-space-3) var(--lu-space-4) var(--lu-space-3) 0;
+  border-bottom: 1px solid var(--lu-line-subtle);
+}
+.prose th,
+.table th {
+  color: var(--lu-text);
+  font-weight: var(--lu-weight-semibold);
+}
+.prose .lu-callout {
+  font-size: var(--lu-text-md);
+}
+
+/* ── Stage (mascot) ────────────────────────────────────────────────────────── */
+.stage {
+  position: relative;
+  overflow: hidden;
+  border-radius: var(--lu-radius-xl);
+  background: var(--lu-stage);
+  isolation: isolate;
+}
+.stage > .stage-still,
+.stage > .stage-live {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+.stage-still {
+  object-fit: contain;
+  object-position: 50% 55%;
+  transition: opacity var(--lu-duration-deliberate) var(--lu-ease-standard);
+}
+.stage[data-live='true'] > .stage-still {
+  opacity: 0;
+}
+.stage canvas {
+  touch-action: pan-y;
+}
+
+/* ── Utilities ─────────────────────────────────────────────────────────────── */
+.sr-only {
+  position: absolute !important;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+.js-only {
+  display: none;
+}
+html.js .js-only {
+  display: revert;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    scroll-behavior: auto !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+/* ── Stage controls (shared by mascot islands) ─────────────────────────────── */
+.stage-controls {
+  position: absolute;
+  right: var(--lu-space-3);
+  bottom: var(--lu-space-3);
+  display: flex;
+  gap: var(--lu-space-2);
+  z-index: 2;
+}
+.stage-chip {
+  height: var(--lu-control-md);
+  padding: 0 var(--lu-space-3);
+  border: 1px solid var(--lu-line);
+  border-radius: var(--lu-radius-full);
+  background: var(--lu-surface-overlay);
+  color: var(--lu-text);
+  font-size: var(--lu-text-sm);
+  cursor: pointer;
+  transition: background-color var(--lu-duration-fast) var(--lu-ease-standard);
+}
+.stage-chip:hover {
+  background: var(--lu-surface-3);
+}
+
+.lumen-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--lu-lumen);
+  box-shadow: 0 0 0 3px var(--lu-lumen-subtle);
+}
+
+.page-title {
+  font-size: clamp(2.25rem, 5.4vw, var(--lu-text-4xl));
+  max-width: 18ch;
+}
+.cta-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--lu-space-3);
+  align-items: center;
+}
+.notfound {
+  display: grid;
+  gap: var(--lu-space-5);
+  justify-items: start;
+  padding-block: clamp(var(--lu-space-16), 12vw, 10rem);
+}
+.plain-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+.legal-meta {
+  font-size: var(--lu-text-md);
+  color: var(--lu-text-tertiary);
+}
+
+/* Links inside running text are underlined, so they never rely on color alone. */
+main p a:not(.lu-button),
+main .lu-callout a {
+  text-decoration: underline;
+  text-decoration-color: color-mix(in oklch, currentColor 45%, transparent);
+  text-underline-offset: 0.18em;
+}
+main p a:not(.lu-button):hover {
+  text-decoration-color: currentColor;
+}

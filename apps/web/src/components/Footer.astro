@@ -1,0 +1,20 @@
+---
+import { FOOTER_NAV } from '../data/site';
+---
+
+<footer class="site-footer">
+  <div class="container footer-inner">
+    <p>© {new Date().getFullYear()} Lumo Assistant contributors. Lumo is pre-release software.</p>
+    <nav aria-label="Footer">
+      <ul class="footer-links" role="list">
+        {
+          FOOTER_NAV.map((item) => (
+            <li>
+              <a href={item.href}>{item.label}</a>
+            </li>
+          ))
+        }
+      </ul>
+    </nav>
+  </div>
+</footer>

@@ -1,0 +1,64 @@
+---
+import Base from '../layouts/Base.astro';
+import '../styles/home.css';
+import HeroStage from '../islands/HeroStage';
+import DownloadPanel from '../components/DownloadPanel.astro';
+import { PLATFORMS, RELEASE, releasesUrl } from '../data/release';
+import { SITE } from '../data/site';
+import { softwareApplication } from '../data/schema';
+---
+
+<Base description={SITE.description} jsonLd={[softwareApplication(Astro.site)]}>
+  <section class="hero" aria-labelledby="hero-title">
+    <div class="container hero-grid">
+      <div class="hero-copy">
+        <p class="eyebrow">
+          <span class="lumen-dot" aria-hidden="true"></span> Desktop AI assistant · {RELEASE.version ? `Version ${RELEASE.version}` : 'Pre-release'}
+        </p>
+        <h1 class="display" id="hero-title">Lumo</h1>
+        <p class="tagline">{SITE.tagline}</p>
+        <DownloadPanel />
+      </div>
+      <HeroStage
+        client:visible
+        className="hero-stage"
+        still="/stills/hero.jpg"
+        width={1520}
+        height={1640}
+        alt="Lumo, a small round owl made of soft blue light with golden eyes and a crown of crystal feathers, floating inside a thin halo."
+      />
+    </div>
+  </section>
+
+  <section class="section requirements" aria-labelledby="req-title">
+    <div class="container">
+      <h2 class="h-display req-title" id="req-title">System requirements</h2>
+      <ul class="grid grid-3 plain-list" role="list">
+        {
+          PLATFORMS.map((p) => (
+            <li class="panel req-card">
+              <h3 class="h3">{p.name}</h3>
+              <ul class="req-list">
+                {p.requirements.map((r) => (
+                  <li>{r}</li>
+                ))}
+              </ul>
+            </li>
+          ))
+        }
+      </ul>
+      <p class="req-note">Requirements are provisional and will be confirmed with the first release.</p>
+
+      <div class="lu-callout prerelease" data-tone="warning" role="note">
+        <svg viewBox="0 0 16 16" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M8 2 1.5 13.5h13L8 2Z"></path><path d="M8 6.5v3M8 11.5h.01"></path></svg>
+        <div>
+          <div class="lu-callout-title">Pre-release software</div>
+          <div>
+            Lumo is still being built. Early builds may have bugs or change without notice, so keep backups of anything important, especially
+            folders you let Lumo use. Every build is published on <a href={releasesUrl()}>GitHub Releases</a>, with its release notes.
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+</Base>

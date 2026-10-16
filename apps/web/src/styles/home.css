@@ -1,0 +1,195 @@
+/* The download page. Tokens only; the hero stage uses --lu-stage. */
+
+/* ── Hero ──────────────────────────────────────────────────────────────────── */
+.hero {
+  padding-block: clamp(var(--lu-space-8), 5vw, var(--lu-space-16)) 0;
+}
+.hero-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: clamp(var(--lu-space-8), 5vw, var(--lu-space-16));
+  align-items: center;
+}
+.hero-copy {
+  display: grid;
+  gap: var(--lu-space-5);
+  justify-items: start;
+  align-content: center;
+}
+.hero-copy .display {
+  font-size: clamp(3.5rem, 9vw, 6.5rem);
+  line-height: 0.95;
+}
+.tagline {
+  font-family: var(--lu-font-display);
+  font-size: clamp(1.375rem, 2.6vw, 1.875rem);
+  font-weight: var(--lu-weight-medium);
+  letter-spacing: -0.015em;
+  line-height: 1.25;
+  color: var(--lu-text-secondary);
+  max-width: 24ch;
+  text-wrap: balance;
+}
+.hero-stage {
+  aspect-ratio: 760 / 820;
+  width: 100%;
+  max-height: min(78vh, 46rem);
+  justify-self: center;
+}
+.hero-stage .stage-still {
+  object-fit: cover;
+}
+@media (max-width: 920px) {
+  .hero-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .hero-stage {
+    aspect-ratio: 1 / 1;
+    max-height: none;
+    max-width: 30rem;
+  }
+}
+
+/* ── Download ──────────────────────────────────────────────────────────────── */
+.dl {
+  display: grid;
+  gap: var(--lu-space-4);
+  justify-items: start;
+  margin-top: var(--lu-space-3);
+  width: 100%;
+}
+/* One primary per platform is rendered; data-os (set by the detection script) picks the visible one. */
+.dl-primary {
+  display: none;
+  gap: var(--lu-space-2);
+  justify-items: start;
+}
+.dl[data-os='windows'] [data-for='windows'],
+.dl[data-os='macos'] [data-for='macos'],
+.dl[data-os='linux'] [data-for='linux'],
+.dl[data-os='other'] [data-for='other'] {
+  display: grid;
+}
+.dl-primary .lu-button[data-size='lg'] {
+  min-width: 15rem;
+}
+.dl-meta {
+  font-size: var(--lu-text-sm);
+  color: var(--lu-text-tertiary);
+  max-width: 34rem;
+}
+.dl-meta a {
+  color: var(--lu-text-secondary);
+}
+.dl-soon {
+  display: flex;
+  align-items: baseline;
+  gap: var(--lu-space-2-5);
+  font-size: var(--lu-text-md);
+  color: var(--lu-text-secondary);
+}
+.dl-soon .lumen-dot {
+  flex: none;
+  transform: translateY(-0.1em);
+}
+.dl-others {
+  display: grid;
+  gap: var(--lu-space-2);
+  width: 100%;
+  max-width: 34rem;
+  padding-top: var(--lu-space-4);
+  border-top: 1px solid var(--lu-line-subtle);
+}
+.dl-others-title {
+  font-family: var(--lu-font-mono);
+  font-size: var(--lu-text-xs);
+  font-weight: 500;
+  letter-spacing: var(--lu-tracking-caps);
+  text-transform: uppercase;
+  color: var(--lu-text-tertiary);
+}
+.dl-title-all,
+.dl[data-os='other'] .dl-title-others {
+  display: none;
+}
+.dl[data-os='other'] .dl-title-all {
+  display: inline;
+}
+.dl-others-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: var(--lu-space-1-5);
+}
+.dl-others-list li {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--lu-space-1-5) var(--lu-space-3);
+  min-height: 2.25rem;
+}
+.dl[data-os='windows'] li[data-platform='windows'],
+.dl[data-os='macos'] li[data-platform='macos'],
+.dl[data-os='linux'] li[data-platform='linux'] {
+  display: none;
+}
+.dl-os {
+  min-width: 5.5rem;
+  font-weight: var(--lu-weight-medium);
+  color: var(--lu-text);
+}
+.dl-file {
+  display: inline-flex;
+  align-items: baseline;
+  gap: var(--lu-space-1);
+  padding: var(--lu-space-1) var(--lu-space-2-5);
+  border-radius: var(--lu-radius-sm);
+  background: var(--lu-surface-2);
+  color: var(--lu-text);
+  font-size: var(--lu-text-md);
+  text-decoration: none;
+  transition: background-color var(--lu-duration-fast) var(--lu-ease-standard);
+}
+.dl-file:hover {
+  background: var(--lu-surface-3);
+}
+.dl-file .mono,
+.dl-meta .mono {
+  font-size: var(--lu-text-sm);
+  color: var(--lu-text-tertiary);
+}
+.dl-file-soon {
+  font-size: var(--lu-text-md);
+  color: var(--lu-text-tertiary);
+}
+
+/* ── Requirements and pre-release note ─────────────────────────────────────── */
+.req-title {
+  margin-bottom: var(--lu-space-8);
+}
+.req-card .h3 {
+  margin-bottom: var(--lu-space-3);
+}
+.req-list {
+  margin: 0;
+  padding-left: 1.1rem;
+  display: grid;
+  gap: var(--lu-space-1-5);
+  color: var(--lu-text-secondary);
+  font-size: var(--lu-text-md);
+}
+.req-note {
+  margin-top: var(--lu-space-4);
+  font-size: var(--lu-text-sm);
+  color: var(--lu-text-tertiary);
+}
+.prerelease {
+  margin-top: var(--lu-space-10);
+  max-width: 48rem;
+  font-size: var(--lu-text-md);
+}
+/* The footer already adds its own top margin. */
+.requirements {
+  padding-bottom: 0;
+}

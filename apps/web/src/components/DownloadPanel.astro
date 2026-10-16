@@ -1,0 +1,112 @@
+---
+/**
+ * Primary download button for the visitor's platform, plus links for the others.
+ *
+ * Everything is server-rendered for all three platforms; a small script only sets data-os on the
+ * wrapper (CSS shows the matching primary and hides that platform from "Other platforms"). Without
+ * JavaScript the Windows button is shown and every other platform is still listed.
+ * While RELEASE.version is null nothing links to a file: the button is disabled and says so.
+ */
+import { Download } from 'lucide-react';
+import { PLATFORMS, RELEASE, assetsFor, releasesUrl } from '../data/release';
+
+const version = RELEASE.version;
+const platforms = PLATFORMS.map((p) => ({ ...p, assets: assetsFor(p.id) }));
+const releases = releasesUrl();
+---
+
+<div class="dl" data-dl data-os="windows" data-state={version ? 'released' : 'soon'}>
+  {
+    platforms.map((p) => {
+      const [primary, ...more] = p.assets;
+      return (
+        <div class="dl-primary" data-for={p.id}>
+          {primary ? (
+            <a
+              class="lu-button"
+              data-variant="primary"
+              data-size="lg"
+              href={primary.url}
+              data-dl-primary={p.id}
+              data-lumo-look
+              data-lumo-target={`cta-${p.id}`}
+            >
+              <Download aria-hidden="true" />
+              Download for {p.name}
+            </a>
+          ) : (
+            <button class="lu-button" data-variant="primary" data-size="lg" type="button" disabled data-dl-primary={p.id}>
+              Coming soon for {p.name}
+            </button>
+          )}
+          {primary && (
+            <p class="dl-meta">
+              Version {version} · {primary.label} <span class="mono">{primary.format}</span>
+              {more.map((a) => (
+                <>
+                  {' · '}
+                  <a href={a.url}>
+                    {a.label} <span class="mono">{a.format}</span>
+                  </a>
+                </>
+              ))}
+            </p>
+          )}
+        </div>
+      );
+    })
+  }
+  <div class="dl-primary" data-for="other">
+    {!version && (
+      <button class="lu-button" data-variant="primary" data-size="lg" type="button" disabled data-dl-primary="other">Coming soon</button>
+    )}
+    <p class="dl-meta">Lumo is a desktop app. Pick your computer’s platform below, or open this page on your computer.</p>
+  </div>
+
+  {
+    !version && (
+      <p class="dl-soon">
+        <span class="lumen-dot" aria-hidden="true" />
+        <span>
+          The first build is being prepared. <a href={releases}>Watch GitHub Releases</a> for the first version.
+        </span>
+      </p>
+    )
+  }
+
+  <div class="dl-others">
+    <h2 class="dl-others-title">
+      <span class="dl-title-others">Other platforms</span><span class="dl-title-all">All platforms</span>
+    </h2>
+    <ul class="dl-others-list" role="list">
+      {
+        platforms.map((p) => (
+          <li data-platform={p.id}>
+            <span class="dl-os">{p.name}</span>
+            {p.assets.length ? (
+              p.assets.map((a) => (
+                <a class="dl-file" href={a.url} data-dl-file>
+                  {a.label} <span class="mono">{a.format}</span>
+                </a>
+              ))
+            ) : (
+              <span class="dl-file-soon">Coming soon</span>
+            )}
+          </li>
+        ))
+      }
+    </ul>
+  </div>
+</div>
+
+<script>
+  import { detectOS } from '../lib/os';
+
+  const el = document.querySelector<HTMLElement>('[data-dl]');
+  if (el) {
+    // Read loosely: userAgentData is Chromium-only and navigator.platform is legacy, but both still help.
+    const nav = navigator as unknown as { userAgent: string; userAgentData?: { platform?: string }; platform?: string; maxTouchPoints?: number };
+    el.dataset.os = detectOS(nav.userAgent, nav.userAgentData?.platform || nav.platform || '', nav.maxTouchPoints || 0);
+    el.dataset.detected = 'true';
+  }
+</script>

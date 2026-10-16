@@ -1,0 +1,37 @@
+:root {
+  color-scheme: dark;
+  --night: #090a1c;
+  --panel: #14173a;
+  --ink: #ecebff;
+  --muted: #9d9fcf;
+  --line: rgba(160, 166, 255, 0.16);
+  --lumen: #ffc65c;
+  --aurora: #7ff3ff;
+}
+* {
+  box-sizing: border-box;
+}
+html,
+body {
+  margin: 0;
+  background: var(--night);
+  color: var(--ink);
+  font:
+    14px/1.5 -apple-system,
+    BlinkMacSystemFont,
+    'Segoe UI',
+    system-ui,
+    sans-serif;
+}
+.stage {
+  position: relative;
+  overflow: hidden;
+  background: radial-gradient(ellipse 70% 60% at 50% 42%, #1c2056 0%, #10123a 45%, #090a1c 100%);
+}
+.stage canvas {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  display: block;
+}

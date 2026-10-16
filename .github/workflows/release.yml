@@ -1,0 +1,81 @@
+name: Release
+
+# Builds signed installers for macOS, Windows and Linux when a version tag is pushed, and attaches
+# them to a draft GitHub release. See docs/release.md for the secrets this needs and the checklist
+# to complete before publishing the draft.
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: macos-14
+            args: --target universal-apple-darwin
+          - platform: windows-2022
+            args: ''
+          - platform: ubuntu-24.04
+            args: ''
+    runs-on: ${{ matrix.platform }}
+    steps:
+      - uses: actions/checkout@v4
+      - if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y libwebkit2gtk-4.1-dev libayatana-appindicator3-dev librsvg2-dev libxdo-dev libssl-dev libpipewire-0.3-dev libgbm-dev libxcb1-dev libxrandr-dev libdbus-1-dev
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ runner.os == 'macOS' && 'aarch64-apple-darwin,x86_64-apple-darwin' || '' }}
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: apps/desktop/src-tauri
+      - run: pnpm install --frozen-lockfile
+      - name: Enable updater artifacts when a signing key is configured
+        id: updater
+        shell: bash
+        env:
+          KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          PUBKEY: ${{ secrets.LUMO_UPDATER_PUBKEY }}
+        run: |
+          if [ -n "$KEY" ] && [ -n "$PUBKEY" ]; then
+            echo "args=--config {\"bundle\":{\"createUpdaterArtifacts\":true},\"plugins\":{\"updater\":{\"pubkey\":\"$PUBKEY\"}}}" >> "$GITHUB_OUTPUT"
+          fi
+      - uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # Updater signing (optional until set; without it the app builds with updates disabled).
+          LUMO_UPDATER_PUBKEY: ${{ secrets.LUMO_UPDATER_PUBKEY }}
+          # Whop license server URL. Defaults to the deployed lumo-license project; override with a repository variable.
+          LUMO_LICENSE_SERVER: ${{ vars.LUMO_LICENSE_SERVER || 'https://lumo-license.vercel.app/api/validate' }}
+          # Optional Whop checkout URL overrides (repository variables); default is whop.com/checkout/<plan>.
+          LUMO_WHOP_CHECKOUT_LITE: ${{ vars.LUMO_WHOP_CHECKOUT_LITE }}
+          LUMO_WHOP_CHECKOUT_PRO: ${{ vars.LUMO_WHOP_CHECKOUT_PRO }}
+          LUMO_WHOP_CHECKOUT_UNLIMITED: ${{ vars.LUMO_WHOP_CHECKOUT_UNLIMITED }}
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+          # macOS signing and notarization (optional; unsigned builds are flagged by Gatekeeper).
+          APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
+          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+          APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_PASSWORD: ${{ secrets.APPLE_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+        with:
+          projectPath: apps/desktop
+          tagName: ${{ github.ref_name }}
+          releaseName: Lumo ${{ github.ref_name }}
+          releaseBody: See the assets below. Read docs/release.md before publishing.
+          releaseDraft: true
+          prerelease: true
+          args: ${{ matrix.args }} ${{ steps.updater.outputs.args }}
