@@ -1,0 +1,48 @@
+---
+import Base from '../layouts/Base.astro';
+import PageHead from '../components/PageHead.astro';
+import { SITE } from '../data/site';
+---
+
+<Base title="Support" description="Get help with Lumo: the getting-started guide, troubleshooting, and GitHub issues for bugs and feature requests.">
+  <PageHead
+    eyebrow="Support"
+    title="Get help with Lumo."
+    lede="Lumo is built in the open. Questions, bugs and ideas all go to the same place, where you can follow what happens to them."
+  />
+  <div class="container">
+    <div class="grid grid-3">
+      <section class="panel" aria-labelledby="s-docs">
+        <h2 class="h3" id="s-docs">Read the guide</h2>
+        <p>Install, connect your key, grant a folder, and learn how approvals work.</p>
+        <p><a href="/docs/">Getting started</a></p>
+      </section>
+      <section class="panel" aria-labelledby="s-trouble">
+        <h2 class="h3" id="s-trouble">Troubleshooting</h2>
+        <p>Keychain errors on Linux, API key problems, files Lumo cannot see.</p>
+        <p><a href="/docs/#troubleshooting">Common problems</a></p>
+      </section>
+      <section class="panel" aria-labelledby="s-issues">
+        <h2 class="h3" id="s-issues">Report a bug or ask</h2>
+        <p>Search existing issues first, then open a new one with steps to reproduce.</p>
+        <p><a href={SITE.issues}>GitHub issues</a></p>
+      </section>
+    </div>
+
+    <section class="section" aria-labelledby="good-report">
+      <div class="section-head">
+        <h2 class="h-display" id="good-report">What helps in a bug report</h2>
+      </div>
+      <ul class="checklist">
+        <li><span><strong>Your system</strong>: operating system and version, and which Lumo build you installed.</span></li>
+        <li><span><strong>What you asked</strong> and what you expected, in a sentence or two.</span></li>
+        <li><span><strong>What happened</strong>, including any error text.</span></li>
+        <li><span><strong>The latest log</strong> from Settings → About → Open logs folder. Remove anything you would not want public first.</span></li>
+      </ul>
+      <p class="dl-note">
+        Never post your API key, tokens or personal data in an issue. Security problems should be reported privately; see
+        <a href="/security/#report">reporting a vulnerability</a>.
+      </p>
+    </section>
+  </div>
+</Base>

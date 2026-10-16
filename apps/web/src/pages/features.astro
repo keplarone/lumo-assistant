@@ -1,0 +1,65 @@
+---
+import Base from '../layouts/Base.astro';
+import PageHead from '../components/PageHead.astro';
+import StatusBadge from '../components/StatusBadge.astro';
+import { CAPABILITIES, STATUS_LABEL, type CapabilityStatus } from '../data/capabilities';
+
+const order: CapabilityStatus[] = ['available', 'in-development', 'planned'];
+const groups = order
+  .map((status) => ({ status, items: CAPABILITIES.filter((c) => c.status === status) }))
+  .filter((g) => g.items.length > 0);
+const intro: Record<CapabilityStatus, string> = {
+  available: 'In the current release.',
+  'in-development': 'Being built for the first release. Not available yet.',
+  planned: 'On the roadmap after the first release. Designs may change.',
+};
+---
+
+<Base title="Features" description="Everything Lumo is being built to do, with the honest status of each feature: available, in development or planned.">
+  <PageHead
+    eyebrow="Features"
+    title="What Lumo does, and what it will do."
+    lede="Lumo is pre-release software. This page lists every feature with its real status, so you always know what you can use and what is still being built."
+  >
+    <p class="legend" aria-label="Status legend">
+      <span><StatusBadge status="available" /> Ready to use</span>
+      <span><StatusBadge status="in-development" /> Being built, not usable yet</span>
+      <span><StatusBadge status="planned" /> On the roadmap</span>
+    </p>
+  </PageHead>
+  <div class="container">
+    {
+      groups.map((g) => (
+        <section aria-labelledby={`g-${g.status}`}>
+          <h2 class="h-display group-title" id={`g-${g.status}`}>
+            {STATUS_LABEL[g.status]}
+          </h2>
+          <p class="muted group-intro">{intro[g.status]}</p>
+          <ul class="cap-list">
+            {g.items.map((c) => (
+              <li class="cap-row" id={c.id}>
+                <div>
+                  <h3 class="h3">{c.name}</h3>
+                  <p>{c.summary}</p>
+                  {c.note && <p class="note">{c.note}</p>}
+                </div>
+                <StatusBadge status={c.status} />
+              </li>
+            ))}
+          </ul>
+        </section>
+      ))
+    }
+    <section class="section" aria-labelledby="always">
+      <div class="section-head">
+        <h2 class="h-display" id="always">The same rules for every feature</h2>
+      </div>
+      <ul class="checklist">
+        <li><span><strong>You grant access.</strong> Folders, screen, clipboard, location and accounts are off until you turn them on, and can be revoked in Settings.</span></li>
+        <li><span><strong>Changes need approval.</strong> Anything that writes asks first; anything sensitive asks through a native system dialog.</span></li>
+        <li><span><strong>Checkouts stay with the provider.</strong> Lumo hands off orders and purchases; you review and pay on the provider’s or merchant’s site.</span></li>
+        <li><span><strong>Your key, your provider.</strong> Lumo works with your own model API key and has no account or cloud service of its own.</span></li>
+      </ul>
+    </section>
+  </div>
+</Base>

@@ -1,0 +1,37 @@
+---
+/* Dev-only route (/__og), injected when LUMO_STILLS=1. The 1200x630 social card, composed from the
+   rendered hero still (run the still step first). */
+import '@fontsource-variable/inter/wght.css';
+import '@fontsource-variable/bricolage-grotesque/wght.css';
+import '@fontsource/ibm-plex-mono/500.css';
+import '@lumo/ui/styles.css';
+---
+
+<html lang="en" data-theme="dark">
+  <head>
+    <meta charset="utf-8" />
+    <title>OG</title>
+    <style>
+      html, body { margin: 0; width: 1200px; height: 630px; overflow: hidden; }
+      .card { position: relative; width: 1200px; height: 630px; background: var(--lu-stage); display: grid; grid-template-columns: 640px 1fr; align-items: center; }
+      .copy { padding: 0 0 0 84px; display: grid; gap: 26px; }
+      .brand { display: flex; gap: 12px; align-items: center; font: 700 30px/1 var(--lu-font-display); letter-spacing: -0.02em; color: var(--lu-text); }
+      .dot { width: 18px; height: 18px; border-radius: 50%; background: var(--lu-lumen); box-shadow: 0 0 0 7px var(--lu-lumen-subtle); }
+      h1 { margin: 0; font: 600 76px/1.0 var(--lu-font-display); letter-spacing: -0.035em; color: var(--lu-text); }
+      p { margin: 0; font: 400 26px/1.4 var(--lu-font-ui); color: var(--lu-text-secondary); max-width: 30ch; }
+      .tag { font: 500 15px/1 var(--lu-font-mono); letter-spacing: 0.08em; text-transform: uppercase; color: var(--lu-text-tertiary); }
+      img { width: 560px; height: 604px; object-fit: cover; justify-self: center; -webkit-mask-image: radial-gradient(closest-side, #000 70%, transparent); mask-image: radial-gradient(closest-side, #000 70%, transparent); }
+    </style>
+  </head>
+  <body>
+    <div class="card">
+      <div class="copy">
+        <div class="brand"><span class="dot"></span>Lumo</div>
+        <h1>Whatever you need. Just ask Lumo.</h1>
+        <p>Your AI desktop companion for Windows, macOS and Linux.</p>
+        <span class="tag">Free · Bring your own model key · Pre-release</span>
+      </div>
+      <img src="/stills/hero.jpg" alt="" />
+    </div>
+  </body>
+</html>

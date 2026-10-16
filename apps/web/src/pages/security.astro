@@ -1,0 +1,116 @@
+---
+import Base from '../layouts/Base.astro';
+import PageHead from '../components/PageHead.astro';
+import { SITE } from '../data/site';
+---
+
+<Base title="Security & privacy" description="How Lumo protects you: permission tiers enforced in the native core, keys in the OS keychain, an encrypted local database, no Lumo cloud and no tracking.">
+  <PageHead
+    eyebrow="Security & privacy"
+    title="Built so it cannot do more than you allow."
+    lede="Lumo acts on your computer and your accounts, so its safety cannot depend on the model behaving well. Permissions are enforced in native code, secrets never reach the interface, and your data stays on your machine."
+  />
+  <div class="container docs-layout">
+    <nav class="toc" aria-label="On this page">
+      <p class="eyebrow">On this page</p>
+      <ol>
+        <li><a href="#tiers">Risk tiers</a></li>
+        <li><a href="#grants">Grants</a></li>
+        <li><a href="#secrets">Keys and secrets</a></li>
+        <li><a href="#data">Your data</a></li>
+        <li><a href="#injection">Untrusted content</a></li>
+        <li><a href="#automations">Automations</a></li>
+        <li><a href="#updates">Updates</a></li>
+        <li><a href="#website">This website</a></li>
+        <li><a href="#report">Reporting a vulnerability</a></li>
+      </ol>
+    </nav>
+    <div class="prose">
+      <h2 id="tiers">Risk tiers</h2>
+      <p>Every tool has one of three tiers. The tier is checked in Lumo’s native core at the moment a tool is about to run.</p>
+      <div class="table-wrap">
+        <table>
+          <caption class="sr-only">Risk tiers and how each is approved</caption>
+          <thead>
+            <tr><th scope="col">Tier</th><th scope="col">Examples</th><th scope="col">What it takes</th></tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><strong>Read</strong></td>
+              <td>List or read files in a granted folder, search the web, read the clipboard after you grant it</td>
+              <td>Runs automatically once the capability is granted. Logged.</td>
+            </tr>
+            <tr>
+              <td><strong>Write</strong></td>
+              <td>Create or edit files in a granted folder, create a project, draft an email, create a calendar event</td>
+              <td>A one-click approval card in the app, or approval for the rest of the conversation. Reversible: file writes are journaled for undo and projects are versioned.</td>
+            </tr>
+            <tr>
+              <td><strong>Sensitive</strong></td>
+              <td>Move files to the trash, send email, open a checkout, deploy, run a command, capture the screen, control mouse and keyboard</td>
+              <td>A native system dialog shows the exact action. The app’s interface cannot create, change or answer it. Never pre-approved, never allowed in background automations.</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <h2 id="grants">Grants</h2>
+      <p>
+        Folders, screen, clipboard, location and accounts are off by default. You grant each one explicitly; folders are picked in the system file
+        dialog. Every grant is listed in Settings → Permissions and can be revoked at any time. A tool call outside your grants fails in the core,
+        whatever the model was told.
+      </p>
+      <p>
+        Screen capture, microphone and input control show a dedicated live indicator whenever they are active, and a global shortcut stops input
+        control immediately.
+      </p>
+
+      <h2 id="secrets">Keys and secrets</h2>
+      <ul>
+        <li>Your model API key and account tokens are stored in the operating system’s keychain (Keychain on macOS, Credential Manager on Windows, Secret Service on Linux).</li>
+        <li>Keys are attached to requests only inside the native core. The interface never receives a secret; it can only ask whether one is set.</li>
+        <li>If no keychain is available, Lumo tells you and does not fall back to storing secrets in plain text.</li>
+      </ul>
+
+      <h2 id="data">Your data</h2>
+      <ul>
+        <li><strong>No Lumo cloud.</strong> There is no Lumo account or server. Requests go from your computer directly to the provider you configured.</li>
+        <li><strong>Encrypted at rest.</strong> Conversations, memories and history are kept in an encrypted database on your computer; its key lives in your keychain.</li>
+        <li><strong>Your retention.</strong> Choose how long conversations, task history and the audit log are kept. Older entries are deleted automatically.</li>
+        <li><strong>Memory you can see.</strong> When memory is on, every saved memory is visible, editable and deletable, and memory can be switched off entirely.</li>
+        <li><strong>Logs without content.</strong> Diagnostic logs stay on your computer and do not include message content at the default level.</li>
+      </ul>
+      <p>What you send to a model provider is governed by that provider’s terms and privacy policy.</p>
+
+      <h2 id="injection">Untrusted content</h2>
+      <p>
+        Text from web pages, files, email and screenshots is wrapped and labelled as untrusted before the model sees it. Permissions are never part
+        of that context, so injected instructions cannot widen what Lumo may do. Confirmations for purchases, sends and deletions show the exact
+        parameters, so a tampered action is visible before it happens. Each task has limits on tool calls, time and estimated spend.
+      </p>
+
+      <h2 id="automations">Automations</h2>
+      <p>
+        Scheduled automations run with read tools and notifications only. Anything that would write or is sensitive is queued for you to approve
+        the next time you are at your computer.
+      </p>
+
+      <h2 id="updates">Updates</h2>
+      <p>The built-in updater verifies a cryptographic signature on every update before installing it.</p>
+
+      <h2 id="website">This website</h2>
+      <p>
+        This site sets no cookies and loads no third-party scripts or fonts. Page-view counting is off unless it is explicitly configured, and even
+        then it respects Do Not Track and Global Privacy Control. Details are in the <a href="/legal/privacy/#website-analytics">privacy policy</a>.
+      </p>
+
+      <h2 id="report">Reporting a vulnerability</h2>
+      <p>
+        Please report security problems privately through the GitHub repository’s <strong>Security</strong> tab (“Report a vulnerability”), rather
+        than in a public issue. If private reporting is not available, open an <a href={SITE.issues}>issue</a> asking for a private contact,
+        without including details.
+      </p>
+      <p class="muted">Lumo is pre-release software; the measures above describe how it is designed and built.</p>
+    </div>
+  </div>
+</Base>

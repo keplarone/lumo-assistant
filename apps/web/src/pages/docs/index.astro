@@ -1,0 +1,139 @@
+---
+import Base from '../../layouts/Base.astro';
+import PageHead from '../../components/PageHead.astro';
+import { SITE } from '../../data/site';
+import { RELEASES_URL } from '../../data/downloads';
+
+const toc = [
+  ['install', 'Install'],
+  ['api-key', 'Add your API key'],
+  ['grant-folder', 'Grant a folder'],
+  ['first-tasks', 'First tasks'],
+  ['approvals', 'Approvals and risk tiers'],
+  ['shortcut', 'Floating assistant'],
+  ['automations', 'Automations'],
+  ['memory', 'Memory controls'],
+  ['troubleshooting', 'Troubleshooting'],
+];
+---
+
+<Base title="Getting started" description="Install Lumo, add your Anthropic API key, grant a folder, run your first tasks, and learn how approvals, automations and memory work.">
+  <PageHead
+    eyebrow="Docs"
+    title="Getting started with Lumo"
+    lede="Everything you need for the first hour: installing, connecting your model key, giving Lumo access to a folder, and how it asks before it acts."
+  />
+  <div class="container docs-layout">
+    <nav class="toc" aria-label="Guide sections">
+      <p class="eyebrow">In this guide</p>
+      <ol>
+        {toc.map(([id, label]) => <li><a href={`#${id}`}>{label}</a></li>)}
+      </ol>
+    </nav>
+    <div class="prose">
+      <div class="lu-callout" data-tone="accent" role="note">
+        <svg viewBox="0 0 16 16" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="8" cy="8" r="6.5"></circle><path d="M8 7v4M8 5h.01"></path></svg>
+        <div>
+          <div class="lu-callout-title">Pre-release guide</div>
+          <div>Lumo has not been released yet. This guide describes the first release as it is being built; menu names may change before then.</div>
+        </div>
+      </div>
+
+      <h2 id="install">Install</h2>
+      <p>Download the build for your system from the <a href="/download/">download page</a> (builds are published on <a href={RELEASES_URL}>GitHub Releases</a>).</p>
+      <h3>Windows</h3>
+      <p>Run the <code>.msi</code> or the setup <code>.exe</code> and follow the prompts. Lumo uses Microsoft WebView2, which is part of Windows 11 and the installer sets it up on Windows 10 if it is missing.</p>
+      <h3>macOS</h3>
+      <p>Open the <code>.dmg</code> for your Mac (Apple Silicon or Intel) and drag Lumo into Applications.</p>
+      <h3>Linux</h3>
+      <p>Either install the Debian package:</p>
+      <pre><code>sudo apt install ./lumo_*.deb</code></pre>
+      <p>or make the AppImage executable and run it:</p>
+      <pre><code>chmod +x Lumo_*.AppImage
+./Lumo_*.AppImage</code></pre>
+
+      <h2 id="api-key">Add your Anthropic API key</h2>
+      <p>Lumo uses Claude models with your own API key. You pay Anthropic directly for usage; Lumo itself is free.</p>
+      <ol>
+        <li>Create a key in the <a href="https://console.anthropic.com/">Anthropic Console</a>.</li>
+        <li>Open Lumo. The first-run screen asks for the key; you can also add or replace it later in <strong>Settings → Model</strong>.</li>
+        <li>Paste the key and save.</li>
+      </ol>
+      <p>
+        The key is stored in your operating system’s keychain, not in a file. Only Lumo’s native core reads it, to attach it to requests that go
+        directly to Anthropic. You can remove it at any time from the same settings screen.
+      </p>
+
+      <h2 id="grant-folder">Grant a folder</h2>
+      <p>Lumo cannot see your files until you give it a folder.</p>
+      <ol>
+        <li>Go to <strong>Settings → Permissions</strong> and choose <strong>Add folder</strong>, or wait until a task needs one and Lumo asks.</li>
+        <li>Pick the folder in the system dialog. Lumo can then read inside it, and propose changes there.</li>
+        <li>Revoke access from the same list whenever you like.</li>
+      </ol>
+      <p>Start with something low-stakes, like Downloads or a project folder, rather than your whole home folder.</p>
+
+      <h2 id="first-tasks">First tasks</h2>
+      <p>Ask in plain language. Some good first requests:</p>
+      <ul>
+        <li>“Summarize the PDF I just added and list the deadlines in it.”</li>
+        <li>“Look through my Downloads folder and suggest how to organize it. Don’t move anything yet.”</li>
+        <li>“Research the three best-reviewed lightweight tents under $200 and compare them.”</li>
+        <li>“Build me a one-page website for my book club.”</li>
+      </ul>
+      <p>For bigger tasks Lumo shows a plan first. You can edit or redirect it in words before it continues.</p>
+
+      <h2 id="approvals">Approvals and risk tiers</h2>
+      <p>Every action has a tier, and the tier decides how Lumo asks:</p>
+      <ul>
+        <li><strong>Read</strong> (reading files in granted folders, searching the web): runs automatically once granted.</li>
+        <li><strong>Write</strong> (creating or editing files, creating a project, drafting an email): an approval card appears in the conversation. Approve once, or for the rest of the conversation. File changes can be undone from history.</li>
+        <li><strong>Sensitive</strong> (moving files to the trash, sending email, opening a checkout, running a command, controlling the screen): a native system dialog shows exactly what will happen. These can never be pre-approved.</li>
+      </ul>
+      <p>You can stop a running task at any time. See <a href="/security/">Security &amp; privacy</a> for how tiers are enforced.</p>
+
+      <h2 id="shortcut">Floating assistant</h2>
+      <p>
+        Press <kbd>Alt</kbd>+<kbd>Space</kbd> on Windows and Linux, or <kbd>Option</kbd>+<kbd>Space</kbd> on macOS, to open a compact Lumo window
+        over whatever you are doing. Change the shortcut in <strong>Settings → General</strong>. Closing the main window keeps Lumo in the tray or menu bar
+        unless you turn that off.
+      </p>
+
+      <h2 id="automations">Automations</h2>
+      <p>Automations are tasks that run on a schedule, like “every Monday at 9, summarize new files in my Invoices folder”.</p>
+      <ul>
+        <li>Create one by asking Lumo, or in <strong>Automations</strong>.</li>
+        <li>In the background they can only use read tools and send you notifications. Anything that would change something is queued for your approval.</li>
+        <li>Pause, run now, edit or delete each automation, and read its run history.</li>
+      </ul>
+
+      <h2 id="memory">Memory controls</h2>
+      <p>Memory lets Lumo keep preferences you want it to remember, like your dietary preferences or the folder you keep invoices in.</p>
+      <ul>
+        <li>Turn memory on or off in <strong>Settings → Memory</strong>.</li>
+        <li>Each saved memory is shown when it is created, and listed in settings where you can edit or delete it.</li>
+        <li>Export all memories, or clear them all at once.</li>
+      </ul>
+
+      <h2 id="troubleshooting">Troubleshooting</h2>
+      <h3>“Invalid API key” or authentication errors</h3>
+      <p>Check the key in the Anthropic Console is active and has credit, then paste it again in <strong>Settings → Model</strong>.</p>
+      <h3>Linux: “No keychain available”</h3>
+      <p>
+        Lumo needs a Secret Service provider such as GNOME Keyring or KWallet to store your key. Install and unlock one, then restart Lumo. Lumo will
+        not store secrets in plain text instead.
+      </p>
+      <h3>Linux: the AppImage does not start</h3>
+      <p>Some distributions need FUSE for AppImages (for example the <code>libfuse2</code> package). Alternatively use the <code>.deb</code>.</p>
+      <h3>Lumo cannot see a file</h3>
+      <p>Make sure the file is inside a folder listed in <strong>Settings → Permissions</strong>. Lumo cannot reach anything outside granted folders.</p>
+      <h3>A task stopped partway</h3>
+      <p>Tasks have limits on time, number of tool calls and estimated spend. The task history shows which step stopped and why; ask Lumo to continue.</p>
+      <h3>Something else</h3>
+      <p>
+        Open <strong>Settings → About → Open logs folder</strong> and attach the latest log (it does not contain your messages at the default level)
+        to a <a href={SITE.issues}>GitHub issue</a>. See <a href="/support/">Support</a>.
+      </p>
+    </div>
+  </div>
+</Base>

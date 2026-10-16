@@ -1,0 +1,20 @@
+---
+/* Dev-only route (/__still), injected when LUMO_STILLS=1. One mascot on the stage gradient. */
+import '@lumo/ui/tokens.css';
+import StillRender from './StillRender';
+---
+
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Still</title>
+    <style>
+      html, body { margin: 0; }
+      body { background: var(--lu-stage); }
+      #s { width: 100vw; height: 100vh; }
+    </style>
+  </head>
+  <body>
+    <div id="s"><StillRender client:only="react" /></div>
+  </body>
+</html>

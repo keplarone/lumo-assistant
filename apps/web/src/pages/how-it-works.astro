@@ -1,0 +1,101 @@
+---
+import Base from '../layouts/Base.astro';
+import PageHead from '../components/PageHead.astro';
+import Workflow from '../components/Workflow.astro';
+import '../styles/home.css';
+
+const loop = [
+  {
+    title: 'Understand',
+    text: 'Your message, the conversation so far, and context you have allowed (the time, an attached file, the active app if granted) become one request to the model you chose.',
+  },
+  {
+    title: 'Plan',
+    text: 'For work with several steps, Lumo writes a plan you can see, and keeps it updated as it goes. When something important is missing it asks a structured question with options instead of guessing.',
+  },
+  {
+    title: 'Act',
+    text: 'The model asks to use a tool. Lumo’s core, not the model, checks the request: is the input valid, is this folder or account granted, what tier is it, has the rate limit been reached? Only then does it run, or ask you first.',
+  },
+  {
+    title: 'Verify',
+    text: 'Tools return evidence such as file paths and hashes, HTTP status codes or the IDs of things created. Write tools read back what they wrote. A step whose tool failed can never be reported as done.',
+  },
+  {
+    title: 'Report',
+    text: 'You get the answer plus a short summary of the steps taken, the tools used and the outcome. Every step is saved, so an interrupted task is marked as interrupted, never as successful.',
+  },
+];
+---
+
+<Base title="How Lumo works" description="How Lumo turns a request into a checked result: understanding, planning, tools gated by permission tiers, verification and a clear report.">
+  <PageHead
+    eyebrow="How Lumo works"
+    title="Tell Lumo what you want. Lumo figures out how to make it happen."
+    lede="Behind every answer is the same loop: understand, plan, act within your permissions, check the result, report back. Here is what happens at each step, and what Lumo will not do."
+  />
+  <div class="container">
+    <section aria-labelledby="loop-title">
+      <h2 class="h-display group-title" id="loop-title">The loop</h2>
+      <ol class="steps-list">
+        {
+          loop.map((s) => (
+            <li>
+              <div>
+                <h3 class="h3">{s.title}</h3>
+                <p>{s.text}</p>
+              </div>
+            </li>
+          ))
+        }
+      </ol>
+    </section>
+
+    <section class="section" aria-labelledby="wf-title">
+      <div class="section-head">
+        <h2 class="h-display" id="wf-title">Follow one request</h2>
+        <p class="lede">An example request, step by step.</p>
+      </div>
+      <Workflow />
+    </section>
+
+    <section aria-labelledby="who-title">
+      <div class="section-head">
+        <h2 class="h-display" id="who-title">Who decides what</h2>
+        <p class="lede">Lumo is split so that the part that talks to the model never holds the power to act on its own.</p>
+      </div>
+      <div class="grid grid-3">
+        <div class="panel">
+          <h3 class="h3">The model</h3>
+          <p>Chooses among the tools it is offered and writes text. A tool call from the model is a request, nothing more.</p>
+        </div>
+        <div class="panel">
+          <h3 class="h3">Lumo’s core</h3>
+          <p>A native process that holds your keys and the database, validates every tool call and makes the final decision against your grants and the risk tier.</p>
+        </div>
+        <div class="panel">
+          <h3 class="h3">You</h3>
+          <p>Grant access, approve changes, and confirm sensitive actions in a system dialog that the app’s interface cannot create or answer.</p>
+        </div>
+      </div>
+    </section>
+
+    <section class="section" aria-labelledby="untrusted-title">
+      <div class="section-head">
+        <h2 class="h-display" id="untrusted-title">Web pages and files cannot give orders</h2>
+      </div>
+      <div class="prose">
+        <p>
+          Content Lumo reads from the web, your files, email or screenshots is labelled as untrusted data before the model sees it. Permissions are
+          never expressed in that context at all, so even text written to trick an AI cannot widen what Lumo is allowed to do: a sensitive action
+          still needs your confirmation, and a tool call outside your grants still fails.
+        </p>
+        <p>
+          Purchases, sends and deletions show their exact details in the confirmation, so a change slipped in by a web page would be visible to you
+          before anything happens. Each task also has limits on tool calls, time and estimated spend.
+        </p>
+        <p><a href="/security/">Read the security and privacy overview</a>.</p>
+      </div>
+    </section>
+  </div>
+</Base>

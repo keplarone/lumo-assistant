@@ -1,0 +1,44 @@
+---
+import Logo from './Logo.astro';
+import { FOOTER_NAV, SITE } from '../data/site';
+---
+
+<footer class="site-footer">
+  <div class="container footer-inner">
+    <div class="footer-brand">
+      <a class="brand" href="/">
+        <Logo />
+        <span class="brand-name">Lumo</span>
+      </a>
+      <p class="footer-tagline">{SITE.tagline}</p>
+      <p class="footer-note">
+        Lumo is pre-release software. Anything marked <em>In development</em> or <em>Planned</em> is not available yet.
+      </p>
+    </div>
+    {
+      FOOTER_NAV.map((col) => (
+        <nav class="footer-col" aria-label={col.title}>
+          <h2 class="footer-title">{col.title}</h2>
+          <ul>
+            {col.items.map((item) => (
+              <li>
+                <a href={item.href}>{item.label}</a>
+              </li>
+            ))}
+          </ul>
+        </nav>
+      ))
+    }
+    <div class="footer-col">
+      <h2 class="footer-title">Source</h2>
+      <ul>
+        <li><a href={SITE.repo}>GitHub repository</a></li>
+        <li><a href={SITE.issues}>Report an issue</a></li>
+      </ul>
+    </div>
+  </div>
+  <div class="container footer-base">
+    <p>© {new Date().getFullYear()} Lumo Assistant contributors.</p>
+    <p>Lumo is not affiliated with the services it links to. Product names are trademarks of their owners.</p>
+  </div>
+</footer>

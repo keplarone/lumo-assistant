@@ -1,0 +1,139 @@
+---
+/**
+ * Interactive workflow: request → understand and plan → tools → verified actions → report.
+ *
+ * Without JavaScript this is a linked track plus every stage written out in order (the text
+ * equivalent). With JavaScript it becomes a keyboard-accessible tab set: arrow keys, Home and End
+ * move between stages; only the chosen stage's panel is shown. Nothing advances on its own.
+ */
+const stages = [
+  {
+    id: 'request',
+    label: 'Request',
+    title: 'You say what you want',
+    text: 'Type or paste a request in plain language, the way you would ask a capable friend. Attach a file or a link if it helps.',
+    example: '“Find three quiet Italian places near me that are open late on Friday.”',
+  },
+  {
+    id: 'plan',
+    label: 'Understand & plan',
+    title: 'Lumo works out what you mean',
+    text: 'For anything with more than one step, Lumo writes a short plan you can see. If something important is missing, it asks one clear question instead of guessing.',
+    example: 'Plan: check saved location → search places → filter by hours and noise → compare.',
+  },
+  {
+    id: 'tools',
+    label: 'Use tools',
+    title: 'It uses real tools, within your permissions',
+    text: 'Files in folders you granted, the web, apps and connected services. Each tool call is checked against what you allowed before it runs; anything that changes things waits for your approval.',
+    example: 'find_places · web_fetch · present_options',
+  },
+  {
+    id: 'verify',
+    label: 'Verify',
+    title: 'It checks the result',
+    text: 'Tools return evidence: paths, status codes, created items. Lumo re-reads what it wrote and will not report a step as done if the tool behind it failed.',
+    example: 'Opening hours confirmed on each restaurant’s own page.',
+  },
+  {
+    id: 'report',
+    label: 'Report',
+    title: 'You get a clear answer',
+    text: 'A short summary of what happened, what was checked, and what is left for you to decide, with links to anything it made or found.',
+    example: 'Three options with hours, distance and a link to order or book.',
+  },
+];
+const tools = ['Files', 'Web', 'Apps', 'Services'];
+---
+
+<div class="wf" data-wf>
+  <ol class="wf-track" data-wf-track>
+    {
+      stages.map((s, i) => (
+        <li class="wf-node-wrap">
+          <a class="wf-node" href={`#wf-${s.id}`} id={`wf-tab-${s.id}`} data-wf-tab={s.id}>
+            <span class="wf-dot" aria-hidden="true">
+              {i + 1}
+            </span>
+            <span class="wf-label">{s.label}</span>
+          </a>
+          {s.id === 'tools' && (
+            <span class="wf-tools" aria-hidden="true">
+              {tools.map((t) => (
+                <span class="wf-tool">{t}</span>
+              ))}
+            </span>
+          )}
+        </li>
+      ))
+    }
+  </ol>
+  <div class="wf-panels">
+    {
+      stages.map((s, i) => (
+        <section class="wf-panel" id={`wf-${s.id}`} data-wf-panel={s.id} aria-labelledby={`wf-h-${s.id}`}>
+          <p class="eyebrow">
+            Step {i + 1} of {stages.length}
+          </p>
+          <h3 class="h3" id={`wf-h-${s.id}`}>
+            {s.title}
+          </h3>
+          <p class="muted">{s.text}</p>
+          <p class="wf-example">{s.example}</p>
+        </section>
+      ))
+    }
+  </div>
+</div>
+
+<script>
+  const root = document.querySelector<HTMLElement>('[data-wf]');
+  if (root) {
+    const track = root.querySelector<HTMLElement>('[data-wf-track]')!;
+    const tabs = Array.from(root.querySelectorAll<HTMLAnchorElement>('[data-wf-tab]'));
+    const panels = Array.from(root.querySelectorAll<HTMLElement>('[data-wf-panel]'));
+    root.dataset.enhanced = '';
+    track.setAttribute('role', 'tablist');
+    track.setAttribute('aria-label', 'How a request moves through Lumo');
+    track.querySelectorAll('li').forEach((li) => li.setAttribute('role', 'presentation'));
+    tabs.forEach((t) => {
+      t.setAttribute('role', 'tab');
+      t.setAttribute('aria-controls', `wf-${t.dataset.wfTab}`);
+    });
+    panels.forEach((p) => {
+      p.setAttribute('role', 'tabpanel');
+      p.setAttribute('aria-labelledby', `wf-tab-${p.dataset.wfPanel}`);
+      p.tabIndex = 0;
+    });
+    const select = (i: number, focus = false) => {
+      tabs.forEach((t, j) => {
+        const on = i === j;
+        t.setAttribute('aria-selected', String(on));
+        t.tabIndex = on ? 0 : -1;
+        panels[j]!.hidden = !on;
+      });
+      root.style.setProperty('--wf-progress', String(i / (tabs.length - 1)));
+      root.dataset.active = String(i);
+      if (focus) tabs[i]!.focus();
+    };
+    tabs.forEach((t, i) => {
+      t.addEventListener('click', (e) => {
+        e.preventDefault();
+        select(i);
+      });
+      t.addEventListener('keydown', (e) => {
+        const n = tabs.length;
+        let next = -1;
+        if (e.key === 'ArrowRight' || e.key === 'ArrowDown') next = (i + 1) % n;
+        else if (e.key === 'ArrowLeft' || e.key === 'ArrowUp') next = (i - 1 + n) % n;
+        else if (e.key === 'Home') next = 0;
+        else if (e.key === 'End') next = n - 1;
+        if (next >= 0) {
+          e.preventDefault();
+          select(next, true);
+        }
+      });
+    });
+    select(0);
+  }
+</script>

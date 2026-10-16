@@ -1,0 +1,27 @@
+---
+import Base from '../../layouts/Base.astro';
+import PageHead from '../../components/PageHead.astro';
+const docs = [
+  { href: '/legal/terms/', title: 'Terms of use', text: 'The terms for using the Lumo app and this website.' },
+  { href: '/legal/privacy/', title: 'Privacy policy', text: 'What data Lumo and this website handle, and where it goes.' },
+  { href: '/legal/licenses/', title: 'Open-source licenses', text: 'The fonts and open-source software Lumo is built with.' },
+];
+---
+
+<Base title="Legal" description="Lumo's terms of use, privacy policy and open-source licenses.">
+  <PageHead eyebrow="Legal" title="Legal" lede="The terms, the privacy policy and the open-source components behind Lumo." />
+  <div class="container">
+    <ul class="grid grid-3 plain-list" role="list">
+      {
+        docs.map((d) => (
+          <li class="panel">
+            <h2 class="h3">
+              <a href={d.href}>{d.title}</a>
+            </h2>
+            <p>{d.text}</p>
+          </li>
+        ))
+      }
+    </ul>
+  </div>
+</Base>

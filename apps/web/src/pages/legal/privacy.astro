@@ -1,0 +1,62 @@
+---
+import Base from '../../layouts/Base.astro';
+import PageHead from '../../components/PageHead.astro';
+import { SITE } from '../../data/site';
+import { ANALYTICS_ENDPOINT } from '../../lib/analytics';
+const analyticsOn = Boolean(ANALYTICS_ENDPOINT);
+---
+
+<Base title="Privacy policy" description="What data the Lumo app and website handle: no Lumo account or cloud, an encrypted local database, and cookieless, opt-out-respecting website analytics.">
+  <PageHead eyebrow="Legal" title="Privacy policy" lede="Short version: Lumo has no account and no cloud service, your data stays on your computer, and this website does not track you.">
+    <p class="legal-meta">Last updated 16 October 2026 · Pre-release draft</p>
+  </PageHead>
+  <div class="container prose">
+    <h2 id="app">The Lumo app</h2>
+    <h3>What stays on your computer</h3>
+    <p>
+      Conversations, task history, memories, settings and the audit log are stored on your computer in an encrypted database. The database key and
+      your API keys and account tokens are kept in your operating system’s keychain. The Lumo project does not receive any of this. You choose how
+      long history is kept, and you can delete it at any time.
+    </p>
+    <h3>What is sent, and to whom</h3>
+    <ul>
+      <li><strong>Your model provider</strong> (for example Anthropic) receives the messages and context needed to answer each request, sent directly from your computer with your key. Their privacy policy applies.</li>
+      <li><strong>Web pages and search</strong> you ask Lumo to read are fetched like a browser would.</li>
+      <li><strong>Services you connect</strong>, such as a calendar or GitHub, receive the requests needed for actions you ask for or approve.</li>
+      <li><strong>Handoffs</strong> to delivery providers or merchants open their site in your browser; what you do there is governed by their policies.</li>
+      <li><strong>Updates</strong>: the app checks for new versions, which reveals your IP address and app version to the update host.</li>
+    </ul>
+    <p>Lumo does not include advertising, analytics or crash-reporting services in the app. Diagnostic logs stay on your computer unless you choose to share them.</p>
+
+    <h3>Permissions</h3>
+    <p>
+      Folders, screen, microphone, clipboard, location and accounts are only used after you grant them, and grants can be revoked in Settings →
+      Permissions. A visible indicator shows whenever the screen, microphone or input control is in use.
+    </p>
+
+    <h2 id="website">This website</h2>
+    <p>This website is a set of static pages. It sets no cookies, uses no local storage for tracking, and loads no third-party scripts, fonts or embeds.</p>
+
+    <h3 id="website-analytics">Page-view counting</h3>
+    <p>
+      The website includes an optional, first-party page-view counter. It is <strong>{analyticsOn ? 'currently enabled' : 'currently turned off'}</strong>:
+      it is only included in the pages when the site is built with an analytics endpoint configured, and otherwise no analytics code is present at all.
+    </p>
+    <p>When it is enabled:</p>
+    <ul>
+      <li>It sends nothing if your browser has <strong>Do Not Track</strong> or <strong>Global Privacy Control</strong> turned on.</li>
+      <li>Otherwise it sends one request per page view containing only: the page path, the host name of the referring site (not the full address), and a coarse screen-size class (small, medium or large).</li>
+      <li>It sets no cookies, stores nothing in your browser, sends no credentials and uses no identifiers or fingerprinting, so visits cannot be linked together.</li>
+      <li>The request goes to a server operated for the Lumo project, never to an advertising or analytics company.</li>
+    </ul>
+    <p>As with any website, the server that hosts these pages may keep standard access logs.</p>
+
+    <h2 id="children">Children</h2>
+    <p>Lumo is not directed at children under 13, and your model provider may set a higher minimum age.</p>
+
+    <h2 id="changes">Changes and contact</h2>
+    <p>
+      Changes to this policy will be posted on this page with a new date. Questions can be raised as a <a href={SITE.issues}>GitHub issue</a>.
+    </p>
+  </div>
+</Base>

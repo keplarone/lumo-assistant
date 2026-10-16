@@ -1,0 +1,11 @@
+---
+import { STATUS_LABEL, type CapabilityStatus } from '../data/capabilities';
+
+interface Props {
+  status: CapabilityStatus;
+}
+const { status } = Astro.props;
+const tone = status === 'available' ? 'success' : status === 'in-development' ? 'accent' : 'neutral';
+---
+
+<span class="lu-badge status-badge" data-tone={tone} data-status={status}>{STATUS_LABEL[status]}</span>

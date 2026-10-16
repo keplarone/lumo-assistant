@@ -1,0 +1,402 @@
+---
+import Base from '../layouts/Base.astro';
+import '../styles/home.css';
+import HeroStage from '../islands/HeroStage';
+import CompanionStage, { type CompanionItem } from '../islands/CompanionStage';
+import InAction from '../components/InAction';
+import BuildSequence from '../components/BuildSequence.astro';
+import Workflow from '../components/Workflow.astro';
+import StatusBadge from '../components/StatusBadge.astro';
+import DownloadGrid from '../components/DownloadGrid.astro';
+import { capability } from '../data/capabilities';
+import { softwareApplication } from '../data/schema';
+import {
+  FolderOpen,
+  Globe,
+  Hammer,
+  MessageSquare,
+  Repeat,
+  Command,
+  UtensilsCrossed,
+  ShoppingBag,
+  Monitor,
+  Eye,
+  OctagonX,
+  KeyRound,
+  HardDrive,
+  ShieldCheck,
+  ArrowRight,
+} from 'lucide-react';
+
+const helps = [
+  { id: 'conversations', icon: MessageSquare },
+  { id: 'files', icon: FolderOpen },
+  { id: 'web-research', icon: Globe },
+  { id: 'project-workspace', icon: Hammer },
+  { id: 'automations', icon: Repeat },
+  { id: 'floating-assistant', icon: Command },
+] as const;
+
+const food = capability('restaurant-finder');
+const shopping = capability('shopping-research');
+const direct = capability('direct-food-ordering');
+const computer = capability('computer-use');
+const mascot = capability('mascot');
+const workspace = capability('project-workspace');
+
+const companion = [
+  {
+    id: 'listening',
+    title: 'Listening',
+    text: 'Eyes wide and crest up while you type, so you can tell it has your attention.',
+    still: '/stills/listening.jpg',
+    alt: 'Lumo listening: eyes wide, looking straight at you.',
+  },
+  {
+    id: 'thinking',
+    title: 'Thinking',
+    text: 'Gaze drifts up and the halo turns faster while it works out a plan.',
+    still: '/stills/thinking.jpg',
+    alt: 'Lumo thinking: eyes half closed, looking up and to the side.',
+  },
+  {
+    id: 'working',
+    title: 'Working',
+    text: 'Heads down while tools run. It never looks idle while something is happening.',
+    still: '/stills/working.jpg',
+    alt: 'Lumo working: eyes lowered toward its work.',
+  },
+  {
+    id: 'celebrating',
+    title: 'Celebrating',
+    text: 'A short flutter and a pulse of light when a task is finished and checked.',
+    still: '/stills/celebrating.jpg',
+    alt: 'Lumo celebrating: wings out, eyes smiling.',
+  },
+  {
+    id: 'sleeping',
+    title: 'Sleeping',
+    text: 'After a few quiet minutes it dozes off. Any activity wakes it with a hello.',
+    still: '/stills/sleeping.jpg',
+    alt: 'Lumo asleep: eyes closed, glow dimmed.',
+  },
+].map((c) => ({ ...c, thumb: c.still.replace('.jpg', '-thumb.jpg') })) as CompanionItem[];
+
+const tiers = [
+  {
+    name: 'Read',
+    gate: 'Runs on its own, once you have granted the capability',
+    examples: 'Reading files in a granted folder, searching the web',
+    tone: 'neutral',
+  },
+  {
+    name: 'Write',
+    gate: 'One-click approval in the app, and reversible',
+    examples: 'Creating or editing files, creating a project, drafting an email',
+    tone: 'accent',
+  },
+  {
+    name: 'Sensitive',
+    gate: 'A native system dialog that shows the exact action',
+    examples: 'Moving files to the trash, sending email, opening a checkout, controlling the mouse and keyboard',
+    tone: 'warning',
+  },
+] as const;
+---
+
+<Base
+  description="Lumo is a desktop AI assistant that understands what you want, plans the steps, uses real tools with your permission and reports back. Free, local-first, bring your own model key."
+  jsonLd={[softwareApplication(Astro.site)]}
+>
+  <!-- Hero -->
+  <section class="hero" aria-labelledby="hero-title">
+    <div class="container hero-grid">
+      <div class="hero-copy">
+        <p class="eyebrow"><span class="lumen-dot" aria-hidden="true"></span> Desktop AI companion · Pre-release</p>
+        <h1 class="display" id="hero-title">Whatever you need. Just ask&nbsp;Lumo.</h1>
+        <p class="lede">
+          Meet your AI desktop companion. Create, organize, research, shop, and get things done — all from one place.
+        </p>
+        <div class="cta-row">
+          <a class="lu-button" data-variant="primary" data-size="lg" href="/download/" data-lumo-look data-lumo-target="cta-get">Get Lumo</a>
+          <a class="lu-button" data-variant="secondary" data-size="lg" href="#in-action" data-lumo-look data-lumo-target="cta-action">See Lumo in Action</a>
+        </div>
+        <p class="hero-fine">Free for Windows, macOS and Linux. Bring your own Anthropic API key. Not yet released.</p>
+      </div>
+      <HeroStage
+        client:visible
+        className="hero-stage"
+        still="/stills/hero.jpg"
+        width={1520}
+        height={1640}
+        alt="Lumo, a small round owl made of soft blue light with golden eyes and a crown of crystal feathers, floating inside a thin halo."
+      />
+    </div>
+  </section>
+
+  <!-- See Lumo in Action -->
+  <section class="section in-action" id="in-action" aria-labelledby="in-action-title">
+    <div class="container">
+      <div class="section-head">
+        <p class="eyebrow">See Lumo in action</p>
+        <h2 class="h-display" id="in-action-title">From a sentence to a finished, checked result.</h2>
+        <p class="lede">
+          A guided walkthrough of one task, built from Lumo’s own interface components with sample data. Step through it to see where Lumo works on
+          its own and where it stops to ask you.
+        </p>
+      </div>
+      <InAction client:visible />
+      <p class="in-action-note">
+        This is a walkthrough, not the app. The full interactive desktop preview will be embedded here once the app UI ships.
+      </p>
+    </div>
+  </section>
+
+  <!-- Capabilities -->
+  <section class="section" aria-labelledby="helps-title">
+    <div class="container">
+      <div class="section-head">
+        <p class="eyebrow">How Lumo helps</p>
+        <h2 class="h-display" id="helps-title">One place to ask. Real tools behind it.</h2>
+        <p class="lede">
+          Lumo is being built to take a request all the way to a result. Here is what is in progress today. Every item shows its real status.
+        </p>
+      </div>
+      <ul class="grid grid-3 helps" role="list">
+        {
+          helps.map(({ id, icon: Icon }) => {
+            const c = capability(id);
+            return (
+              <li class="panel">
+                <div class="panel-title">
+                  <span class="icon-tile">
+                    <Icon aria-hidden="true" />
+                  </span>
+                  <StatusBadge status={c.status} />
+                </div>
+                <h3 class="h3">{c.name}</h3>
+                <p>{c.summary}</p>
+              </li>
+            );
+          })
+        }
+      </ul>
+      <p class="helps-more"><a href="/features/">All features and their status <ArrowRight aria-hidden="true" className="inline-icon" /></a></p>
+
+      <div class="build-wrap">
+        <BuildSequence />
+      </div>
+    </div>
+  </section>
+
+  <!-- Workflow -->
+  <section class="section" aria-labelledby="wf-title">
+    <div class="container">
+      <div class="section-head">
+        <p class="eyebrow">How a request moves</p>
+        <h2 class="h-display" id="wf-title">Understand. Plan. Act. Check. Report.</h2>
+        <p class="lede">The same five steps for a quick question or a long task. Choose a step to see what happens there.</p>
+      </div>
+      <Workflow />
+      <p class="helps-more"><a href="/how-it-works/">How Lumo works, in detail <ArrowRight aria-hidden="true" className="inline-icon" /></a></p>
+    </div>
+  </section>
+
+  <!-- Real-world actions -->
+  <section class="section" aria-labelledby="real-title">
+    <div class="container">
+      <div class="section-head">
+        <p class="eyebrow">Real-world actions</p>
+        <h2 class="h-display" id="real-title">Dinner and shopping, researched for you. The checkout stays yours.</h2>
+        <p class="lede">
+          Lumo does the searching and comparing. When you have picked, it opens the provider or merchant so you can finish there, with your own
+          account and payment.
+        </p>
+      </div>
+      <div class="grid grid-2">
+        <article class="panel real-card">
+          <div class="panel-title">
+            <span class="icon-tile"><UtensilsCrossed aria-hidden="true" /></span>
+            <StatusBadge status={food.status} />
+          </div>
+          <h3 class="h3">Find somewhere to eat</h3>
+          <p>{food.summary}</p>
+          <ol class="handoff" aria-label="Food ordering steps">
+            <li><span class="handoff-who">Lumo</span> Finds places that fit: cuisine, distance, open now, price.</li>
+            <li><span class="handoff-who">You</span> Pick one.</li>
+            <li><span class="handoff-who handoff-them">Provider</span> DoorDash, Uber Eats or the restaurant’s site opens. You review and pay there.</li>
+          </ol>
+          <p class="note">{food.note}</p>
+        </article>
+        <article class="panel real-card">
+          <div class="panel-title">
+            <span class="icon-tile"><ShoppingBag aria-hidden="true" /></span>
+            <StatusBadge status={shopping.status} />
+          </div>
+          <h3 class="h3">Shop with a short list, not fifty tabs</h3>
+          <p>{shopping.summary}</p>
+          <ol class="handoff" aria-label="Shopping steps">
+            <li><span class="handoff-who">Lumo</span> Compares options against what you said matters.</li>
+            <li><span class="handoff-who">You</span> Choose.</li>
+            <li><span class="handoff-who handoff-them">Merchant</span> The product page opens. You buy there.</li>
+          </ol>
+          <p class="note">{shopping.note}</p>
+        </article>
+      </div>
+      <div class="planned-row">
+        <StatusBadge status={direct.status} />
+        <p><strong>{direct.name}.</strong> {direct.summary} {direct.note}</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- Create anything -->
+  <section class="section" aria-labelledby="create-title">
+    <div class="container split">
+      <div class="stack">
+        <p class="eyebrow">Create anything</p>
+        <h2 class="h-display" id="create-title">A workspace for the things you make together.</h2>
+        <p class="lede">
+          Ask for a website and Lumo opens a project: the conversation on one side, the files and a live preview on the other. Ask for changes in
+          words and watch the preview update.
+        </p>
+        <ul class="checklist">
+          <li><span><strong>Versioned.</strong> Every change Lumo makes is saved to the project’s history, so you can go back.</span></li>
+          <li><span><strong>Yours.</strong> Projects live in a folder you choose, as ordinary files you can open in any editor.</span></li>
+          <li><span><strong>Checked.</strong> Builds and checks run before Lumo calls something finished.</span></li>
+        </ul>
+        <p><StatusBadge status={workspace.status} /></p>
+      </div>
+      <div class="workspace" aria-hidden="true">
+        <div class="ws-chat">
+          <div class="ws-bubble ws-you">Make the menu page warmer, and add opening hours.</div>
+          <div class="ws-bubble ws-lumo">Updated <code>menu.html</code> and <code>styles.css</code>. Checks passed. Have a look.</div>
+          <div class="ws-composer">Ask for a change…</div>
+        </div>
+        <div class="ws-files">
+          <span class="ws-files-head">bakery-site</span>
+          <span class="ws-file">index.html</span>
+          <span class="ws-file ws-file-on">menu.html</span>
+          <span class="ws-file ws-file-on">styles.css</span>
+          <span class="ws-file">images/</span>
+        </div>
+        <div class="ws-preview">
+          <span class="ws-preview-bar">Preview</span>
+          <span class="ws-preview-title">Our menu</span>
+          <span class="ws-preview-row"></span>
+          <span class="ws-preview-row"></span>
+          <span class="ws-preview-row short"></span>
+          <span class="ws-preview-hours">Open Tue–Sun · 7:00–15:00</span>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Computer assistance -->
+  <section class="section" aria-labelledby="computer-title">
+    <div class="container">
+      <div class="section-head">
+        <p class="eyebrow">Computer assistance <StatusBadge status={computer.status} /></p>
+        <h2 class="h-display" id="computer-title">When it needs your screen, it asks first. And you can always stop it.</h2>
+        <p class="lede">
+          Planned: with your permission, Lumo will be able to look at the screen and use the mouse and keyboard to finish a task in another app.
+          These are the rules it is being designed around.
+        </p>
+      </div>
+      <ul class="grid grid-3 plain-list" role="list">
+        <li class="panel">
+          <span class="icon-tile"><Eye aria-hidden="true" /></span>
+          <h3 class="h3">Only with permission</h3>
+          <p>Screen access and input control are separate permissions you grant, listed in Settings and revocable at any time.</p>
+        </li>
+        <li class="panel">
+          <span class="icon-tile live-tile"><Monitor aria-hidden="true" /></span>
+          <h3 class="h3">Always visible</h3>
+          <p>A dedicated indicator shows whenever the screen is being captured or the input is being controlled. Nothing else uses that color.</p>
+        </li>
+        <li class="panel">
+          <span class="icon-tile"><OctagonX aria-hidden="true" /></span>
+          <h3 class="h3">One shortcut to stop</h3>
+          <p>A global stop shortcut ends control immediately, and every action that takes control needs a native confirmation first.</p>
+        </li>
+      </ul>
+    </div>
+  </section>
+
+  <!-- Companion -->
+  <section class="section" aria-labelledby="companion-title">
+    <div class="container">
+      <div class="section-head">
+        <p class="eyebrow">Your companion <StatusBadge status={mascot.status} /></p>
+        <h2 class="h-display" id="companion-title">Lumo shows you what it is doing.</h2>
+        <p class="lede">
+          The owl is not decoration. Its moods follow the real work: listening while you type, thinking while it plans, heads down while tools run,
+          and a small celebration when something is done and checked. Choose a state to see it.
+        </p>
+      </div>
+      <CompanionStage client:visible items={companion} width={1280} height={1280} />
+    </div>
+  </section>
+
+  <!-- Trust -->
+  <section class="section" aria-labelledby="trust-title">
+    <div class="container">
+      <div class="section-head">
+        <p class="eyebrow">Trust</p>
+        <h2 class="h-display" id="trust-title">Permission is enforced, not requested politely.</h2>
+        <p class="lede">
+          Every tool Lumo can use has a risk tier, and the tier is checked in Lumo’s core before anything runs. The model can ask for an action; it
+          cannot grant itself permission.
+        </p>
+      </div>
+      <ol class="tiers">
+        {
+          tiers.map((t, i) => (
+            <li class="tier panel" data-tone={t.tone}>
+              <span class="tier-num">Tier {i + 1}</span>
+              <h3 class="h3">{t.name}</h3>
+              <p class="tier-gate">{t.gate}</p>
+              <p class="note">{t.examples}</p>
+            </li>
+          ))
+        }
+      </ol>
+      <ul class="grid grid-3 trust-points plain-list" role="list">
+        <li>
+          <KeyRound aria-hidden="true" />
+          <div>
+            <h3 class="h3">Keys in your OS keychain</h3>
+            <p class="muted">Your model API key is stored by the operating system’s keychain and only ever used by Lumo’s core, never the interface.</p>
+          </div>
+        </li>
+        <li>
+          <HardDrive aria-hidden="true" />
+          <div>
+            <h3 class="h3">Local-first</h3>
+            <p class="muted">No Lumo account and no Lumo cloud service. Conversations are stored on your computer in an encrypted database.</p>
+          </div>
+        </li>
+        <li>
+          <ShieldCheck aria-hidden="true" />
+          <div>
+            <h3 class="h3">A record of every action</h3>
+            <p class="muted">Each tool call, approval and result is written to an audit log you can read in Settings.</p>
+          </div>
+        </li>
+      </ul>
+      <p class="helps-more"><a href="/security/">Security and privacy in detail <ArrowRight aria-hidden="true" className="inline-icon" /></a></p>
+    </div>
+  </section>
+
+  <!-- Download -->
+  <section class="section" aria-labelledby="download-title">
+    <div class="container">
+      <div class="section-head">
+        <p class="eyebrow">Download</p>
+        <h2 class="h-display" id="download-title">Lumo for your desktop.</h2>
+        <p class="lede">Windows, macOS and Linux. Free, with your own model key. Builds will appear on GitHub Releases when the first version is ready.</p>
+      </div>
+      <DownloadGrid compact />
+    </div>
+  </section>
+</Base>
