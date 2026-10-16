@@ -271,7 +271,7 @@ mod tests {
         assert!(lower.contains("weather") && lower.contains("tomorrow"), "{text}");
         // Silence gives nothing, not made-up words.
         let silent = w.transcribe(&vec![0.0; 32_000], Some("en")).unwrap();
-        eprintln!("silence: {silent:?}");
+        assert_eq!(silent, "");
     }
 
     /// A 16-bit PCM WAV, mixed to mono and resampled (linearly) to 16 kHz.

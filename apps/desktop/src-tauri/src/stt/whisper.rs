@@ -79,6 +79,10 @@ impl Whisper {
         let pcm = &pcm[..pcm.len().min(MAX_SECONDS * m::SAMPLE_RATE)];
         let mut out = String::new();
         for chunk in pcm.chunks(m::N_SAMPLES) {
+            // Whisper makes up words ("you", "Thank you.") for silence, so quiet windows are skipped.
+            if is_quiet(chunk) {
+                continue;
+            }
             // Whisper expects 30-second windows; pad the audio with silence to one.
             let mut padded = chunk.to_vec();
             padded.resize(m::N_SAMPLES, 0.0);
@@ -154,6 +158,11 @@ impl Whisper {
     }
 }
 
+/// No 50 ms stretch louder than about -45 dBFS: nothing a microphone would pick up as speech.
+pub fn is_quiet(pcm: &[f32]) -> bool {
+    pcm.chunks(800).all(|w| (w.iter().map(|x| x * x).sum::<f32>() / w.len() as f32).sqrt() < 0.006)
+}
+
 /// Mono 16 kHz samples from 16-bit little-endian PCM.
 pub fn pcm_from_i16_le(bytes: &[u8]) -> Vec<f32> {
     bytes.chunks_exact(2).map(|b| i16::from_le_bytes([b[0], b[1]]) as f32 / 32768.0).collect()
@@ -168,6 +177,15 @@ mod tests {
         use sha2::{Digest, Sha256};
         assert_eq!(MEL_FILTERS_80.len(), 80 * (m::N_FFT / 2 + 1) * 4);
         assert_eq!(hex::encode(Sha256::digest(MEL_FILTERS_80)), "85818f156f7e189453901a515e4726d270d307f976e161cf9403e8caab405498");
+    }
+
+    #[test]
+    fn quiet_audio_is_skipped() {
+        assert!(is_quiet(&[0.0; 16_000]));
+        assert!(is_quiet(&vec![0.002; 16_000]));
+        let mut speech = vec![0.0; 16_000];
+        speech[8_000..9_000].iter_mut().enumerate().for_each(|(i, x)| *x = (i as f32 * 0.1).sin() * 0.2);
+        assert!(!is_quiet(&speech));
     }
 
     #[test]
