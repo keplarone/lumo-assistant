@@ -249,7 +249,7 @@ mod tests {
         let bare = dir.path().join("remote.git");
         git2::Repository::init_bare(&bare).unwrap();
         Mock::given(method("POST")).and(path("/gh/user/repos")).and(header("authorization", "Bearer ghp_test"))
-            .respond_with(ResponseTemplate::new(201).set_body_json(json!({"full_name": "keder/bakery", "html_url": "https://github.com/keder/bakery", "clone_url": format!("file://{}", bare.display())})))
+            .respond_with(ResponseTemplate::new(201).set_body_json(json!({"full_name": "keder/bakery", "html_url": "https://github.com/keder/bakery", "clone_url": reqwest::Url::from_file_path(&bare).unwrap().to_string()})))
             .mount(&server).await;
         Mock::given(method("POST"))
             .and(path("/nf/sites"))
