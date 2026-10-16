@@ -1,12 +1,13 @@
 import { Button, IconButton, Select, Spinner, StatusDot, Textarea } from '@lumo/ui';
 import { ArrowUp, FileText, Image as ImageIcon, Mic, Paperclip, Square, X } from 'lucide-react';
 import { forwardRef, useEffect, useImperativeHandle, useRef, useState } from 'react';
-import { api, errorMessage, on, type AgentDef, type AttachmentInfo } from '../lib/ipc';
+import { api, errorMessage, isPlanLimit, on, type AgentDef, type AttachmentInfo } from '../lib/ipc';
 import { formatBytes } from '../lib/format';
 import { formatElapsed } from '../lib/voice';
 import { useApp } from '../state/app';
 import { mascotBus, useListening } from '../state/mascot';
 import { useVoice } from '../state/useVoice';
+import { PlanLimitNotice, UsageNudge } from './PlanLimit';
 
 export interface ComposerHandle {
   focus(): void;
@@ -51,6 +52,8 @@ export const Composer = forwardRef<ComposerHandle, ComposerProps>(function Compo
   const [agentId, setAgentId] = useState<string>('');
   const [sending, setSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  /** A refusal from the plan limits (Rust), shown with an Upgrade button. */
+  const [limit, setLimit] = useState<string | null>(null);
   const [focused, setFocused] = useState(false);
   const area = useRef<HTMLTextAreaElement>(null);
   const app = useApp();
@@ -142,12 +145,16 @@ export const Composer = forwardRef<ComposerHandle, ComposerProps>(function Compo
     if (!canSend) return;
     setSending(true);
     setError(null);
+    setLimit(null);
     try {
       await onSend(text.trim(), attachments, agentId || null);
       setText('');
       setAttachments([]);
     } catch (e) {
-      setError(errorMessage(e));
+      if (isPlanLimit(e)) {
+        setLimit(e.message);
+        void app.reloadPlanUsage?.();
+      } else setError(errorMessage(e));
     } finally {
       setSending(false);
     }
@@ -311,6 +318,7 @@ export const Composer = forwardRef<ComposerHandle, ComposerProps>(function Compo
           {error ?? voice.error}
         </p>
       )}
+      {limit ? <PlanLimitNotice message={limit} /> : <UsageNudge />}
     </div>
   );
 });

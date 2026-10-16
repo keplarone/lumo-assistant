@@ -24,8 +24,8 @@ GitHub release (`tauri.conf.json` → `plugins.updater.endpoints`).
 
 ## Plans and licensing (Whop)
 
-Lite (`plan_0KzI2YIP7k6Pp`) and Pro (`plan_1ucbcMEoxhW3g`) are sold on Whop. The app opens
-`https://whop.com/checkout/<plan id>` (override with the `LUMO_WHOP_CHECKOUT_LITE` / `LUMO_WHOP_CHECKOUT_PRO`
+Lite (`plan_0KzI2YIP7k6Pp`, $19.99/month), Pro (`plan_1ucbcMEoxhW3g`, $49.99/month) and Unlimited (`plan_PRiCMfcmM4uul`, $124.99/month) are sold on Whop. The app opens
+`https://whop.com/checkout/<plan id>` (override with the `LUMO_WHOP_CHECKOUT_LITE` / `LUMO_WHOP_CHECKOUT_PRO` / `LUMO_WHOP_CHECKOUT_UNLIMITED`
 build variables if your store uses the `whop.com/<store>/checkout/<plan id>` form).
 
 License keys are checked by `services/license`, a small serverless function, because the Whop API key must
@@ -34,7 +34,7 @@ never ship inside the app. To turn it on:
 1. Deploy `services/license` (for Vercel: import the folder as a project; the function is `api/validate.js`).
 2. Set the server secret `WHOP_API_KEY` there. Use a fresh key with `member:basic:read` and `member:email:read` (the membership lookup requires both); rotate any key that
    was ever pasted into a chat, ticket or file.
-3. Set the repository variable `LUMO_LICENSE_SERVER` to the function URL (for example
+3. Release builds use `https://lumo-license.vercel.app/api/validate` (the deployed `lumo-license` Vercel project). To point them elsewhere, set the repository variable `LUMO_LICENSE_SERVER` to the function URL (for example
    `https://license.lumo.keplar.one/api/validate`) so release builds compile it in.
 
 ## Checklist before publishing a draft

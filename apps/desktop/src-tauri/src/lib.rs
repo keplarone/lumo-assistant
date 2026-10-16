@@ -12,6 +12,7 @@ pub mod integrations;
 pub mod license;
 pub mod local_models;
 pub mod model;
+pub mod plans;
 pub mod policy;
 pub mod secrets;
 pub mod settings;
@@ -87,6 +88,10 @@ pub fn run() {
                 log::warn!("{interrupted} task(s) were interrupted when Lumo last closed");
             }
             let _ = agent::store::apply_retention(&core);
+            // A plan may have changed while Lumo was closed; keep only as many automations on as it includes.
+            if let Err(e) = plans::pause_excess_automations(&core) {
+                log::warn!("plan limits: {e}");
+            }
             let registry = Arc::new(tools::Registry::standard());
             app.manage(commands::AppState { core: core.clone(), registry: registry.clone() });
 
@@ -184,6 +189,7 @@ pub fn run() {
             commands::license_status,
             commands::activate_license,
             commands::remove_license,
+            commands::plan_usage,
             commands::local_models_status,
             commands::download_local_model,
             commands::cancel_local_download,

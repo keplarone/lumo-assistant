@@ -98,8 +98,42 @@ const localModel = (
   installed: false,
   fits: true,
   selected: false,
+  requiredPlan: null,
   ...extra,
 });
+// plans.rs PlanUsage for the Free plan.
+const planRow = (id: string, name: string, monthlyTokens: number | null, extra: object = {}) => ({
+  id,
+  name,
+  monthlyTokens,
+  localModels: ['Orbit 3.8', 'Nebula 4.2', 'Solar 5.4', 'Nova 5.5'],
+  cloudModels: true,
+  automations: null,
+  computerControl: true,
+  ...extra,
+});
+const planUsage = {
+  plan: 'free',
+  tokensUsed: 640_000,
+  tokensLimit: 1_000_000,
+  percentUsed: 64,
+  resetsAt: '2026-11-01T00:00:00+00:00',
+  allowedModels: ['qwen3:4b', 'qwen3:8b'],
+  cloudModels: false,
+  automationsAllowed: 1,
+  computerControl: false,
+  plans: [
+    planRow('free', 'Free', 1_000_000, {
+      localModels: ['Orbit 3.8', 'Nebula 4.2'],
+      cloudModels: false,
+      automations: 1,
+      computerControl: false,
+    }),
+    planRow('lite', 'Lumo Lite', 30_000_000, { automations: 10 }),
+    planRow('pro', 'Lumo Pro', 150_000_000),
+    planRow('unlimited', 'Lumo Unlimited', null),
+  ],
+};
 const html = `<!doctype html><html><head><meta charset="utf-8"><title>Rise Bakery</title><link rel="stylesheet" href="style.css"></head><body><header><h1>Rise Bakery</h1><p>Sourdough, baked every morning.</p></header><main><section><h2>Today</h2><ul><li>Country loaf</li><li>Rye with caraway</li><li>Cardamom buns</li></ul></section></main></body></html>`;
 const css = `body{font-family:Georgia,serif;margin:0;background:#fbf6ee;color:#3b2a1a}header{padding:48px 32px;background:#e9d8bf}h1{margin:0;font-size:40px}main{padding:24px 32px}`;
 
@@ -156,8 +190,10 @@ const base: Fixtures = {
     licensingConfigured: true,
     checkoutLite: 'https://whop.com/checkout/test-lite',
     checkoutPro: 'https://whop.com/checkout/test-pro',
+    checkoutUnlimited: 'https://whop.com/checkout/test-unlimited',
     checkedAt: null,
   },
+  plan_usage: planUsage,
   local_models_status: {
     brand: 'Lumo on-device models',
     runtimeRunning: true,
@@ -189,6 +225,7 @@ const base: Fixtures = {
         14,
         16,
         'Stronger reasoning; needs a recent computer with 16 GB of memory or more.',
+        { requiredPlan: 'lite' },
       ),
       localModel(
         'qwen3:30b',
@@ -197,7 +234,7 @@ const base: Fixtures = {
         19,
         32,
         'The most capable on-device option, for machines with 32 GB of memory or more.',
-        { fits: false },
+        { fits: false, requiredPlan: 'lite' },
       ),
     ],
     otherInstalled: [],
@@ -241,7 +278,10 @@ async function boot(page: Page, opts: { route: string; window?: string; fixtures
             return null;
           }
           if (cmd.startsWith('plugin:')) return null;
-          if (cmd === 'start_run') return { runId: 'run-1', conversationId: 'conv-1' };
+          if (cmd === 'start_run') {
+            if ('start_run_error' in fixtures) throw fixtures.start_run_error;
+            return { runId: 'run-1', conversationId: 'conv-1' };
+          }
           return cmd in fixtures ? structuredClone(fixtures[cmd]) : null;
         },
       };
@@ -423,6 +463,48 @@ test('settings: model with on-device models', async ({ page }) => {
   await shot(page, 'settings-model-local');
 });
 
+test('chat: a plan limit shows the reason and opens checkout', async ({ page }) => {
+  const message =
+    'You’ve used all of this month’s Free usage. It resets on November 1. Upgrade to Lite or Pro for 30× or 150× more, or to Unlimited for no limit.';
+  await boot(page, {
+    route: '#/',
+    fixtures: {
+      start_run_error: { code: 'plan_limit', message },
+      plan_usage: { ...planUsage, tokensUsed: 1_000_000, percentUsed: 100 },
+    },
+  });
+  await expect(page.getByText('You’ve used all of this month’s usage. It resets on')).toBeVisible();
+  const box = page.getByRole('textbox', { name: 'Message to Lumo' });
+  await box.fill('Sort my Downloads');
+  await box.press('Enter');
+  await expect(page.getByText(message)).toBeVisible();
+  await expect(box).toHaveValue('Sort my Downloads');
+  await settle(page);
+  await shot(page, 'chat-plan-limit');
+  await page.getByRole('button', { name: 'Upgrade to Lumo Lite' }).click();
+  const opened = await page.evaluate(() =>
+    (window as unknown as { __lumoCalls: { cmd: string; args: unknown }[] }).__lumoCalls.filter(
+      (c) => c.cmd === 'open_external_url',
+    ),
+  );
+  expect(opened).toEqual([
+    { cmd: 'open_external_url', args: { url: 'https://whop.com/checkout/test-lite' } },
+  ]);
+});
+
+test('settings: models the plan doesn’t include are marked', async ({ page }) => {
+  await boot(page, {
+    route: '#/settings/model',
+    fixtures: { get_settings: { ...settings, provider: 'local', localModel: 'qwen3:4b' } },
+  });
+  await expect(page.getByText('Nova 5.5')).toBeVisible();
+  await expect(
+    page.locator('.lm-local-model').filter({ hasText: 'Solar 5.4' }).getByText('Lite', { exact: true }),
+  ).toBeVisible();
+  await expect(page.getByText('Included with Lumo Lite and above.')).toHaveCount(2);
+  await expect(page.getByRole('button', { name: 'Download' })).toHaveCount(1);
+});
+
 test('settings: on-device runtime missing', async ({ page }) => {
   const st = base.local_models_status as Record<string, unknown>;
   await boot(page, {
@@ -453,8 +535,14 @@ test('settings: general, plans, help, privacy, about', async ({ page }) => {
   ] as const) {
     await page.goto(`/#/settings/${section}`);
     await expect(page.getByRole('heading', { name: heading, exact: true })).toBeVisible();
-    if (section === 'plans')
-      await expect(page.getByText('On-device models: Orbit, Nebula, Solar and Nova')).toBeVisible();
+    if (section === 'plans') {
+      await expect(page.getByText('64% of this month’s usage')).toBeVisible();
+      await expect(page.getByRole('progressbar', { name: 'This month’s usage' })).toBeVisible();
+      await expect(page.getByText('On-device models: Orbit 3.8 and Nebula 4.2')).toBeVisible();
+      await expect(page.getByText('30× more usage than Free')).toBeVisible();
+      await expect(page.getByText('150× more usage than Free')).toBeVisible();
+      await expect(page.getByText('$124.99')).toBeVisible();
+    }
     await page.waitForTimeout(300);
     await shot(page, `settings-${section}`);
   }

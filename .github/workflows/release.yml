@@ -56,8 +56,12 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           # Updater signing (optional until set; without it the app builds with updates disabled).
           LUMO_UPDATER_PUBKEY: ${{ secrets.LUMO_UPDATER_PUBKEY }}
-          # Whop license server URL (a repository variable, not a secret). Without it, license activation is off.
-          LUMO_LICENSE_SERVER: ${{ vars.LUMO_LICENSE_SERVER }}
+          # Whop license server URL. Defaults to the deployed lumo-license project; override with a repository variable.
+          LUMO_LICENSE_SERVER: ${{ vars.LUMO_LICENSE_SERVER || 'https://lumo-license.vercel.app/api/validate' }}
+          # Optional Whop checkout URL overrides (repository variables); default is whop.com/checkout/<plan>.
+          LUMO_WHOP_CHECKOUT_LITE: ${{ vars.LUMO_WHOP_CHECKOUT_LITE }}
+          LUMO_WHOP_CHECKOUT_PRO: ${{ vars.LUMO_WHOP_CHECKOUT_PRO }}
+          LUMO_WHOP_CHECKOUT_UNLIMITED: ${{ vars.LUMO_WHOP_CHECKOUT_UNLIMITED }}
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
           # macOS signing and notarization (optional; unsigned builds are flagged by Gatekeeper).

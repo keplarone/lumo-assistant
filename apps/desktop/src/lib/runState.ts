@@ -346,6 +346,8 @@ export function runStatusInfo(status: RunStatus): StatusInfo {
       return { label: 'Needs your attention', tone: 'warning' };
     case 'interrupted':
       return { label: 'Interrupted', tone: 'warning' };
+    case 'limit_reached':
+      return { label: 'Plan limit reached', tone: 'warning' };
     default:
       return { label: status, tone: 'neutral' };
   }

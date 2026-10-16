@@ -227,6 +227,8 @@ pub enum ApprovalAnswer {
 
 /// Enforce the policy for one call. Returns Ok(()) if it may run.
 async fn authorize(ctx: &ToolCtx, name: &str, p: &Prepared) -> Result<()> {
+    // Tools the plan doesn't include are refused before anything is asked.
+    crate::plans::check_tool(&ctx.core, name)?;
     match p.risk {
         Risk::Ui | Risk::Read => Ok(()),
         Risk::Write => {

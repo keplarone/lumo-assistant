@@ -3,10 +3,15 @@
 //   WHOP_API_KEY        Whop account API key with member:basic:read and member:email:read (required)
 //   WHOP_PLANS_LITE     optional comma-separated Whop plan ids that grant Lumo Lite (default below)
 //   WHOP_PLANS_PRO      optional comma-separated Whop plan ids that grant Lumo Pro (default below)
+//   WHOP_PLANS_UNLIMITED optional comma-separated Whop plan ids that grant Lumo Unlimited (default below)
 //   WHOP_API_BASE       optional, defaults to https://api.whop.com/api/v1
 
 const VALID_STATUSES = new Set(['active', 'trialing', 'completed', 'past_due', 'canceling']);
-export const DEFAULT_PLANS = { lite: 'plan_0KzI2YIP7k6Pp', pro: 'plan_1ucbcMEoxhW3g' };
+export const DEFAULT_PLANS = {
+  lite: 'plan_0KzI2YIP7k6Pp',
+  pro: 'plan_1ucbcMEoxhW3g',
+  unlimited: 'plan_PRiCMfcmM4uul',
+};
 const KEY_PATTERN = /^[A-Za-z0-9_-]{6,128}$/;
 
 const list = (v) =>
@@ -46,11 +51,13 @@ export async function validate(licenseKey, env, fetchImpl = fetch) {
     return { status: 502, body: { valid: false, error: 'Whop sent an unreadable answer.' } };
   }
   const planId = m?.plan?.id ?? null;
-  const tier = list(env.WHOP_PLANS_PRO || DEFAULT_PLANS.pro).includes(planId)
-    ? 'pro'
-    : list(env.WHOP_PLANS_LITE || DEFAULT_PLANS.lite).includes(planId)
-      ? 'lite'
-      : null;
+  const tier = list(env.WHOP_PLANS_UNLIMITED || DEFAULT_PLANS.unlimited).includes(planId)
+    ? 'unlimited'
+    : list(env.WHOP_PLANS_PRO || DEFAULT_PLANS.pro).includes(planId)
+      ? 'pro'
+      : list(env.WHOP_PLANS_LITE || DEFAULT_PLANS.lite).includes(planId)
+        ? 'lite'
+        : null;
   if (!VALID_STATUSES.has(m?.status)) {
     return {
       status: 200,

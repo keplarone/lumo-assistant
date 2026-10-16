@@ -41,7 +41,7 @@ pub struct Settings {
     pub tts_enabled: bool,
     pub mascot_enabled: bool,
     pub reduced_motion: bool,
-    /// "free", "lite" or "pro". Only the license check changes it; saving settings from the UI keeps it.
+    /// "free", "lite", "pro" or "unlimited". Only the license check changes it; saving settings from the UI keeps it.
     pub plan: String,
     pub plan_checked_at: Option<String>,
 }
@@ -61,7 +61,7 @@ impl Default for Settings {
             onboarded: false,
             user_name: None,
             theme: "system".into(),
-            provider: "anthropic".into(),
+            provider: "local".into(),
             model: "claude-opus-5-5".into(),
             effort: "medium".into(),
             anthropic_base_url: "https://api.anthropic.com".into(),
@@ -112,7 +112,7 @@ impl Settings {
         if self.model.trim().is_empty() || self.model.len() > 100 {
             return Err(invalid("model name is required"));
         }
-        if !["free", "lite", "pro"].contains(&self.plan.as_str()) {
+        if !["free", "lite", "pro", "unlimited"].contains(&self.plan.as_str()) {
             return Err(invalid("unknown plan"));
         }
         if !(1..=200).contains(&self.max_tool_calls_per_run) {
@@ -273,5 +273,13 @@ mod tests {
         s.anthropic_base_url = "https://gateway.example.com".into();
         s.openai_base_url = "http://localhost:1234/v1".into();
         assert!(s.validate().is_ok());
+    }
+
+    #[test]
+    fn accepts_every_plan_and_nothing_else() {
+        for plan in ["free", "lite", "pro", "unlimited"] {
+            assert!(Settings { plan: plan.into(), ..Default::default() }.validate().is_ok(), "{plan}");
+        }
+        assert!(Settings { plan: "platinum".into(), ..Default::default() }.validate().is_err());
     }
 }

@@ -83,6 +83,8 @@ pub async fn save_settings(app: AppHandle, state: S<'_>, mut settings: Settings)
     settings.plan = old.plan.clone();
     settings.plan_checked_at = old.plan_checked_at.clone();
     settings.validate()?;
+    // Switching to a provider or model the plan doesn't include is refused here, in Rust.
+    crate::plans::check_settings_change(&old, &mut settings)?;
     // A saved key is only sent to a new server after the user confirms it natively.
     settings::confirm_key_destinations(&state.core, &old, &settings).await?;
     settings::save(&state.core.db, &settings)?;
@@ -850,6 +852,13 @@ pub async fn activate_license(state: S<'_>, license_key: String) -> ApiResult<cr
 #[tauri::command]
 pub fn remove_license(state: S) -> ApiResult<crate::license::LicenseStatus> {
     Ok(crate::license::deactivate(&state.core)?)
+}
+
+/// This month's model usage and what the current plan includes. Display only: every limit is
+/// enforced in the core (see plans.rs).
+#[tauri::command]
+pub fn plan_usage(state: S) -> crate::plans::PlanUsage {
+    crate::plans::usage(&state.core)
 }
 
 /// Open a link in the default browser. Only https links are allowed, so the webview cannot launch

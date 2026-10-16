@@ -328,7 +328,7 @@ mod tests {
     use super::super::tests::ctx;
     use super::super::{execute, Origin, Registry};
     use super::*;
-    use crate::core::testing::{core_with, FakePlatform};
+    use crate::core::testing::{core_with, set_plan, FakePlatform};
     use crate::core::Screenshot;
     use std::sync::Arc;
 
@@ -342,6 +342,7 @@ mod tests {
         *platform.screen.lock() = Some(shot());
         *platform.confirm.lock() = true;
         let (core, _d) = core_with(platform.clone());
+        set_plan(&core, "lite");
         let (ctx, _) = ctx(core.clone(), Origin::User);
         let r = Registry::standard();
         let names: Vec<String> = r.names().into_iter().map(String::from).collect();
@@ -403,5 +404,27 @@ mod tests {
         assert!(parse_keys("enter").is_ok());
         assert!(parse_keys("").is_err());
         assert!(parse_keys("ctrl+alt+shift+cmd+x").is_err());
+    }
+
+    #[tokio::test]
+    async fn the_free_plan_cannot_control_the_computer() {
+        let platform = Arc::new(FakePlatform::default());
+        *platform.screen.lock() = Some(shot());
+        *platform.confirm.lock() = true;
+        let (core, _d) = core_with(platform.clone());
+        let (ctx, events) = ctx(core.clone(), Origin::User);
+        core.pending.screens.lock().insert(ctx.run_id.clone(), shot());
+        let r = Registry::standard();
+        let names: Vec<String> = r.names().into_iter().map(String::from).collect();
+        let call = json!({"type": "tool_use", "id": "c1", "name": "control_computer", "input": {"reason": "fill the form", "actions": [{"type": "click", "x": 1, "y": 1}]}});
+        let res = execute(&r, &ctx, &call, &names).await;
+        assert!(!res.ok && !res.needs_attention);
+        assert!(res.block.to_string().contains("part of Lumo Lite, Lumo Pro and Lumo Unlimited"), "{}", res.block);
+        assert!(platform.confirms.lock().is_empty(), "no permission dialog for a tool the plan doesn't include");
+        assert!(platform.inputs.lock().is_empty() && !session_active(&core, &ctx.run_id));
+        assert!(events.0.lock().iter().any(|e| matches!(e, AgentEvent::ToolFinished { ok: false, .. })));
+        // Screenshots are not computer control and still work.
+        let shot_call = json!({"type": "tool_use", "id": "s", "name": "take_screenshot", "input": {"reason": "see"}});
+        assert!(execute(&r, &ctx, &shot_call, &names).await.ok);
     }
 }

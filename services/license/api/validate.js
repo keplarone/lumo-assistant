@@ -1,4 +1,4 @@
-// Vercel function: POST /api/validate {"licenseKey": "..."} -> {"valid": bool, "tier": "lite" | "pro"}
+// Vercel function: POST /api/validate {"licenseKey": "..."} -> {"valid": bool, "tier": "lite" | "pro" | "unlimited"}
 import { validate } from '../validate.js';
 
 export async function POST(request) {

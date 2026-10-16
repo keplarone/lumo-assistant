@@ -2281,7 +2281,7 @@ a.lm-row-main:hover .lm-row-title {
 
 .lm-plans {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: var(--lu-space-3);
   margin: 0;
   padding: 0;
@@ -2387,7 +2387,12 @@ a.lm-row-main:hover .lm-row-title {
 .lm-licenses > div {
   grid-template-columns: 18rem 1fr;
 }
-@media (max-width: 1000px) {
+@media (max-width: 1240px) {
+  .lm-plans {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+@media (max-width: 760px) {
   .lm-plans {
     grid-template-columns: 1fr;
   }
@@ -2404,4 +2409,48 @@ a.lm-row-main:hover .lm-row-title {
 }
 .lm-license {
   margin-top: var(--lu-space-4);
+}
+
+/* ── Plan limits and usage ─────────────────────────────────────────────────────────────────────── */
+
+.lm-plan-limit {
+  display: grid;
+  gap: var(--lu-space-2);
+  margin: 0 var(--lu-space-3);
+  padding: var(--lu-space-3);
+  border: 1px solid var(--lu-line);
+  border-radius: var(--lu-radius-md);
+  background: var(--lu-surface-2);
+  font-size: var(--lu-text-sm);
+}
+.lm-plan-limit-text {
+  margin: 0;
+  color: var(--lu-text);
+}
+.lm-plan-limit-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--lu-space-3);
+}
+.lm-usage-nudge {
+  margin: 0;
+  padding: 0 var(--lu-space-3);
+  font-size: var(--lu-text-xs);
+  color: var(--lu-text-secondary);
+}
+.lm-usage {
+  display: grid;
+  gap: var(--lu-space-2);
+  max-width: 36rem;
+}
+.lm-usage-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--lu-space-2);
+}
+.lm-usage-label {
+  font-weight: var(--lu-weight-medium);
 }

@@ -84,14 +84,27 @@ pub fn prepare(
         return Err(invalid("the message is too long"));
     }
     let settings = core.settings();
-    let conversation = match &req.conversation_id {
+    let existing = match &req.conversation_id {
         Some(id) => {
             let c = store::get_conversation(core, id)?;
             if core.pending.runs.lock().values().any(|r| r.conversation_id == c.id) {
                 return Err(invalid("Lumo is still working in this conversation. Wait for it to finish or stop it first."));
             }
-            c
+            Some(c)
         }
+        None => None,
+    };
+    // Plan limits, before anything is recorded: the model must be one the plan includes (both the
+    // current setting and the one this conversation started with), and the monthly allowance must
+    // not be used up.
+    let limits = crate::plans::limits(&settings.plan);
+    crate::plans::check_model(limits, &settings.provider, &settings.chat_model())?;
+    if let Some(c) = &existing {
+        crate::plans::check_model(limits, &c.provider, &c.model)?;
+    }
+    crate::plans::check_allowance(core)?;
+    let conversation = match existing {
+        Some(c) => c,
         None => {
             let (instructions, agent_tools, agent_model) = match &req.agent_id {
                 Some(a) => {
@@ -218,6 +231,10 @@ pub async fn drive(core: Arc<Core>, registry: Arc<Registry>, spec: RunSpec, sink
         Err(LumoError::Cancelled) => {
             RunOutcome { status: "cancelled".into(), summary: Some("Stopped.".into()), error: None, needs_attention: false }
         }
+        // The plan's allowance ran out between model calls; the message says when it resets.
+        Err(e @ LumoError::PlanLimit(_)) => {
+            RunOutcome { status: "limit_reached".into(), summary: None, error: Some(e.to_string()), needs_attention: false }
+        }
         Err(e) => RunOutcome { status: "failed".into(), summary: None, error: Some(e.to_string()), needs_attention: false },
     };
     tools::computer::end_session(&core, &spec.run_id);
@@ -289,6 +306,8 @@ async fn drive_inner(
             max_tokens: 32_000,
             effort: settings.effort.clone(),
         };
+        // Checked before every model call. A call that is already streaming is never cut off.
+        crate::plans::check_allowance(core)?;
         let s2 = sink.clone();
         let p2 = progress.clone();
         let on_stream = move |ev: StreamEvent| match ev {
@@ -324,7 +343,9 @@ async fn drive_inner(
                 }
             }
         };
+        let call_started = chrono::Local::now();
         let resp = provider.complete(&req, &on_stream, &spec.cancel).await?;
+        crate::plans::record_call(core, &req, &resp, call_started);
         usage.add(&resp.usage);
         // Server tool calls that never reported a result are closed so the timeline doesn't spin.
         for (name, id) in progress.server_open.lock().drain(..) {

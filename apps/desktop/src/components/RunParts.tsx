@@ -25,6 +25,7 @@ import {
 } from '../lib/ipc';
 import { markAnswered, markApproval, PHASE_LABEL, runStatusInfo, type Segment } from '../lib/runState';
 import { runStore } from '../state/runs';
+import { UpgradeButton } from './PlanLimit';
 import type { Phase } from '../lib/ipc';
 
 type ApprovalSeg = Extract<Segment, { kind: 'approval' }>;
@@ -508,7 +509,7 @@ export function RunFooter({
   if (!showStatus) return null;
 
   const message =
-    status === 'failed' || status === 'refused'
+    status === 'failed' || status === 'refused' || status === 'limit_reached'
       ? error
       : status === 'needs_attention'
         ? 'It stopped at a step that needs your approval.'
@@ -523,6 +524,7 @@ export function RunFooter({
           <StatusDot tone={info.tone === 'neutral' ? 'neutral' : info.tone} />
           <span className="lm-run-status-label">{info.label}</span>
           {message && <span className="lm-run-status-msg">{message}</span>}
+          {status === 'limit_reached' && <UpgradeButton />}
         </div>
       )}
       {changes && changes.length > 0 && (

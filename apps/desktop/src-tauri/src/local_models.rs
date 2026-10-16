@@ -86,6 +86,8 @@ pub struct LocalModel {
     pub installed: bool,
     pub fits: bool,
     pub selected: bool,
+    /// The cheapest plan that includes this model, when the current plan doesn't ("lite").
+    pub required_plan: Option<&'static str>,
 }
 
 #[derive(Debug, Clone, Serialize, PartialEq)]
@@ -135,7 +137,7 @@ fn unavailable() -> LumoError {
 }
 
 /// Tag equality that treats "name" and "name:latest" as the same model.
-fn same_tag(a: &str, b: &str) -> bool {
+pub fn same_tag(a: &str, b: &str) -> bool {
     let norm = |s: &str| if s.contains(':') { s.to_string() } else { format!("{s}:latest") };
     norm(a) == norm(b)
 }
@@ -161,6 +163,7 @@ pub async fn status_with_memory(core: &Core, memory_gb: u32) -> LocalStatus {
             installed: names.iter().any(|n| same_tag(n, e.id)),
             fits: memory_gb == 0 || memory_gb >= e.min_memory_gb,
             selected: s.provider == "local" && same_tag(&s.local_model, e.id),
+            required_plan: crate::plans::required_plan(core, e.id),
         })
         .collect();
     let other_installed = names.iter().filter(|n| !CATALOG.iter().any(|e| same_tag(n, e.id))).cloned().collect();
@@ -239,6 +242,7 @@ pub async fn delete(core: &Core, id: &str) -> Result<()> {
 
 /// Switch Lumo to an installed on-device model.
 pub async fn select(core: &Core, id: &str) -> Result<()> {
+    crate::plans::check_model(crate::plans::current(core), "local", id)?;
     let names = installed(core).await?;
     if !names.iter().any(|n| same_tag(n, id)) {
         return Err(invalid("Download this model before choosing it."));

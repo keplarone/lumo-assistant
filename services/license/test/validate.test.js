@@ -2,7 +2,12 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { validate } from '../validate.js';
 
-const env = { WHOP_API_KEY: 'k', WHOP_PLANS_LITE: 'plan_lite', WHOP_PLANS_PRO: 'plan_pro1, plan_pro2' };
+const env = {
+  WHOP_API_KEY: 'k',
+  WHOP_PLANS_LITE: 'plan_lite',
+  WHOP_PLANS_PRO: 'plan_pro1, plan_pro2',
+  WHOP_PLANS_UNLIMITED: 'plan_unl',
+};
 const fake = (status, json) => async (url, init) => {
   assert.match(url, /^https:\/\/api\.whop\.com\/api\/v1\/memberships\//);
   assert.equal(init.headers.Authorization, 'Bearer k');
@@ -14,6 +19,8 @@ test('active Pro and Lite memberships map to tiers', async () => {
   assert.deepEqual(r.body, { valid: true, tier: 'pro', membershipStatus: 'active' });
   r = await validate('A1B2C3-D4E5F6', env, fake(200, { status: 'trialing', plan: { id: 'plan_lite' } }));
   assert.equal(r.body.tier, 'lite');
+  r = await validate('A1B2C3-D4E5F6', env, fake(200, { status: 'active', plan: { id: 'plan_unl' } }));
+  assert.equal(r.body.tier, 'unlimited');
 });
 
 test('inactive, unknown and foreign memberships are rejected', async () => {
@@ -42,4 +49,10 @@ test('defaults to the Lumo plan ids', async () => {
     fake(200, { status: 'active', plan: { id: 'plan_0KzI2YIP7k6Pp' } }),
   );
   assert.equal(r.body.tier, 'lite');
+  const u = await validate(
+    'A1B2C3-D4E5F6',
+    { WHOP_API_KEY: 'k' },
+    fake(200, { status: 'active', plan: { id: 'plan_PRiCMfcmM4uul' } }),
+  );
+  assert.equal(u.body.tier, 'unlimited');
 });

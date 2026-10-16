@@ -20,6 +20,7 @@ import {
   type AgentDef,
   type AppInfo,
   type Conversation,
+  type PlanUsage,
   type SecretStatus,
   type Settings,
 } from '../lib/ipc';
@@ -34,6 +35,9 @@ interface AppState {
   secrets: SecretStatus[];
   agents: AgentDef[];
   conversations: Conversation[];
+  /** This month's model usage and the plan's limits (from Rust; null until loaded or unavailable). */
+  planUsage: PlanUsage | null;
+  reloadPlanUsage: () => Promise<void>;
   /** Merge a change into the settings and save it. Throws the command error (with a message). */
   updateSettings: (patch: Partial<Settings>) => Promise<Settings>;
   reloadSettings: () => Promise<void>;
@@ -65,6 +69,7 @@ export function AppProvider({ boot, children }: { boot: Boot; children: ReactNod
   const [secrets, setSecrets] = useState<SecretStatus[]>([]);
   const [agents, setAgents] = useState<AgentDef[]>([]);
   const [conversations, setConversations] = useState<Conversation[]>([]);
+  const [planUsage, setPlanUsage] = useState<PlanUsage | null>(null);
   const [announcement, setAnnouncement] = useState('');
   const settingsRef = useRef(settings);
   settingsRef.current = settings;
@@ -81,6 +86,13 @@ export function AppProvider({ boot, children }: { boot: Boot; children: ReactNod
   }, []);
 
   const reloadSettings = useCallback(async () => setSettings(await api.getSettings()), []);
+  const reloadPlanUsage = useCallback(async () => {
+    try {
+      setPlanUsage(await api.planUsage());
+    } catch {
+      setPlanUsage(null);
+    }
+  }, []);
   const reloadSecrets = useCallback(async () => {
     try {
       setSecrets(await api.secretsStatus());
@@ -110,6 +122,8 @@ export function AppProvider({ boot, children }: { boot: Boot; children: ReactNod
   }, []);
 
   useEffect(() => applyTheme(settings.theme), [settings.theme]);
+  // The plan changes only through a license check, which reloads settings.
+  useEffect(() => void reloadPlanUsage(), [settings.plan, reloadPlanUsage]);
   useEffect(() => {
     document.documentElement.toggleAttribute('data-reduced-motion', settings.reducedMotion);
   }, [settings.reducedMotion]);
@@ -121,6 +135,7 @@ export function AppProvider({ boot, children }: { boot: Boot; children: ReactNod
     const subs = [
       on('settings-changed', () => void reloadSettings()),
       on('runs-changed', () => void reloadConversations()),
+      on('plan-usage-changed', (u) => setPlanUsage(u)),
       on('agent-event', (env) => {
         runStore.apply(env);
         mascotBus.send(mascotEventsFor(env.event));
@@ -154,6 +169,8 @@ export function AppProvider({ boot, children }: { boot: Boot; children: ReactNod
       secrets,
       agents,
       conversations,
+      planUsage,
+      reloadPlanUsage,
       updateSettings,
       reloadSettings,
       reloadSecrets,
@@ -168,6 +185,8 @@ export function AppProvider({ boot, children }: { boot: Boot; children: ReactNod
       secrets,
       agents,
       conversations,
+      planUsage,
+      reloadPlanUsage,
       updateSettings,
       reloadSettings,
       reloadSecrets,

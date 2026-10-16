@@ -147,6 +147,8 @@ impl Core {
             return Ok(p);
         }
         let s = self.settings();
+        // An old setting from a higher plan can't be used after a downgrade.
+        crate::plans::check_model(crate::plans::limits(&s.plan), &s.provider, &s.chat_model())?;
         match s.provider.as_str() {
             "local" => {
                 if s.local_model.is_empty() {
@@ -240,6 +242,13 @@ pub mod testing {
         fn broadcast(&self, event: &str, payload: serde_json::Value) {
             self.broadcasts.lock().push((event.to_string(), payload));
         }
+    }
+
+    /// Set the plan directly, as a verified license would.
+    pub fn set_plan(core: &Core, plan: &str) {
+        let mut s = core.settings();
+        s.plan = plan.into();
+        crate::settings::save(&core.db, &s).unwrap();
     }
 
     pub fn core_with(platform: Arc<FakePlatform>) -> (Arc<Core>, tempfile::TempDir) {

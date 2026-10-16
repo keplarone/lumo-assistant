@@ -14,6 +14,10 @@ pub enum LumoError {
     /// A capability that is not configured or not available on this system.
     #[error("{0}")]
     Unavailable(String),
+    /// Something the user's plan doesn't include, or a plan limit was reached. The message says
+    /// which limit, when it resets, and what raises it.
+    #[error("{0}")]
+    PlanLimit(String),
     #[error("cancelled")]
     Cancelled,
     #[error("{0}")]
@@ -37,6 +41,7 @@ impl LumoError {
             LumoError::Invalid(_) | LumoError::Json(_) => "invalid",
             LumoError::Denied(_) => "denied",
             LumoError::Unavailable(_) => "unavailable",
+            LumoError::PlanLimit(_) => "plan_limit",
             LumoError::Cancelled => "cancelled",
             LumoError::Provider(_) => "provider",
             LumoError::Io(_) => "io",

@@ -11,10 +11,18 @@ import { listen, type UnlistenFn } from '@tauri-apps/api/event';
 
 // ---- Errors -------------------------------------------------------------------------------------
 
-/** What every failing command returns (error.rs ApiError). */
+/**
+ * What every failing command returns (error.rs ApiError). `plan_limit` means the user's plan doesn't
+ * include something or its monthly usage is used up; the message says which, and when it resets.
+ */
 export interface ApiError {
-  code: string;
+  code: 'plan_limit' | (string & {});
   message: string;
+}
+
+/** A refusal from the plan limits in Rust (plans.rs), shown with an Upgrade button. */
+export function isPlanLimit(e: unknown): e is ApiError {
+  return isApiError(e) && (e as ApiError).code === 'plan_limit';
 }
 
 export function isApiError(e: unknown): e is ApiError {
@@ -79,7 +87,7 @@ export interface Settings {
   ttsEnabled: boolean;
   mascotEnabled: boolean;
   reducedMotion: boolean;
-  /** "free", "lite" or "pro". Set only by Rust's license check; saving settings keeps it. */
+  /** "free", "lite", "pro" or "unlimited". Set only by Rust's license check; saving settings keeps it. */
   plan: string;
   planCheckedAt: string | null;
 }
@@ -147,6 +155,8 @@ export type RunStatus =
   | 'stopped'
   | 'needs_attention'
   | 'interrupted'
+  /** The plan's monthly usage ran out between model calls; `error` says when it resets. */
+  | 'limit_reached'
   | string;
 
 export interface PlanStep {
@@ -437,7 +447,43 @@ export interface LicenseStatus {
   licensingConfigured: boolean;
   checkoutLite: string | null;
   checkoutPro: string | null;
+  checkoutUnlimited: string | null;
   checkedAt: string | null;
+}
+
+export type PlanId = 'free' | 'lite' | 'pro' | 'unlimited';
+
+/** plans.rs PlanInfo: one row of the plans table. */
+export interface PlanInfo {
+  id: PlanId;
+  name: string;
+  /** Model tokens per calendar month; null means unlimited. */
+  monthlyTokens: number | null;
+  /** Display names of the on-device models the plan includes. */
+  localModels: string[];
+  cloudModels: boolean;
+  /** Active automations; null means no limit. */
+  automations: number | null;
+  computerControl: boolean;
+}
+
+/** plans.rs PlanUsage. Display only: Rust enforces every limit. */
+export interface PlanUsage {
+  plan: PlanId;
+  /** Input + output model tokens this calendar month. */
+  tokensUsed: number;
+  /** null on a plan with unlimited usage. */
+  tokensLimit: number | null;
+  /** 0 to 100; null on a plan with unlimited usage. */
+  percentUsed: number | null;
+  /** Local midnight on the 1st of next month. */
+  resetsAt: string;
+  /** Runtime tags of the catalog's on-device models this plan may use. */
+  allowedModels: string[];
+  cloudModels: boolean;
+  automationsAllowed: number | null;
+  computerControl: boolean;
+  plans: PlanInfo[];
 }
 
 // ---- On-device models (local_models.rs) -----------------------------------------------------------
@@ -457,6 +503,8 @@ export interface LocalModel {
   installed: boolean;
   fits: boolean;
   selected: boolean;
+  /** The cheapest plan that includes this model when the current plan doesn't, else null. */
+  requiredPlan: PlanId | null;
 }
 
 export interface LocalStatus {
@@ -574,6 +622,7 @@ export const api = {
   licenseStatus: () => call<LicenseStatus>('license_status'),
   activateLicense: (licenseKey: string) => call<LicenseStatus>('activate_license', { licenseKey }),
   removeLicense: () => call<LicenseStatus>('remove_license'),
+  planUsage: () => call<PlanUsage>('plan_usage'),
 
   // On-device models. download resolves when finished; progress arrives as 'local-model-progress'.
   localModelsStatus: () => call<LocalStatus>('local_models_status'),
@@ -607,6 +656,8 @@ export interface AppEvents {
   privacy: { kind: string; detail: string };
   /** Lumo is (or stopped) controlling the mouse and keyboard. */
   'input-control': { active: boolean; stopShortcut: string };
+  /** This month's model usage changed (after every model call). */
+  'plan-usage-changed': PlanUsage;
   /** Download progress for an on-device model. */
   'local-model-progress': LocalModelProgress;
   /** Sent by the compact window ("Open in Lumo") to the main window. */

@@ -199,6 +199,9 @@ pub fn get(core: &Core, id: &str) -> Result<Automation> {
 
 pub fn save(core: &Core, id: Option<&str>, i: &AutomationInput) -> Result<Automation> {
     validate(i)?;
+    if i.enabled {
+        crate::plans::check_automation_slot(core, id)?;
+    }
     let t = now();
     let next = if i.enabled { Some(next_run(&i.trigger, Utc::now())?.to_rfc3339()) } else { None };
     let id = id.map(String::from).unwrap_or_else(new_id);
@@ -269,6 +272,7 @@ pub async fn run_now(core: Arc<Core>, registry: Arc<Registry>, id: &str) -> Resu
                 let status = if out.needs_attention { "needs_attention".to_string() } else { out.status.clone() };
                 (status, out.error, out.summary, Some(run_id), Some(conv_id))
             }
+            Err(e @ LumoError::PlanLimit(_)) => ("limit_reached".to_string(), Some(e.to_string()), None, None, None),
             Err(e) => ("failed".to_string(), Some(e.to_string()), None, None, None),
         };
     let finished = now();
@@ -288,6 +292,7 @@ pub async fn run_now(core: Arc<Core>, registry: Arc<Registry>, id: &str) -> Resu
         let body = match status.as_str() {
             "done" => summary.clone().unwrap_or_else(|| "Finished.".into()),
             "needs_attention" => "Needs your attention: it stopped at a step that requires your approval.".into(),
+            "limit_reached" => error.clone().unwrap_or_default(),
             _ => format!("Didn't finish: {}", error.clone().unwrap_or_else(|| status.clone())),
         };
         let _ = core.platform.notify(&a.name, &crate::util::preview(&body, 200));
@@ -311,6 +316,8 @@ pub fn due(core: &Core, at: DateTime<Utc>) -> Result<Vec<String>> {
     if core.settings().automations_paused {
         return Ok(vec![]);
     }
+    // Automations beyond the plan's count (after a downgrade) are paused, never run.
+    crate::plans::pause_excess_automations(core)?;
     let all = list(core)?;
     Ok(all
         .into_iter()
@@ -351,7 +358,7 @@ pub async fn scheduler(core: Arc<Core>, registry: Arc<Registry>) {
 mod tests {
     use super::*;
     use crate::agent::tests::{resp, tool_use, Scripted};
-    use crate::core::testing::{core_with, FakePlatform};
+    use crate::core::testing::{core_with, set_plan, FakePlatform};
     use serde_json::json;
 
     #[test]
@@ -370,6 +377,7 @@ mod tests {
     async fn a_due_automation_runs_records_and_notifies() {
         let platform = Arc::new(FakePlatform::default());
         let (core, _d) = core_with(platform.clone());
+        set_plan(&core, "lite");
         let scripted = Scripted::new(vec![
             resp(vec![tool_use("w", "write_clipboard", json!({"text": "x"}))], "tool_use"),
             resp(vec![json!({"type": "text", "text": "Checked. Nothing new."})], "end_turn"),
@@ -399,5 +407,35 @@ mod tests {
             save(&core, None, &AutomationInput { allowed_tools: vec!["run_command".into()], ..input }).is_err(),
             "sensitive tools can't be pre-allowed"
         );
+    }
+
+    #[tokio::test]
+    async fn the_runner_stops_when_the_plan_allowance_is_used_up() {
+        let platform = Arc::new(FakePlatform::default());
+        let (core, _d) = core_with(platform.clone());
+        set_plan(&core, "lite");
+        let scripted = Scripted::new(vec![resp(vec![json!({"type": "text", "text": "Done."})], "end_turn")]);
+        *core.provider_override.lock() = Some(scripted.clone());
+        let a = save(
+            &core,
+            None,
+            &AutomationInput {
+                name: "Digest".into(),
+                prompt: "Summarize".into(),
+                agent_id: None,
+                trigger: Trigger::Interval { minutes: 60 },
+                allowed_tools: vec![],
+                enabled: true,
+                notify: false,
+            },
+        )
+        .unwrap();
+        crate::plans::record_tokens_at(&core, 30_000_000, Local::now()).unwrap();
+        let r = run_now(core.clone(), Arc::new(Registry::standard()), &a.id).await.unwrap();
+        assert_eq!(r.status, "limit_reached");
+        assert!(r.run_id.is_none(), "no run was started");
+        assert!(scripted.requests.lock().is_empty(), "the model was never called");
+        let note = platform.notifications.lock().last().cloned().unwrap();
+        assert!(note.1.starts_with("You've used all of this month's Lite usage."), "{note:?}");
     }
 }

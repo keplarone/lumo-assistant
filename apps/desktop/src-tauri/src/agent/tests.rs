@@ -2,7 +2,7 @@
 
 use super::*;
 use crate::agent::events::Collector;
-use crate::core::testing::{core_with, FakePlatform};
+use crate::core::testing::{core_with, set_plan, FakePlatform};
 use crate::model::{EventSink as StreamSink, ModelProvider, ModelResponse};
 use async_trait::async_trait;
 
@@ -55,6 +55,8 @@ pub fn tool_use(id: &str, name: &str, input: Value) -> Value {
 fn setup(script: Vec<ModelResponse>) -> (Arc<Core>, Arc<Scripted>, Arc<FakePlatform>, tempfile::TempDir, std::path::PathBuf) {
     let platform = Arc::new(FakePlatform::default());
     let (core, dir) = core_with(platform.clone());
+    // These tests use the default (cloud) provider, which Free doesn't include; plan limits have their own tests.
+    set_plan(&core, "pro");
     let p = Scripted::new(script);
     *core.provider_override.lock() = Some(p.clone());
     let root = std::fs::canonicalize(dir.path()).unwrap().join("Downloads");
@@ -297,4 +299,83 @@ async fn attachments_only_by_token_and_context_each_turn() {
     assert!(user[0]["text"].as_str().unwrap().starts_with("<context>"));
     assert!(user[2]["text"].as_str().unwrap().contains("<untrusted_content>"));
     assert!(!req.system.contains("Current local time"), "changing facts stay out of the system prompt");
+}
+
+#[tokio::test]
+async fn runs_follow_the_plans_models_and_monthly_allowance() {
+    let (core, scripted, _p, _dir, _root) = setup(vec![]);
+    let registry = Arc::new(Registry::standard());
+    let start = |core: &Arc<Core>, text: &str| {
+        prepare(core, &registry, &StartRequest { text: text.into(), ..Default::default() }, Origin::User, vec![])
+    };
+
+    // Free doesn't include cloud providers: refused before anything is recorded.
+    set_plan(&core, "free");
+    let mut s = core.settings();
+    s.provider = "anthropic".into();
+    crate::settings::save(&core.db, &s).unwrap();
+    let err = start(&core, "hello").err().unwrap();
+    assert_eq!(err.code(), "plan_limit");
+    assert!(store::list_conversations(&core, 10, None).unwrap().is_empty());
+    assert!(scripted.requests.lock().is_empty());
+
+    // An on-device model Free includes works; one it doesn't (an old choice from Lite) is refused.
+    s.provider = "local".into();
+    s.local_model = "qwen3:30b".into();
+    crate::settings::save(&core.db, &s).unwrap();
+    assert!(start(&core, "hello").err().unwrap().to_string().starts_with("Nova 5.5 is part of Lumo Lite, Lumo Pro and Lumo Unlimited."));
+    s.local_model = "qwen3:4b".into();
+    crate::settings::save(&core.db, &s).unwrap();
+
+    // Each model call's tokens count. The call that crosses the limit finishes; the next call is
+    // refused and the run ends with the limit message.
+    let mut first = resp(vec![tool_use("n1", "notify", json!({"title": "t", "body": "b"}))], "tool_use");
+    first.usage = Usage { input_tokens: 900_000, output_tokens: 200_000, ..Default::default() };
+    *scripted.responses.lock() = vec![first, resp(vec![json!({"type": "text", "text": "never sent"})], "end_turn")];
+    let events = Arc::new(Collector::default());
+    let spec = start(&core, "remind me").unwrap();
+    let conv = spec.conversation_id.clone();
+    let out = drive(core.clone(), registry.clone(), spec, events.clone()).await;
+    assert_eq!(out.status, "limit_reached", "{out:?}");
+    assert!(out.error.as_deref().unwrap().starts_with("You've used all of this month's Free usage. It resets on "));
+    assert_eq!(scripted.requests.lock().len(), 1, "no model call after the limit");
+    assert_history_valid(&core, &conv);
+    let usage = crate::plans::usage(&core);
+    assert_eq!((usage.tokens_used, usage.percent_used), (1_100_000, Some(100)));
+    assert!(_p.broadcasts.lock().iter().any(|(e, v)| e == "plan-usage-changed" && v["tokensUsed"] == 1_100_000));
+
+    // New runs (and continuing this conversation) are refused up front with the same message.
+    let err = start(&core, "again").err().unwrap();
+    assert_eq!(err.code(), "plan_limit");
+    let cont = prepare(
+        &core,
+        &registry,
+        &StartRequest { conversation_id: Some(conv.clone()), text: "more".into(), ..Default::default() },
+        Origin::User,
+        vec![],
+    );
+    assert_eq!(cont.err().unwrap().code(), "plan_limit");
+
+    // Upgrading raises the allowance; a conversation started on a model the plan no longer includes
+    // can't be continued after a downgrade.
+    set_plan(&core, "lite");
+    let mut s = core.settings();
+    s.local_model = "qwen3:30b".into();
+    crate::settings::save(&core.db, &s).unwrap();
+    *scripted.responses.lock() = vec![resp(vec![json!({"type": "text", "text": "Hi."})], "end_turn")];
+    let spec = start(&core, "hi on nova").unwrap();
+    let nova = spec.conversation_id.clone();
+    assert_eq!(drive(core.clone(), registry.clone(), spec, Arc::new(Collector::default())).await.status, "done");
+    set_plan(&core, "free");
+    let mut s = core.settings();
+    s.local_model = "qwen3:4b".into();
+    crate::settings::save(&core.db, &s).unwrap();
+    let cont = prepare(
+        &core,
+        &registry,
+        &StartRequest { conversation_id: Some(nova), text: "more".into(), ..Default::default() },
+        Origin::User,
+        vec![],
+    );
+    assert!(cont.err().unwrap().to_string().starts_with("Nova 5.5"));
 }

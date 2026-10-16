@@ -189,8 +189,9 @@ Stated plainly, highest first.
     - No hardware ID binding or activation count, so one key works on any number of machines.
     - The plan is checked only at activation and never re-validated. A refunded or cancelled membership
       keeps its plan offline indefinitely.
-    - The plan is not enforced anywhere in Rust today. If gating is added only in the UI, a compromised
-      or modified webview bypasses it.
+    - Plan limits (usage, models, automations, computer control) are enforced in the Rust core
+      (`plans.rs`), so a compromised webview cannot bypass them, but a modified build or an edited local
+      database can; server-side metering is needed if Lumo ever pays for cloud usage itself.
     - A non-JSON answer from Whop returns a clean 502. Whop's status is echoed back as `membershipStatus`.
     - The service never logs the license key or the Whop key. Its error messages contain no secrets.
 12. **Audit log content.** Write and sensitive tool inputs are stored in full in the encrypted audit log.

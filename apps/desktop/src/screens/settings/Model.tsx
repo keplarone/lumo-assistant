@@ -3,6 +3,7 @@ import { PlugZap } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { api, errorMessage, type Effort, type Provider } from '../../lib/ipc';
 import { LocalModels } from '../../components/LocalModels';
+import { routeHref } from '../../lib/router';
 import { useApp } from '../../state/app';
 import { SecretField, SectionHeader, SettingRow, useSave } from './parts';
 
@@ -92,6 +93,16 @@ export function ModelSection() {
           ]}
         />
       </SettingRow>
+      {app.planUsage && !app.planUsage.cloudModels && s.provider !== 'local' && (
+        <Callout tone="warning" title="Your plan uses on-device models">
+          Anthropic and compatible servers are included with Lumo Lite and above, so tasks won’t start with
+          this provider on your plan. Choose “On this computer”, or{' '}
+          <a className="lm-link" href={routeHref({ name: 'settings', section: 'plans' })}>
+            see plans
+          </a>
+          .
+        </Callout>
+      )}
       {s.provider === 'local' ? (
         <div className="lm-setting-block lm-local-block">
           <LocalModels onSelected={() => setResult(null)} />

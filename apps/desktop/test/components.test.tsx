@@ -13,14 +13,50 @@ vi.mock('@tauri-apps/api/event', () => ({
 }));
 
 const announce = vi.fn();
+// plans.rs PlanUsage, as plan_usage returns it for the Free plan.
+const planRow = (id: string, name: string, monthlyTokens: number | null, extra: object = {}) => ({
+  id,
+  name,
+  monthlyTokens,
+  localModels: ['Orbit 3.8', 'Nebula 4.2', 'Solar 5.4', 'Nova 5.5'],
+  cloudModels: true,
+  automations: null,
+  computerControl: true,
+  ...extra,
+});
+const freeUsage = {
+  plan: 'free',
+  tokensUsed: 420_000,
+  tokensLimit: 1_000_000,
+  percentUsed: 42,
+  resetsAt: '2026-11-01T00:00:00+00:00',
+  allowedModels: ['qwen3:4b', 'qwen3:8b'],
+  cloudModels: false,
+  automationsAllowed: 1,
+  computerControl: false,
+  plans: [
+    planRow('free', 'Free', 1_000_000, {
+      localModels: ['Orbit 3.8', 'Nebula 4.2'],
+      cloudModels: false,
+      automations: 1,
+      computerControl: false,
+    }),
+    planRow('lite', 'Lumo Lite', 30_000_000, { automations: 10 }),
+    planRow('pro', 'Lumo Pro', 150_000_000),
+    planRow('unlimited', 'Lumo Unlimited', null),
+  ],
+};
+const appState: { planUsage: unknown } = { planUsage: freeUsage };
 vi.mock('../src/state/app', () => ({
   useApp: () => ({
     announce,
     reportError: vi.fn(),
     reloadSettings: vi.fn(async () => {}),
+    reloadPlanUsage: vi.fn(async () => {}),
     settings: { provider: 'local', localModel: '' },
     info: { keychain: null },
     secrets: [],
+    planUsage: appState.planUsage,
   }),
 }));
 
@@ -33,7 +69,18 @@ const wrap = (ui: ReactNode) => render(<TooltipProvider>{ui}</TooltipProvider>);
 
 beforeEach(() => {
   invoke.mockReset();
+  appState.planUsage = freeUsage;
 });
+
+const license = {
+  plan: 'free',
+  hasKey: false,
+  licensingConfigured: true,
+  checkoutLite: 'https://checkout.test/lite',
+  checkoutPro: 'https://checkout.test/pro',
+  checkoutUnlimited: 'https://checkout.test/unlimited',
+  checkedAt: null,
+};
 
 describe('ApprovalCard', () => {
   const seg = {
@@ -105,6 +152,35 @@ describe('Composer', () => {
     expect((box as HTMLTextAreaElement).value).toBe('Hello');
   });
 
+  it('shows a plan limit with an Upgrade button that opens the real checkout page', async () => {
+    invoke.mockImplementation(async (cmd: string) => (cmd === 'license_status' ? license : undefined));
+    const message =
+      'You’ve used all of this month’s Free usage. It resets on November 1. Upgrade to Lite or Pro for 30× or 150× more, or to Unlimited for no limit.';
+    const onSend = vi.fn(async () => {
+      throw { code: 'plan_limit', message };
+    });
+    wrap(<Composer onSend={onSend} running={false} voiceShortcut={false} />);
+    await userEvent.type(screen.getByRole('textbox', { name: 'Message to Lumo' }), 'Hello{Enter}');
+    expect(await screen.findByText(message)).toBeTruthy();
+    await userEvent.click(await screen.findByRole('button', { name: 'Upgrade to Lumo Lite' }));
+    expect(invoke).toHaveBeenCalledWith('open_external_url', { url: 'https://checkout.test/lite' });
+    expect(screen.getByRole('link', { name: 'Compare plans' }).getAttribute('href')).toBe('#/settings/plans');
+  });
+
+  it('nudges once 80% of this month’s usage is used', () => {
+    appState.planUsage = { ...freeUsage, percentUsed: 84 };
+    wrap(<Composer onSend={vi.fn()} running={false} voiceShortcut={false} />);
+    expect(screen.getByText(/You’ve used 84% of this month’s usage\. It resets on/)).toBeTruthy();
+  });
+
+  it('stays quiet below 80% and on unlimited usage', () => {
+    wrap(<Composer onSend={vi.fn()} running={false} voiceShortcut={false} />);
+    expect(screen.queryByText(/of this month’s usage/)).toBeNull();
+    appState.planUsage = { ...freeUsage, plan: 'unlimited', tokensLimit: null, percentUsed: null };
+    wrap(<Composer onSend={vi.fn()} running={false} voiceShortcut={false} />);
+    expect(screen.queryByText(/of this month’s usage/)).toBeNull();
+  });
+
   it('shows Stop instead of Send while a task runs', async () => {
     const onStop = vi.fn();
     wrap(<Composer onSend={vi.fn()} running onStop={onStop} voiceShortcut={false} />);
@@ -128,6 +204,7 @@ describe('LocalModels', () => {
     installed: false,
     fits: true,
     selected: false,
+    requiredPlan: null,
   };
   const status = (over: object) => ({
     brand: 'Lumo on-device models',
@@ -168,6 +245,31 @@ describe('LocalModels', () => {
     expect(invoke).toHaveBeenCalledWith('download_local_model', { id: 'qwen3:8b' });
   });
 
+  it('marks models the plan doesn’t include as Lite and offers no way to use them', async () => {
+    const nova = {
+      ...model,
+      id: 'qwen3:30b',
+      tier: 'Nova 5.5',
+      displayName: 'Nova 5.5',
+      requiredPlan: 'lite',
+    };
+    invoke.mockImplementation(async (cmd: string) =>
+      cmd === 'local_models_status'
+        ? status({
+            models: [nova, { ...nova, id: 'gpt-oss:20b', displayName: 'Solar 5.4', installed: true }],
+          })
+        : undefined,
+    );
+    wrap(<LocalModels />);
+    expect(await screen.findByText('Nova 5.5')).toBeTruthy();
+    expect(screen.getAllByText('Lite')).toHaveLength(2);
+    expect(screen.getAllByText(/Included with Lumo Lite and above/)).toHaveLength(2);
+    expect(screen.queryByRole('button', { name: 'Download' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Use this model' })).toBeNull();
+    // An installed locked model can still be deleted to free space.
+    expect(screen.getByRole('button', { name: 'Delete Solar 5.4' })).toBeTruthy();
+  });
+
   it('selects an installed model', async () => {
     invoke.mockImplementation(async (cmd: string) =>
       cmd === 'local_models_status' ? status({ models: [{ ...model, installed: true }] }) : undefined,
@@ -180,14 +282,7 @@ describe('LocalModels', () => {
 });
 
 describe('PlansSection', () => {
-  const lic = {
-    plan: 'free',
-    hasKey: false,
-    licensingConfigured: true,
-    checkoutLite: 'https://checkout.test/lite',
-    checkoutPro: 'https://checkout.test/pro',
-    checkedAt: null,
-  };
+  const lic = license;
   const reply = (l: object) => async (cmd: string) => {
     if (cmd === 'license_status') return l;
     if (cmd === 'local_models_status') throw { code: 'unavailable', message: 'x' };
@@ -195,13 +290,52 @@ describe('PlansSection', () => {
     return undefined;
   };
 
+  it('shows this month’s usage and what each plan includes', async () => {
+    invoke.mockImplementation(reply(lic));
+    wrap(<PlansSection />);
+    expect(await screen.findByText(/42% of this month’s usage · Resets/)).toBeTruthy();
+    expect(
+      screen.getByRole('progressbar', { name: 'This month’s usage' }).getAttribute('aria-valuenow'),
+    ).toBe('42');
+    for (const [name, price] of [
+      ['Free', '$0'],
+      ['Lumo Lite', '$19.99'],
+      ['Lumo Pro', '$49.99'],
+      ['Lumo Unlimited', '$124.99'],
+    ])
+      expect(screen.getByRole('heading', { name }).closest('li')!.textContent).toContain(price);
+    expect(screen.getByText('On-device models: Orbit 3.8 and Nebula 4.2')).toBeTruthy();
+    expect(screen.getByText('1 automation')).toBeTruthy();
+    expect(screen.getByText('30× more usage than Free')).toBeTruthy();
+    expect(
+      screen.getByText('All on-device models: Orbit 3.8, Nebula 4.2, Solar 5.4 and Nova 5.5'),
+    ).toBeTruthy();
+    expect(screen.getByText('10 automations')).toBeTruthy();
+    expect(screen.getByText('Lumo can use your mouse and keyboard')).toBeTruthy();
+    expect(screen.getByText('150× more usage than Free')).toBeTruthy();
+    expect(screen.getByText('Unlimited automations')).toBeTruthy();
+    expect(screen.getByText('Unlimited usage')).toBeTruthy();
+  });
+
+  it('shows unlimited usage without a bar', async () => {
+    appState.planUsage = { ...freeUsage, plan: 'unlimited', tokensLimit: null, percentUsed: null };
+    invoke.mockImplementation(reply({ ...lic, plan: 'unlimited', hasKey: true }));
+    wrap(<PlansSection />);
+    expect(await screen.findByText('Your plan')).toBeTruthy();
+    expect(screen.getAllByText('Unlimited usage').length).toBeGreaterThan(1);
+    expect(screen.queryByRole('progressbar')).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Upgrade' })).toBeNull();
+  });
+
   it('opens the real checkout page and activates a key', async () => {
     invoke.mockImplementation(reply(lic));
     wrap(<PlansSection />);
     const upgrades = await screen.findAllByRole('button', { name: 'Upgrade' });
-    expect(upgrades).toHaveLength(2);
+    expect(upgrades).toHaveLength(3);
     await userEvent.click(upgrades[1]!);
     expect(invoke).toHaveBeenCalledWith('open_external_url', { url: 'https://checkout.test/pro' });
+    await userEvent.click(upgrades[2]!);
+    expect(invoke).toHaveBeenCalledWith('open_external_url', { url: 'https://checkout.test/unlimited' });
     await userEvent.type(screen.getByLabelText('License key'), 'KEY-123');
     await userEvent.click(screen.getByRole('button', { name: 'Activate' }));
     expect(invoke).toHaveBeenCalledWith('activate_license', { licenseKey: 'KEY-123' });
@@ -211,7 +345,13 @@ describe('PlansSection', () => {
 
   it('says plainly when activation is not available in this build', async () => {
     invoke.mockImplementation(
-      reply({ ...lic, licensingConfigured: false, checkoutLite: null, checkoutPro: null }),
+      reply({
+        ...lic,
+        licensingConfigured: false,
+        checkoutLite: null,
+        checkoutPro: null,
+        checkoutUnlimited: null,
+      }),
     );
     wrap(<PlansSection />);
     expect(await screen.findByText('License activation isn’t available in this build yet.')).toBeTruthy();

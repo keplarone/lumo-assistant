@@ -16,6 +16,8 @@ import {
   type LocalStatus,
 } from '../lib/ipc';
 import { formatGb, memoryWarning, progressFraction, progressText } from '../lib/localModels';
+import { planName, planShortName } from '../lib/plans';
+import { routeHref } from '../lib/router';
 import { useApp } from '../state/app';
 
 type Confirm = { kind: 'download' | 'delete'; model: LocalModel } | null;
@@ -213,6 +215,8 @@ export function LocalModels({
           const otherDownloading = !!downloading && !isDownloading;
           const warn = memoryWarning(m, status.memoryGb);
           const p = isDownloading ? progress : null;
+          // Rust refuses choosing a model the plan doesn't include; this only says so up front.
+          const locked = m.requiredPlan ?? null;
           return (
             <li key={m.id} className="lm-card lm-local-model" data-selected={m.selected || undefined}>
               <div className="lm-local-model-main">
@@ -224,6 +228,7 @@ export function LocalModels({
                     </Badge>
                   )}
                   {m.installed && !m.selected && <Badge tone="success">Downloaded</Badge>}
+                  {locked && <Badge tone="accent">{planShortName(locked)}</Badge>}
                 </div>
                 <div className="lm-local-model-attr">
                   Based on {m.baseModel} ·{' '}
@@ -234,7 +239,15 @@ export function LocalModels({
                   {formatGb(m.downloadGb)} download
                 </div>
                 <p className="lm-local-model-summary">{m.summary}</p>
-                {warn && <p className="lm-local-model-warn">{warn}</p>}
+                {warn && !locked && <p className="lm-local-model-warn">{warn}</p>}
+                {locked && (
+                  <p className="lm-row-meta">
+                    Included with {planName(locked)} and above.{' '}
+                    <a className="lm-link" href={routeHref({ name: 'settings', section: 'plans' })}>
+                      See plans
+                    </a>
+                  </p>
+                )}
                 {isDownloading && (
                   <div className="lm-local-progress" aria-live="polite">
                     <ProgressBar value={progressFraction(p)} label={`Downloading ${m.displayName}`} />
@@ -261,7 +274,7 @@ export function LocalModels({
                   </Button>
                 ) : m.installed ? (
                   <>
-                    {!m.selected && (
+                    {!m.selected && !locked && (
                       <Button
                         variant="primary"
                         size="sm"
@@ -283,7 +296,7 @@ export function LocalModels({
                       Delete
                     </Button>
                   </>
-                ) : (
+                ) : locked ? null : (
                   <Button
                     variant="secondary"
                     size="sm"

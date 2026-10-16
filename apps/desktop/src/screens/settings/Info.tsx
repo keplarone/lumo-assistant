@@ -1,10 +1,20 @@
 /** Plans, Help, and Privacy & security: plain text screens that used to live on the website. */
-import { Badge, Button, Callout, Input, Kbd } from '@lumo/ui';
+import { Badge, Button, Callout, Input, Kbd, ProgressBar } from '@lumo/ui';
 import { useEffect, useState } from 'react';
 import { Bug, Check, ExternalLink } from 'lucide-react';
-import { ExternalAnchor, useLocalStatus } from '../../components/LocalModels';
+import { ExternalAnchor } from '../../components/LocalModels';
 import { modKey } from '../../lib/format';
-import { api, errorMessage, type LicenseStatus } from '../../lib/ipc';
+import { api, errorMessage, type LicenseStatus, type PlanUsage } from '../../lib/ipc';
+import {
+  asPlanId,
+  checkoutUrl,
+  nextPlan,
+  PLAN_PRICES,
+  planFeatures,
+  planName,
+  planRank,
+  resetDate,
+} from '../../lib/plans';
 import { routeHref } from '../../lib/router';
 import { useApp } from '../../state/app';
 import { SectionHeader } from './parts';
@@ -15,61 +25,27 @@ export const TERMS_URL = 'https://lumo.keplar.one/terms';
 
 // ---- Plans --------------------------------------------------------------------------------------
 
-const PLANS: {
-  id: 'free' | 'lite' | 'pro';
-  name: string;
-  price: string;
-  period?: string;
-  intro?: string;
-  features: string[];
-}[] = [
-  {
-    id: 'free',
-    name: 'Free',
-    price: '$0',
-    features: [
-      'A limited number of tasks each month',
-      'ON_DEVICE',
-      'Conversations',
-      'Organizing your files',
-      'Finding places',
-      'Order handoff',
-      'The Lumo owl',
-    ],
-  },
-  {
-    id: 'lite',
-    name: 'Lumo Lite',
-    price: '$19.99',
-    period: '/month',
-    intro: 'Everything in Free, plus',
-    features: ['More tasks each month', 'Automations', 'Projects with live preview', 'Voice input'],
-  },
-  {
-    id: 'pro',
-    name: 'Lumo Pro',
-    price: '$49.99',
-    period: '/month',
-    intro: 'Everything in Lite, plus',
-    features: [
-      'The highest limits',
-      'The most capable model',
-      'Publishing to GitHub and Netlify',
-      'Custom assistants',
-      'Priority support',
-    ],
-  },
-];
-const RANK = { free: 0, lite: 1, pro: 2 } as const;
+/** "X% of this month's usage" with one bar, or "Unlimited usage". From plan_usage (Rust). */
+export function UsageMeter({ usage }: { usage: PlanUsage }) {
+  const unlimited = usage.percentUsed === null;
+  return (
+    <div className="lm-usage" aria-label="Usage">
+      <div className="lm-usage-head">
+        <span className="lm-usage-label">This month</span>
+        <span className="lm-row-meta">
+          {unlimited
+            ? 'Unlimited usage'
+            : `${usage.percentUsed}% of this month’s usage · Resets ${resetDate(usage.resetsAt)}`}
+        </span>
+      </div>
+      {!unlimited && <ProgressBar value={(usage.percentUsed ?? 0) / 100} label="This month’s usage" />}
+    </div>
+  );
+}
 
 export function PlansSection() {
   const app = useApp();
-  const local = useLocalStatus().status;
-  // "On-device models: Orbit, Nebula, Solar and Nova", from the catalog the core reports.
-  const names = local ? [...new Set(local.models.map((m) => m.tier.replace(/\s+[\d.]+$/, '')))] : [];
-  const onDevice = names.length
-    ? `On-device models: ${names.length > 1 ? `${names.slice(0, -1).join(', ')} and ${names[names.length - 1]}` : names[0]}`
-    : 'On-device models';
+  const usage = app.planUsage;
   const [lic, setLic] = useState<LicenseStatus | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [key, setKey] = useState('');
@@ -78,9 +54,11 @@ export function PlansSection() {
 
   useEffect(() => {
     api.licenseStatus().then(setLic, (e) => setLoadError(errorMessage(e)));
+    void app.reloadPlanUsage?.();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const current = (lic?.plan ?? app.settings.plan ?? 'free') as keyof typeof RANK;
+  const current = asPlanId(lic?.plan ?? usage?.plan ?? app.settings.plan);
   const update = async (what: string, fn: () => Promise<LicenseStatus>, ok: (l: LicenseStatus) => string) => {
     setBusy(what);
     setMessage(null);
@@ -90,25 +68,35 @@ export function PlansSection() {
       setKey('');
       setMessage({ ok: true, text: ok(l) });
       await app.reloadSettings();
+      await app.reloadPlanUsage?.();
     } catch (e) {
       setMessage({ ok: false, text: errorMessage(e) });
     } finally {
       setBusy(null);
     }
   };
-  const planName = (id: string) => PLANS.find((p) => p.id === id)?.name ?? 'Free';
+  const plans = usage?.plans ?? [];
 
   return (
     <>
       <SectionHeader
         title="Plans"
-        description="Upgrade on Whop’s checkout page, then enter the license key you receive."
+        description="Every plan shows how much of this month’s usage is used. Upgrade on Whop’s checkout page, then enter the license key you receive."
       />
       {loadError && <Callout tone="danger">{loadError}</Callout>}
+      {usage && (
+        <section className="lm-setting-block" aria-labelledby="usage-title">
+          <h3 className="lm-section-title" id="usage-title">
+            Usage
+          </h3>
+          <UsageMeter usage={usage} />
+        </section>
+      )}
       <ul className="lm-plans">
-        {PLANS.map((p) => {
-          const checkout = p.id === 'lite' ? lic?.checkoutLite : p.id === 'pro' ? lic?.checkoutPro : null;
+        {plans.map((p, i) => {
+          const checkout = checkoutUrl(lic, p.id);
           const isCurrent = p.id === current;
+          const { price, period } = PLAN_PRICES[p.id];
           return (
             <li key={p.id} className="lm-card lm-plan-card" data-current={isCurrent || undefined}>
               <div className="lm-plan-card-head">
@@ -116,23 +104,23 @@ export function PlansSection() {
                 {isCurrent && <Badge tone="accent">Your plan</Badge>}
               </div>
               <p className="lm-plan-price">
-                <span>{p.price}</span>
-                {p.period && <span className="lm-plan-period">{p.period}</span>}
+                <span>{price}</span>
+                {period && <span className="lm-plan-period">{period}</span>}
               </p>
-              {p.intro && <p className="lm-plan-intro">{p.intro}</p>}
+              {i > 0 && <p className="lm-plan-intro">Everything in {plans[i - 1]!.name}, plus</p>}
               <ul className="lm-plan-features">
-                {p.features.map((f) => (
+                {planFeatures(plans, i).map((f) => (
                   <li key={f}>
                     <Check aria-hidden />
-                    <span>{f === 'ON_DEVICE' ? onDevice : f}</span>
+                    <span>{f}</span>
                   </li>
                 ))}
               </ul>
-              {p.id !== 'free' && RANK[p.id] > RANK[current] && (
+              {planRank(p.id) > planRank(current) && (
                 <div className="lm-plan-cta">
                   {checkout ? (
                     <Button
-                      variant={p.id === 'lite' ? 'primary' : 'secondary'}
+                      variant={p.id === nextPlan(current) ? 'primary' : 'secondary'}
                       icon={<ExternalLink />}
                       onClick={() =>
                         api

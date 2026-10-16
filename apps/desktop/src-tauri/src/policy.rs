@@ -125,13 +125,22 @@ fn is_protected(p: &Path) -> bool {
         }
     }
     #[cfg(windows)]
-    {
-        let l = s.to_ascii_lowercase();
-        if l.contains("/windows/") || l.ends_with("/windows") || l.contains("/program files") || l.contains("/appdata/") {
-            return true;
-        }
+    if is_windows_system_path(&s) {
+        return true;
     }
     false
+}
+
+/// Windows system and per-app data folders (`AppData` holds browser profiles, tokens and app
+/// settings). The per-user temp folder under `AppData\Local\Temp` is ordinary scratch space.
+/// Takes a path with forward slashes.
+#[cfg_attr(not(windows), allow(dead_code))]
+fn is_windows_system_path(s: &str) -> bool {
+    let l = format!("{}/", s.to_ascii_lowercase());
+    if l.contains("/windows/") || l.contains("/program files") || l.contains("/programdata/") {
+        return true;
+    }
+    l.contains("/appdata/") && !l.contains("/appdata/local/temp/")
 }
 
 /// Files and folders that the shell, git, the login session or package managers read and act on by
@@ -317,6 +326,24 @@ mod tests {
         // Ordinary files with similar names are still fine.
         for p in ["notes/.profile-pictures/a.png", "hooks/readme.md", "project/.gitignore", "Library/notes.txt", "zshrc-backup.txt"] {
             assert!(resolve_in_grants(roots, p).is_ok(), "{p}");
+        }
+    }
+
+    #[test]
+    fn windows_system_folders_are_protected_but_temp_is_not() {
+        for p in [
+            "//?/C:/Windows",
+            "C:/Windows/System32/drivers",
+            "C:/Program Files/App",
+            "C:/ProgramData/x",
+            "C:/Users/a/AppData",
+            "C:/Users/a/AppData/Roaming/Mozilla",
+            "C:/Users/a/AppData/Local/Google/Chrome/User Data",
+        ] {
+            assert!(is_windows_system_path(p), "{p}");
+        }
+        for p in ["//?/C:/Users/a/AppData/Local/Temp/.tmp1/Downloads", "C:/Users/a/Downloads", "D:/windows-notes/a.txt"] {
+            assert!(!is_windows_system_path(p), "{p}");
         }
     }
 
