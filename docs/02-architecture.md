@@ -67,8 +67,15 @@ docs/                    Audit, architecture, design system, security, release
 | `sensitive` | Delete or move files out of place, send email, place an order or open a checkout, deploy, run a command, control mouse and keyboard, capture the screen | Native OS confirmation dialog shown by Rust with the exact action. The webview cannot create, alter, or answer it. Never pre-approvable, never allowed in background automations. |
 
 Grants (folders, screen, clipboard, location, accounts) are explicit, listed in Settings → Permissions, and
-revocable. Background automations run with a reduced set: `read` tools plus notifications; anything else is
-queued for the user to approve in the foreground.
+revocable. Background automations run with a reduced set: `read` and UI tools, plus any `write` tools the user
+explicitly allowed when saving that automation. A call needing anything else (a sensitive action, a question,
+an unallowed write) is refused; the run is marked **needs attention** and Lumo sends a notification, so the
+user can finish the task in the foreground. Implemented in `tools::authorize` and `automations.rs`.
+
+A few tools change tier with context: `move_to_trash` is `write` for up to 20 items and `sensitive` above;
+`read_clipboard`, `get_active_window` and `take_screenshot` are `read` once their capability is granted and
+need approval (`write` or `sensitive` respectively) otherwise; `open_url` is `sensitive` for checkout and
+sign-in pages.
 
 ## 4. Agent runtime
 
@@ -94,84 +101,105 @@ interrupted is marked `interrupted` on next start, never `succeeded`).
 
 ### 4.1 Model gateway
 
-`trait ModelProvider { async fn stream(&self, req: ModelRequest) -> Result<EventStream> }` with:
+`trait ModelProvider { async fn complete(&self, req, sink, cancel) -> Result<ModelResponse> }` streams
+deltas to a sink and returns the complete, replayable content blocks. Implementations:
 
 - **Anthropic** (native Messages API over HTTPS, SSE streaming). Default model `claude-opus-5-5`; users can
   pick `claude-sonnet-5-5` or `claude-haiku-5-5`. Adaptive thinking with `output_config.effort`; progress
   updates via `thinking.display: "updates"`; server tools `web_search_20260209` and `web_fetch_20260209`;
-  client tools with `eager_input_streaming` and validation in Rust; vision input for screenshots and images;
-  the `computer_toolset_20260801` toolset for computer use; `refusal` stop reason handled before content is
-  used; server-side fallbacks enabled on Opus.
+  client tools with `eager_input_streaming` and validation in Rust (a truncated or invalid tool input is
+  flagged and answered with an error result, never executed); vision and PDF input; `refusal`, `pause_turn`
+  and `max_tokens` stop reasons handled; server-side fallbacks on models that support them; retries with
+  `retry-after` for 429/5xx before any output; optional beta features are dropped automatically if the API
+  rejects them. Mouse and keyboard control (the computer-use toolset) is **not** wired up yet.
 - **OpenAI-compatible** (`/v1/chat/completions` streaming with function tools) for local models (Ollama,
-  LM Studio) and other vendors. Server tools are unavailable there, so web search falls back to the local
-  `fetch_url` tool and an optional search API key.
+  LM Studio) and other vendors. Server tools are unavailable there, so web search uses the `search_web` tool
+  (Brave Search, when the user adds a key) and the local `fetch_url` tool. Thinking blocks are dropped when
+  converting history for these endpoints.
 
 ### 4.2 Conversation history is append-only
 
 The Anthropic API binds thinking blocks to the exact conversation prefix. So, per conversation, the system
 prompt and tool list are frozen at creation and stored with it; content blocks are stored verbatim and
-replayed unchanged; changes such as a newly saved memory are appended as `role: "system"` messages rather
-than editing the original prompt. This also keeps the prompt cache warm.
+replayed unchanged. Facts that change between turns (local time, granted folders, the project folder, saved
+location, and memories when enabled) go in a `<context>` block at the start of each user turn, never in the
+system prompt. A user turn that follows a failed run (no assistant reply) is merged into the previous user
+message, since the model never saw it. The tests assert that each request's message list extends the
+previous one and that system prompt and tools never change within a conversation.
 
 ### 4.3 Prompt-injection defenses
 
-- Tool results from the web, files, email and screenshots are wrapped in `<untrusted_content source="…">`
-  and the system prompt says such content carries no authority.
+- Tool results from the web, files, the clipboard, place listings, attachments and command output are
+  wrapped in `<untrusted_content>` (with any closing tag inside neutralized) and the system prompt says such
+  content carries no authority.
+- `fetch_url` refuses non-public addresses (loopback, private ranges, link-local, metadata endpoints) and
+  checks every redirect hop.
 - Authority never lives in the context: even if the model is convinced by injected text, a sensitive call
   still needs the user's native confirmation, and a call outside a grant fails in Rust.
 - Purchases, sends and deletions show the exact parameters in the confirmation, so an injected change is
   visible to the user.
-- Per-run limits: max tool calls, max wall time, max spend estimate; per-tool rate limits.
+- Per-run limit on actions (Settings → Model, default 40) and a cap of 60 model turns; per-tool rate limits
+  (30 per minute). A max-spend estimate is not implemented yet.
 
-## 5. Tools (first release)
+## 5. Tools (as implemented)
 
 | Tool | Tier | Notes |
 |---|---|---|
-| `update_plan`, `ask_user`, `present_options` | UI | No side effects; drive plan, question and comparison cards. |
-| `list_directory`, `search_files`, `read_file`, `file_info` | read | Granted folders only, symlinks resolved and rechecked. |
-| `write_file`, `create_folder`, `rename`, `organize_files` | write | Journaled; `organize_files` previews a move plan first. |
-| `move_to_trash` | sensitive | Uses the OS trash, never permanent delete. |
-| `web_search`, `web_fetch` (server) / `fetch_url` (local) | read | Content returned as untrusted. |
-| `open_url` | sensitive for checkout or ordering links, write otherwise | Handoff to the user's browser. |
-| `find_places` | read | OpenStreetMap; needs a saved location the user entered. |
-| `clipboard_read` / `clipboard_write` | read (after grant) / write | |
-| `notify` | write | Desktop notification. |
-| `remember`, `forget` | write | Only when memory is enabled; every save is visible and undoable. |
-| `create_project`, `project_write_file`, `project_read_file`, `project_list`, `project_preview` | write / read | Projects live in a granted workspace folder, each a git repository; every agent turn commits. |
-| `run_command` | sensitive | Allowlisted programs only, in the project folder, scrubbed environment, timeout, output captured. |
-| `screenshot`, computer toolset | sensitive | Screen capture and input control with a visible indicator and a global stop shortcut. |
-| `calendar_*`, `gmail_*`, `drive_*`, `github_*`, `netlify_deploy` | per action | Only after the account is connected. |
+| `update_plan`, `ask_user`, `present_options` | UI | No side effects; drive plan, question and comparison cards. `ask_user` is unavailable in automations. |
+| `list_files`, `search_files`, `read_file` | read | Granted folders only; symlinks resolved and rechecked; credential folders refused even inside a grant. |
+| `write_file`, `create_folder`, `move_files` | write | Journaled for undo; overwrites are backed up first; moves never overwrite. |
+| `move_to_trash` | write (≤20) / sensitive | System Trash only; Lumo cannot permanently delete. |
+| `request_folder_access` | UI | Opens the native folder picker; the user's choice is the grant. |
+| `fetch_url` | read | Public addresses only; content untrusted. |
+| `web_search`, `web_fetch` (Anthropic server tools) / `search_web` (Brave) | read | Server tools on Anthropic; Brave for local models when a key is added. |
+| `open_url` | write / sensitive for checkout and sign-in | Handoff to the user's browser. |
+| `find_places` | read | OpenStreetMap (Nominatim + Overpass); no menus, prices or ratings. |
+| `prepare_checkout_handoff` | sensitive | Shows merchant, items, quantities, address and total (or "unknown until checkout"); copies the list and opens the merchant's site. Never places an order. |
+| `read_clipboard` / `write_clipboard` | read after grant, else write / write | |
+| `notify` | UI | Desktop notification. |
+| `take_screenshot` | read after grant, else sensitive | Primary display, downscaled; privacy event shown. |
+| `get_active_window` | read after grant, else write | The window in front when Lumo was summoned with the shortcut; kept in memory only. |
+| `remember`, `forget` | UI | Only when memory is enabled; refuses passwords and payment details; all visible in Settings → Memory. |
+| `create_project` | write | A folder under Documents/Lumo Projects, a git repository, auto-granted. |
+| `save_version`, `preview_project` | UI | Git commit inside the project; preview served by the `preview:` protocol. |
+| `run_command` | sensitive | Allowlisted programs (node, npm, pnpm, yarn, python, pip, git, cargo, go, deno, bun), no shell, no inline code, secrets stripped from the environment, timeout. Not an OS sandbox; the dialog says so. |
+| `publish_to_github` | sensitive | Creates a repository (private by default) and pushes the project with the user's token. |
+| `deploy_to_netlify` | sensitive | Zips the project, deploys, waits for "ready", and checks the URL responds. |
 
 ## 6. IPC contract (webview ↔ Rust)
 
-Commands are Tauri commands returning `Result<T, ApiError>` with `ApiError { code, message }`. Streaming
-uses a Tauri `Channel<AgentEvent>` per run; app-wide changes use events. Types are mirrored in
-`apps/desktop/src/lib/ipc.ts`.
+Commands are Tauri commands returning `Result<T, ApiError>` with `ApiError { code, message }`. The source of
+truth is `apps/desktop/src-tauri/src/commands.rs`; types are mirrored in `apps/desktop/src/lib/ipc.ts`.
+Agent events are emitted app-wide as `agent-event` `{ runId, conversationId, event }` so the main and
+compact windows both follow a run.
 
-- App: `app_info`, `settings_get`, `settings_update`, `secret_set`, `secret_clear`, `secrets_status`
-  (presence only, never values), `open_logs_folder`.
-- Conversations: `conversations_list`, `conversation_get`, `conversation_create`, `conversation_rename`,
-  `conversation_delete`, `conversation_search`.
-- Runs: `run_start(conversation_id, text, attachments, channel) -> run_id`, `run_cancel`, `runs_active`,
-  `approval_respond(approval_id, approve)` (write tier only), `question_answer(question_id, answer)`.
-- Permissions: `grants_list`, `grant_folder` (Rust opens the native picker), `grant_capability`,
-  `grant_revoke`.
-- Memory: `memories_list`, `memory_update`, `memory_delete`, `memories_export`, `memories_clear`.
-- Automations: `automations_list`, `automation_save`, `automation_set_paused`, `automation_delete`,
-  `automation_run_now`, `automation_history`.
-- Agents: `agents_list`, `agent_save`, `agent_delete`.
-- Integrations: `integrations_list`, `integration_connect`, `integration_disconnect`.
-- Projects: `projects_list`, `project_files`, `project_read`, `project_write`, `project_history`,
-  `project_restore`, `project_preview_url`.
-- Audit: `audit_list`.
-- Voice and screen: `stt_transcribe`, `tts_speak`, `tts_stop`, `screen_capture`.
-- Windows: `window_show_main`, `window_toggle_compact`.
+- App and settings: `app_info`, `get_settings`, `save_settings`, `secrets_status` (presence only),
+  `set_secret`, `delete_secret`, `test_model_connection` (lists models; spends no tokens), `open_logs`,
+  `check_for_updates`, `install_update`.
+- Conversations and runs: `list_conversations`, `get_conversation`, `rename_conversation`,
+  `delete_conversation`, `export_conversation`, `start_run`, `cancel_run`, `stop_all_runs`,
+  `resolve_approval` (deny / once / conversation; write tier only), `answer_question`, `list_active_runs`,
+  `list_runs`, `attach_files` (native picker; returns tokens, never paths).
+- Permissions and changes: `list_grants`, `list_capabilities`, `grant_folder` (native picker),
+  `grant_capability`, `revoke_grant`, `list_changes`, `undo_run`, `list_audit`.
+- Memory: `list_memories`, `add_memory`, `update_memory`, `delete_memory`, `delete_all_memories`,
+  `export_memories`.
+- Automations and agents: `list_automations`, `save_automation`, `delete_automation`, `run_automation`,
+  `list_automation_runs`, `allowable_automation_tools`, `list_agents`, `save_agent`, `delete_agent`,
+  `list_tools`.
+- Projects: `list_projects`, `create_project`, `project_files`, `read_project_file`, `write_project_file`,
+  `project_history`, `save_project_version`, `restore_project_version`, `reveal_project`.
+- Integrations: `integrations_status`, `verify_integration`, `disconnect_integration`.
+- Windows: `show_main_window`, `toggle_compact_window`.
 
-`AgentEvent` variants: `run_started`, `phase` (`understanding | planning | executing | verifying |
+`AgentEvent` (serde tag `type`): `run_started`, `phase` (`understanding | planning | executing | verifying |
 reporting`), `text_delta`, `progress_note`, `plan`, `tool_started`, `tool_finished`, `approval_requested`,
-`approval_resolved`, `question`, `options`, `run_finished { status, summary }`, `error`.
-App events: `runs_changed`, `privacy_indicators { mic, screen, control }`, `automation_finished`,
-`memories_changed`.
+`approval_resolved`, `question`, `options`, `open_preview`, `privacy`, `assistant_message`, `run_finished`
+(`done | failed | cancelled | refused | stopped`, plus `needs_attention` for automations).
+App events: `files-dropped` (attachment tokens from drag and drop), `runs-changed`, `settings-changed`,
+`automations-changed`, `projects-changed`.
+
+Not yet implemented: speech-to-text and text-to-speech commands, and computer-use input control.
 
 ## 7. Data
 
@@ -179,9 +207,9 @@ SQLite through rusqlite with SQLCipher, WAL mode, one file in the app data direc
 random 256-bit key stored in the OS keychain. If no keychain is available, Lumo says so and does not fall
 back to plaintext storage of secrets.
 
-Tables: `settings`, `conversations`, `messages`, `runs`, `tool_calls`, `approvals`, `grants`, `memories`,
-`automations`, `automation_runs`, `agents`, `integrations`, `projects`, `file_journal`, `audit_log`.
-Retention settings delete conversations, runs and audit entries older than the chosen age.
+Tables: `settings`, `conversations`, `messages`, `runs`, `tool_calls`, `grants`, `memories`, `automations`,
+`automation_runs`, `agents`, `integrations`, `projects`, `file_journal`, `audit_log`. The optional
+retention setting deletes conversations (and their runs) older than the chosen age at startup.
 
 ## 8. Desktop shell
 
@@ -190,10 +218,10 @@ Retention settings delete conversations, runs and audit entries older than the c
 - Tray/menu bar: open, new chat, pause automations, quit. Closing the main window keeps Lumo in the tray
   (configurable).
 - Notifications for finished background tasks and automations.
-- Single instance; deep link `lumo://` reserved for OAuth return.
-- Updater: Tauri updater with signature verification (minisign public key in the app; private key in CI
-  secrets).
-- Logs: rotating files in the app log directory, no message content at info level.
+- Single instance (a second launch focuses the running app).
+- Updater: Tauri updater with signature verification. It is compiled in only when the release build is
+  given `LUMO_UPDATER_PUBKEY` (see docs/release.md); otherwise Settings says updates aren't set up.
+- Logs: rotating files (5 × 5 MB) in the app log directory, no message content at info level.
 - Crash recovery: panics are caught and logged; runs left mid-flight are marked interrupted; window state
   restored.
 

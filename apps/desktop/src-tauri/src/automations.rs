@@ -18,10 +18,18 @@ use std::sync::Arc;
 #[serde(tag = "type", rename_all = "snake_case")]
 pub enum Trigger {
     /// At a local time on chosen weekdays (empty = every day).
-    Daily { time: String, #[serde(default)] days: Vec<String> },
-    Interval { minutes: u32 },
+    Daily {
+        time: String,
+        #[serde(default)]
+        days: Vec<String>,
+    },
+    Interval {
+        minutes: u32,
+    },
     /// Advanced: a cron expression with seconds (sec min hour day month weekday).
-    Cron { expression: String },
+    Cron {
+        expression: String,
+    },
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -95,7 +103,11 @@ pub fn cron_for(trigger: &Trigger) -> Result<Option<cron::Schedule>> {
                     return Err(invalid(format!("unknown day {d}")));
                 }
             }
-            let dow = if days.is_empty() || days.len() == 7 { "*".to_string() } else { days.iter().map(|d| capitalize(d)).collect::<Vec<_>>().join(",") };
+            let dow = if days.is_empty() || days.len() == 7 {
+                "*".to_string()
+            } else {
+                days.iter().map(|d| capitalize(d)).collect::<Vec<_>>().join(",")
+            };
             Ok(Some(cron::Schedule::from_str(&format!("0 {m} {h} * * {dow}")).map_err(|e| invalid(e.to_string()))?))
         }
         Trigger::Interval { minutes } => {
@@ -104,7 +116,9 @@ pub fn cron_for(trigger: &Trigger) -> Result<Option<cron::Schedule>> {
             }
             Ok(None)
         }
-        Trigger::Cron { expression } => Ok(Some(cron::Schedule::from_str(expression).map_err(|e| invalid(format!("invalid schedule: {e}")))?)),
+        Trigger::Cron { expression } => {
+            Ok(Some(cron::Schedule::from_str(expression).map_err(|e| invalid(format!("invalid schedule: {e}")))?))
+        }
     }
 }
 
@@ -177,7 +191,10 @@ pub fn list(core: &Core) -> Result<Vec<Automation>> {
 }
 
 pub fn get(core: &Core, id: &str) -> Result<Automation> {
-    core.db.conn().query_row(&format!("SELECT {COLS} FROM automations WHERE id = ?1"), [id], row).map_err(|_| LumoError::NotFound("automation".into()))
+    core.db
+        .conn()
+        .query_row(&format!("SELECT {COLS} FROM automations WHERE id = ?1"), [id], row)
+        .map_err(|_| LumoError::NotFound("automation".into()))
 }
 
 pub fn save(core: &Core, id: Option<&str>, i: &AutomationInput) -> Result<Automation> {
@@ -193,7 +210,14 @@ pub fn save(core: &Core, id: Option<&str>, i: &AutomationInput) -> Result<Automa
         ),
         rusqlite::params![id, i.name.trim(), i.prompt.trim(), i.agent_id, serde_json::to_string(&i.trigger)?, serde_json::to_string(&i.allowed_tools)?, i.enabled as i64, i.notify as i64, t, next],
     )?;
-    crate::audit::record(&core.db, "user", "save_automation", Some(i.name.trim()), Some(&serde_json::json!({"allowedTools": i.allowed_tools})), "ok");
+    crate::audit::record(
+        &core.db,
+        "user",
+        "save_automation",
+        Some(i.name.trim()),
+        Some(&serde_json::json!({"allowedTools": i.allowed_tools})),
+        "ok",
+    );
     get(core, &id)
 }
 
@@ -235,16 +259,18 @@ pub async fn run_now(core: Arc<Core>, registry: Arc<Registry>, id: &str) -> Resu
         rusqlite::params![ar_id, a.id, started],
     )?;
     core.platform.broadcast("automations-changed", serde_json::json!({"id": a.id}));
-    let req = StartRequest { text: format!("[Automation \"{}\"] {}", a.name, a.prompt), agent_id: a.agent_id.clone(), ..Default::default() };
-    let (status, error, summary, run_id, conv_id) = match agent::prepare(&core, &registry, &req, Origin::Automation, a.allowed_tools.clone()) {
-        Ok(spec) => {
-            let (run_id, conv_id) = (spec.run_id.clone(), spec.conversation_id.clone());
-            let out = agent::drive(core.clone(), registry.clone(), spec, Arc::new(Collector::default())).await;
-            let status = if out.needs_attention { "needs_attention".to_string() } else { out.status.clone() };
-            (status, out.error, out.summary, Some(run_id), Some(conv_id))
-        }
-        Err(e) => ("failed".to_string(), Some(e.to_string()), None, None, None),
-    };
+    let req =
+        StartRequest { text: format!("[Automation \"{}\"] {}", a.name, a.prompt), agent_id: a.agent_id.clone(), ..Default::default() };
+    let (status, error, summary, run_id, conv_id) =
+        match agent::prepare(&core, &registry, &req, Origin::Automation, a.allowed_tools.clone()) {
+            Ok(spec) => {
+                let (run_id, conv_id) = (spec.run_id.clone(), spec.conversation_id.clone());
+                let out = agent::drive(core.clone(), registry.clone(), spec, Arc::new(Collector::default())).await;
+                let status = if out.needs_attention { "needs_attention".to_string() } else { out.status.clone() };
+                (status, out.error, out.summary, Some(run_id), Some(conv_id))
+            }
+            Err(e) => ("failed".to_string(), Some(e.to_string()), None, None, None),
+        };
     let finished = now();
     let next = if a.enabled { next_run(&a.trigger, Utc::now()).ok().map(|d| d.to_rfc3339()) } else { None };
     {
@@ -267,7 +293,17 @@ pub async fn run_now(core: Arc<Core>, registry: Arc<Registry>, id: &str) -> Resu
         let _ = core.platform.notify(&a.name, &crate::util::preview(&body, 200));
     }
     core.platform.broadcast("automations-changed", serde_json::json!({"id": a.id}));
-    Ok(AutomationRun { id: ar_id, automation_id: a.id, run_id, conversation_id: conv_id, started_at: started, finished_at: Some(finished), status, error, summary })
+    Ok(AutomationRun {
+        id: ar_id,
+        automation_id: a.id,
+        run_id,
+        conversation_id: conv_id,
+        started_at: started,
+        finished_at: Some(finished),
+        status,
+        error,
+        summary,
+    })
 }
 
 /// IDs of automations that are due now.
@@ -279,7 +315,13 @@ pub fn due(core: &Core, at: DateTime<Utc>) -> Result<Vec<String>> {
     Ok(all
         .into_iter()
         .filter(|a| a.enabled)
-        .filter(|a| a.next_run_at.as_deref().and_then(|n| DateTime::parse_from_rfc3339(n).ok()).map(|n| n.with_timezone(&Utc) <= at).unwrap_or(false))
+        .filter(|a| {
+            a.next_run_at
+                .as_deref()
+                .and_then(|n| DateTime::parse_from_rfc3339(n).ok())
+                .map(|n| n.with_timezone(&Utc) <= at)
+                .unwrap_or(false)
+        })
         .filter(|a| !core.pending.runs.lock().values().any(|r| r.origin == "automation" && r.title.contains(&a.name)))
         .map(|a| a.id)
         .collect())
@@ -353,6 +395,9 @@ mod tests {
         let a2 = get(&core, &a.id).unwrap();
         assert_eq!(a2.last_status.as_deref(), Some("needs_attention"));
         assert!(a2.next_run_at.is_some());
-        assert!(save(&core, None, &AutomationInput { allowed_tools: vec!["run_command".into()], ..input }).is_err(), "sensitive tools can't be pre-allowed");
+        assert!(
+            save(&core, None, &AutomationInput { allowed_tools: vec!["run_command".into()], ..input }).is_err(),
+            "sensitive tools can't be pre-allowed"
+        );
     }
 }

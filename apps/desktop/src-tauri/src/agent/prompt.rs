@@ -51,10 +51,7 @@ pub fn turn_context(core: &Core, project_path: Option<&str>) -> String {
     if roots.is_empty() {
         lines.push("Granted folders: none yet.".into());
     } else {
-        lines.push(format!(
-            "Granted folders: {}",
-            roots.iter().map(|r| crate::tools::files::display(r)).collect::<Vec<_>>().join(", ")
-        ));
+        lines.push(format!("Granted folders: {}", roots.iter().map(|r| crate::tools::files::display(r)).collect::<Vec<_>>().join(", ")));
     }
     if let Some(home) = dirs::home_dir() {
         lines.push(format!("Home folder: {}", home.display()));

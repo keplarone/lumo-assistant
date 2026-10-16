@@ -194,12 +194,13 @@ function Character({
   const camera = useThree((s) => s.camera);
   const lumo = useMemo(() => new LumoCompanion({ pixelRatio: gl.getPixelRatio(), calm, particles }), [gl, calm, particles]);
   useEffect(() => {
-    shared.current.lumo = lumo;
-    shared.current.gl = gl;
+    const holder = shared.current;
+    holder.lumo = lumo;
+    holder.gl = gl;
     // releaseGpu (not dispose) so a StrictMode re-mount keeps a working, attached character.
     return () => {
       lumo.releaseGpu();
-      if (shared.current.lumo === lumo) shared.current.lumo = null;
+      if (holder.lumo === lumo) holder.lumo = null;
     };
   }, [lumo, gl, shared]);
 

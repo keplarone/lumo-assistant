@@ -41,3 +41,16 @@ test('features screenshot desktop', async ({ browser }) => {
   await page.screenshot({ path: `${OUT}/features-desktop-1440-full.png`, fullPage: true });
   await ctx.close();
 });
+
+for (const vp of [
+  { name: 'desktop-1440', width: 1440, height: 900 },
+  { name: 'mobile-390', width: 390, height: 844 },
+]) {
+  test(`pricing screenshot ${vp.name}`, async ({ browser }) => {
+    const ctx = await browser.newContext({ viewport: { width: vp.width, height: vp.height } });
+    const page = await ctx.newPage();
+    await page.goto('/pricing/');
+    await page.screenshot({ path: `${OUT}/pricing-${vp.name}-full.png`, fullPage: true });
+    await ctx.close();
+  });
+}

@@ -35,7 +35,9 @@ impl TypedTool for SearchWeb {
         format!("Searching the web for \"{}\"", crate::util::preview(&i.query, 40))
     }
     async fn run(&self, ctx: &ToolCtx, i: SearchInput) -> Result<ToolOutput> {
-        let key = ctx.core.secrets.get("brave_search_api_key")?.ok_or_else(|| LumoError::Unavailable("Web search isn't connected. Add a Brave Search key in Settings → Integrations.".into()))?;
+        let key = ctx.core.secrets.get("brave_search_api_key")?.ok_or_else(|| {
+            LumoError::Unavailable("Web search isn't connected. Add a Brave Search key in Settings → Integrations.".into())
+        })?;
         let base = ctx.core.api_bases.lock().brave.clone();
         let hits = brave::search(&ctx.core.http, &base, &key, &i.query, i.count.unwrap_or(8)).await?;
         let text = hits.iter().map(|h| format!("- {} ({})\n  {}", h.title, h.url, h.description)).collect::<Vec<_>>().join("\n");
@@ -74,7 +76,10 @@ impl TypedTool for PublishToGithub {
     const NAME: &'static str = "publish_to_github";
     const DESCRIPTION: &'static str = "Create a new GitHub repository on the user's connected account and push this conversation's project to it. Private by default; only make it public if the user asked. The user confirms in a system dialog.";
     fn schema(&self) -> Value {
-        object_schema(json!({"repo_name": {"type": "string"}, "private": {"type": "boolean"}, "description": {"type": "string"}}), &["repo_name"])
+        object_schema(
+            json!({"repo_name": {"type": "string"}, "private": {"type": "boolean"}, "description": {"type": "string"}}),
+            &["repo_name"],
+        )
     }
     fn risk(&self, _ctx: &ToolCtx, _: &GithubInput) -> Risk {
         Risk::Sensitive
@@ -98,14 +103,21 @@ impl TypedTool for PublishToGithub {
         })
     }
     async fn run(&self, ctx: &ToolCtx, i: GithubInput) -> Result<ToolOutput> {
-        let token = ctx.core.secrets.get("github_token")?.ok_or_else(|| LumoError::Unavailable("GitHub isn't connected. Add a token in Settings → Integrations.".into()))?;
+        let token = ctx
+            .core
+            .secrets
+            .get("github_token")?
+            .ok_or_else(|| LumoError::Unavailable("GitHub isn't connected. Add a token in Settings → Integrations.".into()))?;
         let p = super::projects::for_ctx(ctx)?;
         super::projects::commit_all(Path::new(&p.path), "Publish to GitHub")?;
         let base = ctx.core.api_bases.lock().github.clone();
-        let repo = github::create_repo(&ctx.core.http, &base, &token, &i.repo_name, i.private, i.description.as_deref().unwrap_or("")).await?;
+        let repo =
+            github::create_repo(&ctx.core.http, &base, &token, &i.repo_name, i.private, i.description.as_deref().unwrap_or("")).await?;
         let path = p.path.clone();
         let url = repo.clone_url.clone();
-        let branch = tokio::task::spawn_blocking(move || github::push(Path::new(&path), &url, &token)).await.map_err(|e| LumoError::Other(e.into()))??;
+        let branch = tokio::task::spawn_blocking(move || github::push(Path::new(&path), &url, &token))
+            .await
+            .map_err(|e| LumoError::Other(e.into()))??;
         ctx.core.db.conn().execute("UPDATE projects SET github_repo = ?2 WHERE id = ?1", rusqlite::params![p.id, repo.full_name])?;
         Ok(ToolOutput {
             text: format!("Created {} and pushed the {branch} branch. Repository: {}", repo.full_name, repo.html_url),
@@ -145,18 +157,28 @@ impl TypedTool for DeployToNetlify {
     }
     fn preview(&self, ctx: &ToolCtx, i: &DeployInput) -> Result<ActionPreview> {
         let p = super::projects::for_ctx(ctx)?;
-        let existing: Option<String> = ctx.core.db.conn().query_row("SELECT site_url FROM projects WHERE id = ?1", [&p.id], |r| r.get(0)).ok().flatten();
+        let existing: Option<String> =
+            ctx.core.db.conn().query_row("SELECT site_url FROM projects WHERE id = ?1", [&p.id], |r| r.get(0)).ok().flatten();
         Ok(ActionPreview {
             title: format!("Publish \"{}\" on the web", p.name),
             details: vec![
                 ("From".into(), super::files::display(&Path::new(&p.path).join(i.folder.as_deref().unwrap_or("")))),
-                ("Site".into(), existing.unwrap_or_else(|| i.site_name.as_ref().map(|n| format!("New site: {n}.netlify.app")).unwrap_or_else(|| "New Netlify site".into()))),
+                (
+                    "Site".into(),
+                    existing.unwrap_or_else(|| {
+                        i.site_name.as_ref().map(|n| format!("New site: {n}.netlify.app")).unwrap_or_else(|| "New Netlify site".into())
+                    }),
+                ),
             ],
             warning: Some("Anyone with the link can see the published site.".into()),
         })
     }
     async fn run(&self, ctx: &ToolCtx, i: DeployInput) -> Result<ToolOutput> {
-        let token = ctx.core.secrets.get("netlify_token")?.ok_or_else(|| LumoError::Unavailable("Netlify isn't connected. Add a token in Settings → Integrations.".into()))?;
+        let token = ctx
+            .core
+            .secrets
+            .get("netlify_token")?
+            .ok_or_else(|| LumoError::Unavailable("Netlify isn't connected. Add a token in Settings → Integrations.".into()))?;
         let p = super::projects::for_ctx(ctx)?;
         let dir = match &i.folder {
             Some(f) => crate::policy::resolve_in_grants(&[std::path::PathBuf::from(&p.path)], f)?,
@@ -166,7 +188,8 @@ impl TypedTool for DeployToNetlify {
             return Err(invalid(format!("{} has no index.html to publish", super::files::display(&dir))));
         }
         let base = ctx.core.api_bases.lock().netlify.clone();
-        let site: Option<String> = ctx.core.db.conn().query_row("SELECT netlify_site_id FROM projects WHERE id = ?1", [&p.id], |r| r.get(0)).ok().flatten();
+        let site: Option<String> =
+            ctx.core.db.conn().query_row("SELECT netlify_site_id FROM projects WHERE id = ?1", [&p.id], |r| r.get(0)).ok().flatten();
         let site_id = match site {
             Some(s) => s,
             None => {
@@ -176,7 +199,10 @@ impl TypedTool for DeployToNetlify {
                     }
                 }
                 let (id, url) = netlify::create_site(&ctx.core.http, &base, &token, i.site_name.as_deref()).await?;
-                ctx.core.db.conn().execute("UPDATE projects SET netlify_site_id = ?2, site_url = ?3 WHERE id = ?1", rusqlite::params![p.id, id, url])?;
+                ctx.core
+                    .db
+                    .conn()
+                    .execute("UPDATE projects SET netlify_site_id = ?2, site_url = ?3 WHERE id = ?1", rusqlite::params![p.id, id, url])?;
                 id
             }
         };
@@ -191,7 +217,11 @@ impl TypedTool for DeployToNetlify {
             text: format!(
                 "Deployed {files} files. Live at {}. {}",
                 d.url,
-                if verified { "Verified: the site responds." } else { "The deploy finished but the site did not respond yet; it may take a moment." }
+                if verified {
+                    "Verified: the site responds."
+                } else {
+                    "The deploy finished but the site did not respond yet; it may take a moment."
+                }
             ),
             summary: format!("Deployed to {}", d.url),
             data: Some(json!({"url": d.url, "verified": verified})),
@@ -221,17 +251,35 @@ mod tests {
         Mock::given(method("POST")).and(path("/gh/user/repos")).and(header("authorization", "Bearer ghp_test"))
             .respond_with(ResponseTemplate::new(201).set_body_json(json!({"full_name": "keder/bakery", "html_url": "https://github.com/keder/bakery", "clone_url": format!("file://{}", bare.display())})))
             .mount(&server).await;
-        Mock::given(method("POST")).and(path("/nf/sites"))
+        Mock::given(method("POST"))
+            .and(path("/nf/sites"))
             .respond_with(ResponseTemplate::new(201).set_body_json(json!({"id": "site1", "ssl_url": "https://bakery.netlify.app"})))
-            .mount(&server).await;
-        Mock::given(method("POST")).and(path("/nf/sites/site1/deploys")).and(header("content-type", "application/zip"))
+            .mount(&server)
+            .await;
+        Mock::given(method("POST"))
+            .and(path("/nf/sites/site1/deploys"))
+            .and(header("content-type", "application/zip"))
             .respond_with(ResponseTemplate::new(200).set_body_json(json!({"id": "d1", "state": "uploaded"})))
-            .mount(&server).await;
-        Mock::given(method("GET")).and(path("/nf/deploys/d1"))
-            .respond_with(ResponseTemplate::new(200).set_body_json(json!({"id": "d1", "state": "ready", "ssl_url": format!("{}/live", server.uri())})))
-            .mount(&server).await;
-        Mock::given(method("GET")).and(path("/live")).respond_with(ResponseTemplate::new(200).set_body_string("<h1>hi</h1>")).mount(&server).await;
-        *core.api_bases.lock() = crate::integrations::ApiBases { github: format!("{}/gh", server.uri()), netlify: format!("{}/nf", server.uri()), brave: server.uri() };
+            .mount(&server)
+            .await;
+        Mock::given(method("GET"))
+            .and(path("/nf/deploys/d1"))
+            .respond_with(
+                ResponseTemplate::new(200)
+                    .set_body_json(json!({"id": "d1", "state": "ready", "ssl_url": format!("{}/live", server.uri())})),
+            )
+            .mount(&server)
+            .await;
+        Mock::given(method("GET"))
+            .and(path("/live"))
+            .respond_with(ResponseTemplate::new(200).set_body_string("<h1>hi</h1>"))
+            .mount(&server)
+            .await;
+        *core.api_bases.lock() = crate::integrations::ApiBases {
+            github: format!("{}/gh", server.uri()),
+            netlify: format!("{}/nf", server.uri()),
+            brave: server.uri(),
+        };
         core.secrets.set("github_token", "ghp_test").unwrap();
         core.secrets.set("netlify_token", "nf_test").unwrap();
 
@@ -241,24 +289,46 @@ mod tests {
         let r = Registry::standard();
         let names: Vec<String> = r.names().into_iter().map(String::from).collect();
 
-        let gh = execute(&r, &ctx, &json!({"type": "tool_use", "id": "g", "name": "publish_to_github", "input": {"repo_name": "bakery"}}), &names).await;
+        let gh = execute(
+            &r,
+            &ctx,
+            &json!({"type": "tool_use", "id": "g", "name": "publish_to_github", "input": {"repo_name": "bakery"}}),
+            &names,
+        )
+        .await;
         assert!(gh.ok, "{}", gh.block);
         let remote = git2::Repository::open_bare(&bare).unwrap();
         assert!(remote.head().is_ok() || remote.branches(None).unwrap().count() > 0, "pushed to the remote");
-        let commit = remote.find_reference("refs/heads/master").or_else(|_| remote.find_reference("refs/heads/main")).unwrap().peel_to_commit().unwrap();
+        let commit = remote
+            .find_reference("refs/heads/master")
+            .or_else(|_| remote.find_reference("refs/heads/main"))
+            .unwrap()
+            .peel_to_commit()
+            .unwrap();
         assert!(commit.tree().unwrap().get_name("index.html").is_some());
 
-        let nf = execute(&r, &ctx, &json!({"type": "tool_use", "id": "n", "name": "deploy_to_netlify", "input": {"site_name": "bakery"}}), &names).await;
+        let nf = execute(
+            &r,
+            &ctx,
+            &json!({"type": "tool_use", "id": "n", "name": "deploy_to_netlify", "input": {"site_name": "bakery"}}),
+            &names,
+        )
+        .await;
         assert!(nf.ok, "{}", nf.block);
         assert!(nf.block.to_string().contains("Verified"));
-        let site: Option<String> = core.db.conn().query_row("SELECT netlify_site_id FROM projects WHERE id = ?1", [&p.id], |r| r.get(0)).unwrap();
+        let site: Option<String> =
+            core.db.conn().query_row("SELECT netlify_site_id FROM projects WHERE id = ?1", [&p.id], |r| r.get(0)).unwrap();
         assert_eq!(site.as_deref(), Some("site1"));
     }
 
     #[tokio::test]
     async fn bad_tokens_give_a_clear_message() {
         let server = MockServer::start().await;
-        Mock::given(method("GET")).and(path("/user")).respond_with(ResponseTemplate::new(401).set_body_json(json!({"message": "Bad credentials"}))).mount(&server).await;
+        Mock::given(method("GET"))
+            .and(path("/user"))
+            .respond_with(ResponseTemplate::new(401).set_body_json(json!({"message": "Bad credentials"})))
+            .mount(&server)
+            .await;
         let e = crate::integrations::github::whoami(&reqwest::Client::new(), &server.uri(), "bad").await.unwrap_err();
         assert!(e.to_string().contains("rejected the token"));
     }

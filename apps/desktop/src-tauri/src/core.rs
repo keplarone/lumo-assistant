@@ -26,12 +26,30 @@ pub trait Platform: Send + Sync {
     fn clipboard_write(&self, text: &str) -> Result<()>;
     /// Ask the user to pick a folder with the native picker. None if cancelled.
     async fn pick_folder(&self) -> Option<PathBuf>;
-    /// Capture the primary screen as PNG bytes plus (width, height).
-    fn capture_screen(&self) -> Result<(Vec<u8>, u32, u32)>;
+    /// Capture the primary screen (downscaled for the model).
+    fn capture_screen(&self) -> Result<Screenshot>;
+    /// Perform mouse and keyboard input in real screen coordinates.
+    fn perform_input(&self, actions: &[crate::tools::computer::InputAction]) -> Result<()>;
+    /// Lumo started or stopped controlling input: show or hide the indicator and the stop shortcut.
+    fn input_control_changed(&self, active: bool);
     /// The app name and title of the window in front.
     fn active_window(&self) -> Result<(String, String)>;
     /// Tell every window about something (privacy indicators, list changes).
     fn broadcast(&self, event: &str, payload: serde_json::Value);
+}
+
+/// A screen capture and where it sits on the desktop, so model coordinates map back to the screen.
+#[derive(Debug, Clone)]
+pub struct Screenshot {
+    pub png: Vec<u8>,
+    /// Size of the image the model sees.
+    pub width: u32,
+    pub height: u32,
+    /// The captured display in desktop coordinates.
+    pub origin_x: i32,
+    pub origin_y: i32,
+    pub screen_width: u32,
+    pub screen_height: u32,
 }
 
 #[derive(Clone)]
@@ -53,10 +71,7 @@ pub struct Endpoints {
 
 impl Default for Endpoints {
     fn default() -> Self {
-        Endpoints {
-            nominatim: "https://nominatim.openstreetmap.org".into(),
-            overpass: "https://overpass-api.de/api/interpreter".into(),
-        }
+        Endpoints { nominatim: "https://nominatim.openstreetmap.org".into(), overpass: "https://overpass-api.de/api/interpreter".into() }
     }
 }
 
@@ -71,6 +86,10 @@ pub struct Pending {
     /// Files the user chose (drag and drop or the file picker), by token. The webview refers to
     /// attachments only by these tokens, so it cannot make Lumo read arbitrary paths.
     pub attachments: Mutex<HashMap<String, PathBuf>>,
+    /// Runs the user allowed to control mouse and keyboard (until the run ends or they press stop).
+    pub input_sessions: Mutex<std::collections::HashSet<String>>,
+    /// Geometry of the last screenshot, per run.
+    pub screens: Mutex<HashMap<String, Screenshot>>,
 }
 
 #[derive(Clone)]
@@ -131,7 +150,12 @@ impl Core {
         match s.provider.as_str() {
             "openai_compatible" => {
                 let key = self.secrets.get("openai_compatible_api_key")?;
-                Ok(Arc::new(crate::model::openai::OpenAiCompatible::new(self.http.clone(), &s.openai_base_url, key, s.openai_model.clone())))
+                Ok(Arc::new(crate::model::openai::OpenAiCompatible::new(
+                    self.http.clone(),
+                    &s.openai_base_url,
+                    key,
+                    s.openai_model.clone(),
+                )))
             }
             _ => {
                 let key = self.secrets.get("anthropic_api_key")?.ok_or_else(|| {
@@ -157,6 +181,9 @@ pub mod testing {
         pub opened: Mutex<Vec<String>>,
         pub clipboard: Mutex<String>,
         pub picked: Mutex<Option<PathBuf>>,
+        pub inputs: Mutex<Vec<crate::tools::computer::InputAction>>,
+        pub control_active: Mutex<Vec<bool>>,
+        pub screen: Mutex<Option<Screenshot>>,
     }
 
     #[async_trait]
@@ -183,8 +210,15 @@ pub mod testing {
         async fn pick_folder(&self) -> Option<PathBuf> {
             self.picked.lock().clone()
         }
-        fn capture_screen(&self) -> Result<(Vec<u8>, u32, u32)> {
-            Err(crate::error::LumoError::Unavailable("no screen in tests".into()))
+        fn capture_screen(&self) -> Result<Screenshot> {
+            self.screen.lock().clone().ok_or_else(|| crate::error::LumoError::Unavailable("no screen in tests".into()))
+        }
+        fn perform_input(&self, actions: &[crate::tools::computer::InputAction]) -> Result<()> {
+            self.inputs.lock().extend_from_slice(actions);
+            Ok(())
+        }
+        fn input_control_changed(&self, active: bool) {
+            self.control_active.lock().push(active);
         }
         fn active_window(&self) -> Result<(String, String)> {
             Ok(("Editor".into(), "notes.md".into()))

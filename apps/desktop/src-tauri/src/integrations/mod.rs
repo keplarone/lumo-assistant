@@ -33,7 +33,11 @@ pub struct ApiBases {
 
 impl Default for ApiBases {
     fn default() -> Self {
-        ApiBases { github: "https://api.github.com".into(), netlify: "https://api.netlify.com/api/v1".into(), brave: "https://api.search.brave.com/res/v1".into() }
+        ApiBases {
+            github: "https://api.github.com".into(),
+            netlify: "https://api.netlify.com/api/v1".into(),
+            brave: "https://api.search.brave.com/res/v1".into(),
+        }
     }
 }
 
@@ -145,7 +149,10 @@ pub async fn verify(core: &Core, id: &str) -> Result<String> {
             Ok(who)
         }
         "brave" => {
-            let key = core.secrets.get("brave_search_api_key")?.ok_or_else(|| LumoError::Unavailable("Add a Brave Search API key first.".into()))?;
+            let key = core
+                .secrets
+                .get("brave_search_api_key")?
+                .ok_or_else(|| LumoError::Unavailable("Add a Brave Search API key first.".into()))?;
             brave::search(&core.http, &bases.brave, &key, "Lumo assistant", 1).await?;
             Ok("Brave Search".into())
         }
@@ -168,7 +175,10 @@ pub fn disconnect(core: &Core, id: &str) -> Result<()> {
 
 /// Map an HTTP error from a service into a clear message.
 pub fn http_error(service: &str, status: u16, body: &str) -> LumoError {
-    let msg = serde_json::from_str::<Value>(body).ok().and_then(|v| v["message"].as_str().map(String::from)).unwrap_or_else(|| crate::util::preview(body, 160));
+    let msg = serde_json::from_str::<Value>(body)
+        .ok()
+        .and_then(|v| v["message"].as_str().map(String::from))
+        .unwrap_or_else(|| crate::util::preview(body, 160));
     match status {
         401 => LumoError::Denied(format!("{service} rejected the token. Reconnect it in Settings → Integrations.")),
         403 => LumoError::Denied(format!("{service} refused: {msg}. The token may be missing a permission.")),

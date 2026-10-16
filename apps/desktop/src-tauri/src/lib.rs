@@ -15,6 +15,7 @@ pub mod secrets;
 pub mod settings;
 pub mod tools;
 pub mod util;
+pub mod voice;
 
 use std::sync::Arc;
 use tauri::{Emitter, Manager};
@@ -41,7 +42,8 @@ pub fn run() {
         .plugin(tauri_plugin_clipboard_manager::init())
         .plugin(tauri_plugin_opener::init());
     if updater_configured() {
-        builder = builder.plugin(tauri_plugin_updater::Builder::new().pubkey(option_env!("LUMO_UPDATER_PUBKEY").unwrap_or_default()).build());
+        builder =
+            builder.plugin(tauri_plugin_updater::Builder::new().pubkey(option_env!("LUMO_UPDATER_PUBKEY").unwrap_or_default()).build());
     }
 
     builder
@@ -175,6 +177,7 @@ pub fn run() {
             commands::integrations_status,
             commands::verify_integration,
             commands::disconnect_integration,
+            commands::transcribe_audio,
         ])
         .run(tauri::generate_context!())
         .expect("error while running Lumo");

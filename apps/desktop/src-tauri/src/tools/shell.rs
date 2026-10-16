@@ -125,7 +125,11 @@ impl TypedTool for RunCommand {
             _ = ctx.cancel.cancelled() => return Err(LumoError::Cancelled),
         };
         let Some((status, stdout, stderr)) = result else {
-            return Err(LumoError::Unavailable(format!("{} did not finish within {} seconds and was stopped", command_line(&i), timeout.as_secs())));
+            return Err(LumoError::Unavailable(format!(
+                "{} did not finish within {} seconds and was stopped",
+                command_line(&i),
+                timeout.as_secs()
+            )));
         };
         let status = status?;
         let code = status.code().unwrap_or(-1);
@@ -138,7 +142,8 @@ impl TypedTool for RunCommand {
                 s
             }
         };
-        let body = format!("$ {}\nexit code {code}\n--- stdout ---\n{}\n--- stderr ---\n{}", command_line(&i), tail(&stdout), tail(&stderr));
+        let body =
+            format!("$ {}\nexit code {code}\n--- stdout ---\n{}\n--- stderr ---\n{}", command_line(&i), tail(&stdout), tail(&stderr));
         Ok(ToolOutput {
             text: format!("Command finished with exit code {code}."),
             untrusted: Some(body),
@@ -155,7 +160,12 @@ mod tests {
 
     #[test]
     fn only_listed_programs_without_inline_code() {
-        let mk = |p: &str, a: &[&str]| CommandInput { program: p.into(), args: a.iter().map(|s| s.to_string()).collect(), cwd: None, timeout_seconds: None };
+        let mk = |p: &str, a: &[&str]| CommandInput {
+            program: p.into(),
+            args: a.iter().map(|s| s.to_string()).collect(),
+            cwd: None,
+            timeout_seconds: None,
+        };
         assert!(check(&mk("npm", &["install"])).is_ok());
         assert!(check(&mk("bash", &["-c", "rm -rf ~"])).is_err());
         assert!(check(&mk("sh", &[])).is_err());

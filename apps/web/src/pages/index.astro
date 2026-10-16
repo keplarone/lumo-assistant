@@ -8,6 +8,7 @@ import BuildSequence from '../components/BuildSequence.astro';
 import Workflow from '../components/Workflow.astro';
 import StatusBadge from '../components/StatusBadge.astro';
 import DownloadGrid from '../components/DownloadGrid.astro';
+import PlanCards from '../components/PlanCards.astro';
 import { capability } from '../data/capabilities';
 import { softwareApplication } from '../data/schema';
 import {
@@ -105,7 +106,7 @@ const tiers = [
 ---
 
 <Base
-  description="Lumo is a desktop AI assistant that understands what you want, plans the steps, uses real tools with your permission and reports back. Free, local-first, bring your own model key."
+  description="Lumo is a desktop AI assistant that understands what you want, plans the steps, uses real tools with your permission and reports back. Local-first, with permission checks on every action."
   jsonLd={[softwareApplication(Astro.site)]}
 >
   <!-- Hero -->
@@ -121,7 +122,7 @@ const tiers = [
           <a class="lu-button" data-variant="primary" data-size="lg" href="/download/" data-lumo-look data-lumo-target="cta-get">Get Lumo</a>
           <a class="lu-button" data-variant="secondary" data-size="lg" href="#in-action" data-lumo-look data-lumo-target="cta-action">See Lumo in Action</a>
         </div>
-        <p class="hero-fine">Free for Windows, macOS and Linux. Bring your own Anthropic API key. Not yet released.</p>
+        <p class="hero-fine">For Windows, macOS and Linux. Free, Lite and Pro plans at launch. Not yet released.</p>
       </div>
       <HeroStage
         client:visible
@@ -365,15 +366,15 @@ const tiers = [
         <li>
           <KeyRound aria-hidden="true" />
           <div>
-            <h3 class="h3">Keys in your OS keychain</h3>
-            <p class="muted">Your model API key is stored by the operating system’s keychain and only ever used by Lumo’s core, never the interface.</p>
+            <h3 class="h3">Secrets in your OS keychain</h3>
+            <p class="muted">Account tokens and other secrets are stored by the operating system’s keychain and only ever used by Lumo’s core, never the interface.</p>
           </div>
         </li>
         <li>
           <HardDrive aria-hidden="true" />
           <div>
             <h3 class="h3">Local-first</h3>
-            <p class="muted">No Lumo account and no Lumo cloud service. Conversations are stored on your computer in an encrypted database.</p>
+            <p class="muted">Conversations, memories and history are stored on your computer in an encrypted database.</p>
           </div>
         </li>
         <li>
@@ -388,13 +389,26 @@ const tiers = [
     </div>
   </section>
 
+  <!-- Plans -->
+  <section class="section" aria-labelledby="plans-title">
+    <div class="container">
+      <div class="section-head">
+        <p class="eyebrow">Plans</p>
+        <h2 class="h-display" id="plans-title">Start free. Move up when you need more.</h2>
+        <p class="lede">Three plans at launch. Lumo is in pre-release, so nothing can be bought yet.</p>
+      </div>
+      <PlanCards compact />
+      <p class="helps-more"><a href="/pricing/">Compare plans <ArrowRight aria-hidden="true" className="inline-icon" /></a></p>
+    </div>
+  </section>
+
   <!-- Download -->
   <section class="section" aria-labelledby="download-title">
     <div class="container">
       <div class="section-head">
         <p class="eyebrow">Download</p>
         <h2 class="h-display" id="download-title">Lumo for your desktop.</h2>
-        <p class="lede">Windows, macOS and Linux. Free, with your own model key. Builds will appear on GitHub Releases when the first version is ready.</p>
+        <p class="lede">Windows, macOS and Linux. Builds will appear on GitHub Releases when the first version is ready.</p>
       </div>
       <DownloadGrid compact />
     </div>

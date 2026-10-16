@@ -65,9 +65,17 @@ pub enum StreamEvent {
     TextDelta(String),
     /// A short note the model wrote between tool calls (progress update).
     ProgressNote(String),
-    ToolUseStarted { id: String, name: String },
-    ServerToolStarted { name: String },
-    ServerToolFinished { name: String, summary: String },
+    ToolUseStarted {
+        id: String,
+        name: String,
+    },
+    ServerToolStarted {
+        name: String,
+    },
+    ServerToolFinished {
+        name: String,
+        summary: String,
+    },
 }
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
@@ -113,9 +121,6 @@ pub fn retryable_status(code: u16) -> bool {
 
 /// Parse a `retry-after` header (seconds) into a bounded delay.
 pub fn retry_delay(attempt: u32, retry_after: Option<&str>) -> std::time::Duration {
-    let secs = retry_after
-        .and_then(|v| v.trim().parse::<f64>().ok())
-        .unwrap_or_else(|| 2f64.powi(attempt as i32))
-        .clamp(0.5, 30.0);
+    let secs = retry_after.and_then(|v| v.trim().parse::<f64>().ok()).unwrap_or_else(|| 2f64.powi(attempt as i32)).clamp(0.5, 30.0);
     std::time::Duration::from_millis((secs * 1000.0) as u64)
 }

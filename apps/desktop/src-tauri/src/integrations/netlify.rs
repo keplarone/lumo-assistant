@@ -82,7 +82,14 @@ fn parse_deploy(v: &Value) -> Deploy {
 }
 
 /// Upload a zip and wait (up to ~2 minutes) for the deploy to be live.
-pub async fn deploy_zip(http: &reqwest::Client, base: &str, token: &str, site_id: &str, zip: Vec<u8>, cancel: &tokio_util::sync::CancellationToken) -> Result<Deploy> {
+pub async fn deploy_zip(
+    http: &reqwest::Client,
+    base: &str,
+    token: &str,
+    site_id: &str,
+    zip: Vec<u8>,
+    cancel: &tokio_util::sync::CancellationToken,
+) -> Result<Deploy> {
     let v = json_or_error(
         req(http, reqwest::Method::POST, format!("{base}/sites/{site_id}/deploys"), token)
             .header("content-type", "application/zip")

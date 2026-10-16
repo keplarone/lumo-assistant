@@ -2,7 +2,8 @@
  * Renders the static mascot stills (fallbacks for the 3D islands) and the Open Graph card from the
  * real @lumo/mascot, using the dev-only /__still and /__og routes.
  *
- *   pnpm --filter @lumo/web render:stills
+ *   pnpm --filter @lumo/web render:stills          (stills and OG card)
+ *   pnpm --filter @lumo/web render:stills --og     (OG card only, from the existing hero still)
  *
  * Starts `astro dev` with LUMO_STILLS=1, captures with headless Chromium (SwiftShader WebGL), writes
  * into public/stills/*.jpg and public/og.png. Output is committed; the site build does not run this.
@@ -61,7 +62,8 @@ try {
   await waitFor(`${base}/__still`);
   const browser = await chromium.launch({ executablePath: chromiumExecutable(), args: ['--use-angle=swiftshader', '--enable-unsafe-swiftshader', '--ignore-gpu-blocklist'] });
   mkdirSync(join(root, 'public/stills'), { recursive: true });
-  for (const s of SHOTS) {
+  const ogOnly = process.argv.includes('--og');
+  for (const s of ogOnly ? [] : SHOTS) {
     const page = await browser.newPage({ viewport: { width: s.w, height: s.h }, deviceScaleFactor: 2 });
     await page.goto(`${base}/__still?mood=${s.mood}&${s.q}`);
     await page.waitForSelector('html[data-ready="1"]', { timeout: 30_000 });

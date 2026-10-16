@@ -89,25 +89,27 @@ pub fn revoke(db: &Db, id: &str) -> Result<()> {
 }
 
 pub fn has_capability(db: &Db, capability: &str) -> bool {
-    db.conn()
-        .query_row("SELECT 1 FROM grants WHERE kind = 'capability' AND target = ?1", [capability], |_| Ok(()))
-        .is_ok()
+    db.conn().query_row("SELECT 1 FROM grants WHERE kind = 'capability' AND target = ?1", [capability], |_| Ok(())).is_ok()
 }
 
 pub fn folder_roots(db: &Db) -> Vec<PathBuf> {
-    list_grants(db)
-        .unwrap_or_default()
-        .into_iter()
-        .filter(|g| g.kind == "folder")
-        .map(|g| PathBuf::from(g.target))
-        .collect()
+    list_grants(db).unwrap_or_default().into_iter().filter(|g| g.kind == "folder").map(|g| PathBuf::from(g.target)).collect()
 }
 
 /// Folders and files inside a grant that Lumo still refuses to touch.
 fn is_protected(p: &Path) -> bool {
     const NAMES: &[&str] = &[
-        ".ssh", ".gnupg", ".aws", ".azure", ".kube", ".docker", ".password-store", "Keychains", ".config/gcloud",
-        "one.keplar.lumo", ".git/config",
+        ".ssh",
+        ".gnupg",
+        ".aws",
+        ".azure",
+        ".kube",
+        ".docker",
+        ".password-store",
+        "Keychains",
+        ".config/gcloud",
+        "one.keplar.lumo",
+        ".git/config",
     ];
     let s = p.to_string_lossy().replace('\\', "/");
     if NAMES.iter().any(|n| s.contains(&format!("/{n}"))) {
@@ -172,10 +174,7 @@ pub fn resolve_in_grants(roots: &[PathBuf], raw: &str) -> Result<PathBuf> {
     if roots.iter().any(|r| canon.starts_with(r)) {
         Ok(canon)
     } else {
-        Err(denied(format!(
-            "{} is outside the folders you've granted Lumo. Grant access in Settings → Permissions.",
-            canon.display()
-        )))
+        Err(denied(format!("{} is outside the folders you've granted Lumo. Grant access in Settings → Permissions.", canon.display())))
     }
 }
 
@@ -235,7 +234,7 @@ mod tests {
         let dir = tempfile::tempdir().unwrap();
         let root = std::fs::canonicalize(dir.path()).unwrap();
         std::fs::create_dir_all(root.join(".ssh")).unwrap();
-        assert!(resolve_in_grants(&[root.clone()], ".ssh/id_ed25519").is_err());
+        assert!(resolve_in_grants(std::slice::from_ref(&root), ".ssh/id_ed25519").is_err());
     }
 
     #[test]

@@ -3,7 +3,7 @@ import { defineConfig } from 'astro/config';
 import react from '@astrojs/react';
 import sitemap from '@astrojs/sitemap';
 
-/** Canonical origin. Set SITE_URL in the deploy environment once the production domain is final. */
+/** Canonical origin: the production domain. SITE_URL overrides it only for staging or preview deploys. */
 const site = process.env.SITE_URL ?? 'https://lumo.keplar.one';
 
 /**

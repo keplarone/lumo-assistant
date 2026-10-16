@@ -7,6 +7,7 @@
 //! allowed in background automations.
 
 pub mod clipboard;
+pub mod computer;
 pub mod files;
 pub mod journal;
 pub mod memory;
@@ -182,6 +183,7 @@ impl Registry {
             Arc::new(Typed(system::Notify)),
             Arc::new(Typed(system::TakeScreenshot)),
             Arc::new(Typed(system::ActiveWindow)),
+            Arc::new(Typed(computer::ControlComputer)),
             Arc::new(Typed(memory::Remember)),
             Arc::new(Typed(memory::Forget)),
             Arc::new(Typed(projects::CreateProject)),
@@ -235,7 +237,8 @@ async fn authorize(ctx: &ToolCtx, name: &str, p: &Prepared) -> Result<()> {
                     "This automation is not allowed to use {name}. It needs your attention: edit the automation to allow it, or run the task yourself."
                 )));
             }
-            let allowed = ctx.core.pending.conversation_allow.lock().get(&ctx.conversation_id).map(|v| v.iter().any(|n| n == name)).unwrap_or(false);
+            let allowed =
+                ctx.core.pending.conversation_allow.lock().get(&ctx.conversation_id).map(|v| v.iter().any(|n| n == name)).unwrap_or(false);
             if allowed {
                 return Ok(());
             }
@@ -367,7 +370,13 @@ pub async fn execute(registry: &Registry, ctx: &ToolCtx, block: &Value, allowed_
     };
     match result {
         Ok(out) => {
-            finish_call(ctx, &id, "ok", &out.summary, Some(if prepared.risk == Risk::Write || prepared.risk == Risk::Sensitive { "approved" } else { "auto" }));
+            finish_call(
+                ctx,
+                &id,
+                "ok",
+                &out.summary,
+                Some(if prepared.risk == Risk::Write || prepared.risk == Risk::Sensitive { "approved" } else { "auto" }),
+            );
             if matches!(prepared.risk, Risk::Write | Risk::Sensitive) {
                 audit::record(&ctx.core.db, ctx.origin.as_str(), &name, Some(&prepared.preview.title), Some(&input), "ok");
             }
@@ -386,7 +395,13 @@ pub async fn execute(registry: &Registry, ctx: &ToolCtx, block: &Value, allowed_
             if matches!(prepared.risk, Risk::Write | Risk::Sensitive) {
                 audit::record(&ctx.core.db, ctx.origin.as_str(), &name, Some(&prepared.preview.title), Some(&input), "error");
             }
-            ctx.sink.emit(AgentEvent::ToolFinished { call_id: id.clone(), name: name.clone(), ok: false, summary: msg.clone(), data: None });
+            ctx.sink.emit(AgentEvent::ToolFinished {
+                call_id: id.clone(),
+                name: name.clone(),
+                ok: false,
+                summary: msg.clone(),
+                data: None,
+            });
             CallResult { block: error_block(&id, &msg), risk: prepared.risk, ok: false, needs_attention: false }
         }
     }
@@ -563,10 +578,15 @@ mod tests {
         let (r2, ctx2, call2, names2) = (r.clone(), ctx.clone(), call.clone(), names.clone());
         let task = tokio::spawn(async move { execute(&r2, &ctx2, &call2, &names2).await });
         let approval_id = loop {
-            let found = events.0.lock().iter().filter_map(|e| match e {
-                AgentEvent::ApprovalRequested { approval_id, .. } => Some(approval_id.clone()),
-                _ => None,
-            }).nth(1);
+            let found = events
+                .0
+                .lock()
+                .iter()
+                .filter_map(|e| match e {
+                    AgentEvent::ApprovalRequested { approval_id, .. } => Some(approval_id.clone()),
+                    _ => None,
+                })
+                .nth(1);
             if let Some(id) = found {
                 break id;
             }
@@ -575,7 +595,8 @@ mod tests {
         resolve_approval(&core, &approval_id, ApprovalAnswer::Conversation);
         assert!(task.await.unwrap().ok);
         assert!(root.join("new").is_dir());
-        let again = json!({"type": "tool_use", "id": "w2", "name": "create_folder", "input": {"path": root.join("new2").to_str().unwrap()}});
+        let again =
+            json!({"type": "tool_use", "id": "w2", "name": "create_folder", "input": {"path": root.join("new2").to_str().unwrap()}});
         assert!(execute(&r, &ctx, &again, &names).await.ok);
     }
 

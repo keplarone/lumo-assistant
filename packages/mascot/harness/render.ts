@@ -20,9 +20,9 @@ interface RunOptions { mood?: string; steps?: number; dt?: number; actions?: Act
 const impl = (new URLSearchParams(location.search).get('impl') ?? 'port') as Impl;
 
 async function boot() {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+   
   let THREE: any;
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+   
   let LumoCtor: new (opts: Record<string, unknown>) => any;
   if (impl === 'ref') {
     THREE = await import('three-r149');

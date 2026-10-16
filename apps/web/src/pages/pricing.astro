@@ -1,39 +1,24 @@
 ---
 import Base from '../layouts/Base.astro';
 import PageHead from '../components/PageHead.astro';
+import PlanCards from '../components/PlanCards.astro';
+import { BILLING_PERIOD, CURRENCY } from '../data/plans';
 ---
 
-<Base title="Pricing" description="Lumo is free. You bring your own model provider API key and pay the provider directly for what you use. No subscription, no markup.">
+<Base title="Pricing" description="Lumo will launch with three plans: Free, Lumo Lite and Lumo Pro. Lumo is in pre-release, so plans cannot be bought yet.">
   <PageHead
     eyebrow="Pricing"
-    title="Lumo is free."
-    lede="There is no subscription and no Lumo account. You connect your own model provider key and pay the provider directly, at their prices, for what you use."
+    title="Three plans, at launch."
+    lede="Start free, and move up when you want more tasks, automations and building tools. Lumo is in pre-release: these are the plans it will launch with, and nothing can be bought yet."
   />
   <div class="container">
-    <div class="grid grid-2">
-      <section class="panel price-card" aria-labelledby="p-lumo">
-        <p class="eyebrow">Lumo</p>
-        <h2 class="h-display" id="p-lumo">$0</h2>
-        <p>The app, every feature as it ships, and updates.</p>
-        <ul class="checklist">
-          <li><span>No account to create</span></li>
-          <li><span>No subscription or trial period</span></li>
-          <li><span>No markup on model usage: Lumo never sits between you and the provider’s bill</span></li>
-        </ul>
-      </section>
-      <section class="panel price-card" aria-labelledby="p-provider">
-        <p class="eyebrow">Your model provider</p>
-        <h2 class="h-display" id="p-provider">Pay as you go</h2>
-        <p>
-          Lumo uses Claude models through your own Anthropic API key. Anthropic bills you directly based on usage. See
-          <a href="https://www.anthropic.com/pricing">Anthropic’s pricing</a> for current rates.
-        </p>
-        <ul class="checklist">
-          <li><span>Choose which Claude model Lumo uses; smaller models cost less</span></li>
-          <li><span>Each task has a spend limit, so a runaway task stops</span></li>
-          <li><span>Set budgets and alerts in your provider’s console</span></li>
-        </ul>
-      </section>
+    <PlanCards level={2} />
+    <p class="dl-note">
+      Prices in {CURRENCY}, {BILLING_PERIOD.label}. Monthly limits for each plan will be published before launch. Badges show a feature’s current
+      development status; see <a href="/features/">Features</a>.
+    </p>
+    <div class="cta-row plans-cta">
+      <a class="lu-button" data-variant="primary" data-size="lg" href="/download/">Download</a>
     </div>
 
     <section class="section" aria-labelledby="faq-title">
@@ -41,11 +26,10 @@ import PageHead from '../components/PageHead.astro';
         <h2 class="h-display" id="faq-title">Questions</h2>
       </div>
       <div class="prose faq">
-        <h3>Why do I need my own API key?</h3>
-        <p>
-          Lumo has no cloud service of its own. Your requests go straight from your computer to the provider you chose, which keeps your data out of
-          one more company’s servers and keeps the app free.
-        </p>
+        <h3>Can I buy a plan now?</h3>
+        <p>Not yet. Lumo is in pre-release; plans open at launch.</p>
+        <h3>What if a feature in my plan is still in development?</h3>
+        <p>Each plan lists the features it is designed to include. Where a feature is not finished yet, its badge says so.</p>
         <h3>Do purchases made through Lumo cost extra?</h3>
         <p>
           No. When Lumo helps you order food or shop, it hands you off to the provider or merchant, and you pay them at their normal prices. Lumo

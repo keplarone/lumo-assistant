@@ -89,7 +89,8 @@ impl TypedTool for FindPlaces {
                 Some(l) => (l.lat, l.lon, l.label),
                 None => {
                     return Err(LumoError::Unavailable(
-                        "No location is set. Ask the user where to search, or they can set a default location in Settings → General.".into(),
+                        "No location is set. Ask the user where to search, or they can set a default location in Settings → General."
+                            .into(),
                     ))
                 }
             },
@@ -266,10 +267,19 @@ impl TypedTool for PrepareCheckoutHandoff {
         }
         let mut details = vec![("Merchant".to_string(), format!("{} ({})", i.merchant, u.host_str().unwrap_or("")))];
         for it in &i.items {
-            details.push((format!("{} ×", it.quantity), format!("{}{}", it.name, it.price.as_ref().map(|p| format!(" — {p}")).unwrap_or_default())));
+            details.push((
+                format!("{} ×", it.quantity),
+                format!("{}{}", it.name, it.price.as_ref().map(|p| format!(" — {p}")).unwrap_or_default()),
+            ));
         }
-        details.push(("Deliver to".into(), i.delivery_address.clone().unwrap_or_else(|| "Not set. You'll enter it on the merchant's site.".into())));
-        details.push(("Total".into(), i.total.clone().unwrap_or_else(|| "Unknown until checkout. The merchant shows the final total, fees and tax.".into())));
+        details.push((
+            "Deliver to".into(),
+            i.delivery_address.clone().unwrap_or_else(|| "Not set. You'll enter it on the merchant's site.".into()),
+        ));
+        details.push((
+            "Total".into(),
+            i.total.clone().unwrap_or_else(|| "Unknown until checkout. The merchant shows the final total, fees and tax.".into()),
+        ));
         Ok(ActionPreview {
             title: format!("Continue to {} to place this order", i.merchant),
             details,
@@ -308,9 +318,13 @@ mod tests {
     #[tokio::test]
     async fn finds_places_from_openstreetmap_sorted_by_distance() {
         let server = MockServer::start().await;
-        Mock::given(method("GET")).and(path("/search")).respond_with(ResponseTemplate::new(200).set_body_json(json!([
-            {"lat": "40.7128", "lon": "-74.0060", "display_name": "Lower Manhattan, New York"}
-        ]))).mount(&server).await;
+        Mock::given(method("GET"))
+            .and(path("/search"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(json!([
+                {"lat": "40.7128", "lon": "-74.0060", "display_name": "Lower Manhattan, New York"}
+            ])))
+            .mount(&server)
+            .await;
         Mock::given(method("POST")).and(path("/overpass")).respond_with(ResponseTemplate::new(200).set_body_json(json!({"elements": [
             {"type": "node", "id": 2, "lat": 40.7228, "lon": -74.0060, "tags": {"name": "Far Pizza", "amenity": "restaurant", "cuisine": "pizza"}},
             {"type": "node", "id": 1, "lat": 40.7130, "lon": -74.0061, "tags": {"name": "Near Slice", "amenity": "fast_food", "cuisine": "pizza;italian", "opening_hours": "Mo-Su 11:00-23:00", "website": "https://nearslice.example"}},
@@ -321,7 +335,13 @@ mod tests {
         let (ctx, _) = ctx(core, Origin::User);
         let r = Registry::standard();
         let names: Vec<String> = r.names().into_iter().map(String::from).collect();
-        let res = execute(&r, &ctx, &json!({"type": "tool_use", "id": "p", "name": "find_places", "input": {"query": "pizza", "near": "Lower Manhattan"}}), &names).await;
+        let res = execute(
+            &r,
+            &ctx,
+            &json!({"type": "tool_use", "id": "p", "name": "find_places", "input": {"query": "pizza", "near": "Lower Manhattan"}}),
+            &names,
+        )
+        .await;
         assert!(res.ok, "{}", res.block);
         let text = res.block.to_string();
         let near = text.find("Near Slice").unwrap();

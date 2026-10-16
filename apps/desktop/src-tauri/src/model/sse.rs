@@ -69,9 +69,6 @@ mod tests {
         let mut d = SseDecoder::default();
         assert!(d.push(b"event: ping\r\ndata: {\"a\"").is_empty());
         let ev = d.push(b":1}\r\n\r\nevent: x\ndata: 2\n\n");
-        assert_eq!(ev, vec![
-            SseEvent { event: "ping".into(), data: "{\"a\":1}".into() },
-            SseEvent { event: "x".into(), data: "2".into() }
-        ]);
+        assert_eq!(ev, vec![SseEvent { event: "ping".into(), data: "{\"a\":1}".into() }, SseEvent { event: "x".into(), data: "2".into() }]);
     }
 }

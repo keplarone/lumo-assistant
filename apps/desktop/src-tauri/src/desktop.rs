@@ -2,8 +2,9 @@
 //! tray, the global shortcut, the compact window and the preview protocol.
 
 use crate::agent::events::ActionPreview;
-use crate::core::{Core, Platform};
+use crate::core::{Core, Platform, Screenshot};
 use crate::error::{LumoError, Result};
+use crate::tools::computer::InputAction;
 use async_trait::async_trait;
 use parking_lot::Mutex;
 use std::path::PathBuf;
@@ -84,7 +85,7 @@ impl Platform for TauriPlatform {
         rx.await.ok().flatten()
     }
 
-    fn capture_screen(&self) -> Result<(Vec<u8>, u32, u32)> {
+    fn capture_screen(&self) -> Result<Screenshot> {
         let monitors = xcap::Monitor::all().map_err(|e| LumoError::Unavailable(format!("screen capture is not available: {e}")))?;
         let m = monitors
             .iter()
@@ -96,6 +97,9 @@ impl Platform for TauriPlatform {
                 "Lumo could not capture the screen ({e}). On macOS, allow Lumo under System Settings → Privacy & Security → Screen Recording."
             ))
         })?;
+        // Logical size of the display, which is what input coordinates use.
+        let (sw, sh) = (m.width().unwrap_or(img.width()), m.height().unwrap_or(img.height()));
+        let (ox, oy) = (m.x().unwrap_or(0), m.y().unwrap_or(0));
         // Downscale large displays: fewer tokens, same usefulness.
         let img = if img.width() > 1568 {
             let h = (img.height() as f64 * 1568.0 / img.width() as f64) as u32;
@@ -106,12 +110,104 @@ impl Platform for TauriPlatform {
         let (w, h) = (img.width(), img.height());
         let mut png = std::io::Cursor::new(Vec::new());
         img.write_to(&mut png, xcap::image::ImageFormat::Png).map_err(|e| LumoError::Other(e.into()))?;
-        Ok((png.into_inner(), w, h))
+        Ok(Screenshot { png: png.into_inner(), width: w, height: h, origin_x: ox, origin_y: oy, screen_width: sw, screen_height: sh })
+    }
+
+    fn perform_input(&self, actions: &[InputAction]) -> Result<()> {
+        use enigo::{Axis, Button, Coordinate, Direction, Enigo, Keyboard, Mouse, Settings};
+        let mut e = Enigo::new(&Settings::default()).map_err(|e| {
+            LumoError::Unavailable(format!(
+                "Lumo can't control input on this system ({e}). On macOS, allow Lumo under System Settings → Privacy & Security → Accessibility."
+            ))
+        })?;
+        let err = |e: enigo::InputError| LumoError::Unavailable(format!("input failed: {e}"));
+        let pause = || std::thread::sleep(std::time::Duration::from_millis(60));
+        for a in actions {
+            match a {
+                InputAction::MoveTo { x, y } => e.move_mouse(*x, *y, Coordinate::Abs).map_err(err)?,
+                InputAction::Click { x, y, button, count } => {
+                    e.move_mouse(*x, *y, Coordinate::Abs).map_err(err)?;
+                    pause();
+                    let b = match button.as_deref() {
+                        Some("right") => Button::Right,
+                        Some("middle") => Button::Middle,
+                        _ => Button::Left,
+                    };
+                    for _ in 0..count.unwrap_or(1) {
+                        e.button(b, Direction::Click).map_err(err)?;
+                    }
+                }
+                InputAction::Drag { from_x, from_y, to_x, to_y } => {
+                    e.move_mouse(*from_x, *from_y, Coordinate::Abs).map_err(err)?;
+                    e.button(Button::Left, Direction::Press).map_err(err)?;
+                    pause();
+                    e.move_mouse(*to_x, *to_y, Coordinate::Abs).map_err(err)?;
+                    pause();
+                    e.button(Button::Left, Direction::Release).map_err(err)?;
+                }
+                InputAction::Scroll { x, y, dx, dy } => {
+                    e.move_mouse(*x, *y, Coordinate::Abs).map_err(err)?;
+                    if *dy != 0 {
+                        e.scroll(*dy, Axis::Vertical).map_err(err)?;
+                    }
+                    if *dx != 0 {
+                        e.scroll(*dx, Axis::Horizontal).map_err(err)?;
+                    }
+                }
+                InputAction::Type { text } => e.text(text).map_err(err)?,
+                InputAction::Key { keys } => {
+                    let parts = crate::tools::computer::parse_keys(keys)?;
+                    let keys: Vec<enigo::Key> = parts.iter().map(|p| to_key(p)).collect();
+                    for k in &keys[..keys.len() - 1] {
+                        e.key(*k, Direction::Press).map_err(err)?;
+                    }
+                    e.key(keys[keys.len() - 1], Direction::Click).map_err(err)?;
+                    for k in keys[..keys.len() - 1].iter().rev() {
+                        e.key(*k, Direction::Release).map_err(err)?;
+                    }
+                }
+                InputAction::Wait { ms } => std::thread::sleep(std::time::Duration::from_millis(*ms as u64)),
+            }
+            pause();
+        }
+        Ok(())
+    }
+
+    fn input_control_changed(&self, active: bool) {
+        let gs = self.app.global_shortcut();
+        if active {
+            let res = gs.on_shortcut(crate::tools::computer::STOP_SHORTCUT, |app, _sc, ev| {
+                if ev.state == ShortcutState::Pressed {
+                    if let Some(state) = app.try_state::<crate::commands::AppState>() {
+                        let ids: Vec<String> = state.core.pending.input_sessions.lock().iter().cloned().collect();
+                        for id in ids {
+                            crate::agent::cancel(&state.core, &id);
+                            crate::tools::computer::end_session(&state.core, &id);
+                        }
+                    }
+                }
+            });
+            if let Err(e) = res {
+                log::warn!("could not register the stop shortcut: {e}");
+            }
+            if let Some(tray) = self.app.tray_by_id("lumo") {
+                let _ = tray.set_tooltip(Some("Lumo is using your mouse and keyboard"));
+            }
+        } else {
+            let _ = gs.unregister(crate::tools::computer::STOP_SHORTCUT);
+            if let Some(tray) = self.app.tray_by_id("lumo") {
+                let _ = tray.set_tooltip(Some("Lumo"));
+            }
+        }
+        let _ =
+            self.app.emit("input-control", serde_json::json!({ "active": active, "stopShortcut": crate::tools::computer::STOP_SHORTCUT }));
     }
 
     fn active_window(&self) -> Result<(String, String)> {
         self.last_window.lock().clone().ok_or_else(|| {
-            LumoError::Unavailable("Lumo doesn't know which window you were in. Open Lumo with the keyboard shortcut from that window and try again.".into())
+            LumoError::Unavailable(
+                "Lumo doesn't know which window you were in. Open Lumo with the keyboard shortcut from that window and try again.".into(),
+            )
         })
     }
 
@@ -170,9 +266,13 @@ pub fn toggle_compact(app: &AppHandle) {
     }
 }
 
+static MAIN_SHORTCUT: Mutex<Option<String>> = Mutex::new(None);
+
 pub fn register_shortcut(app: &AppHandle, shortcut: &str) -> Result<()> {
     let gs = app.global_shortcut();
-    let _ = gs.unregister_all();
+    if let Some(prev) = MAIN_SHORTCUT.lock().take() {
+        let _ = gs.unregister(prev.as_str());
+    }
     gs.on_shortcut(shortcut, |app, _sc, ev| {
         if ev.state == ShortcutState::Pressed {
             if let Some(p) = app.try_state::<Arc<TauriPlatform>>() {
@@ -181,7 +281,9 @@ pub fn register_shortcut(app: &AppHandle, shortcut: &str) -> Result<()> {
             toggle_compact(app);
         }
     })
-    .map_err(|e| LumoError::Invalid(format!("Could not use the shortcut {shortcut}: {e}")))
+    .map_err(|e| LumoError::Invalid(format!("Could not use the shortcut {shortcut}: {e}")))?;
+    *MAIN_SHORTCUT.lock() = Some(shortcut.to_string());
+    Ok(())
 }
 
 pub fn build_tray(app: &AppHandle, core: &Arc<Core>) -> tauri::Result<()> {
@@ -189,7 +291,8 @@ pub fn build_tray(app: &AppHandle, core: &Arc<Core>) -> tauri::Result<()> {
     let ask = MenuItem::with_id(app, "ask", "Ask Lumo…", true, None::<&str>)?;
     let pause = CheckMenuItem::with_id(app, "pause", "Pause automations", true, core.settings().automations_paused, None::<&str>)?;
     let quit = MenuItem::with_id(app, "quit", "Quit Lumo", true, None::<&str>)?;
-    let menu = Menu::with_items(app, &[&open, &ask, &PredefinedMenuItem::separator(app)?, &pause, &PredefinedMenuItem::separator(app)?, &quit])?;
+    let menu =
+        Menu::with_items(app, &[&open, &ask, &PredefinedMenuItem::separator(app)?, &pause, &PredefinedMenuItem::separator(app)?, &quit])?;
     let core2 = core.clone();
     TrayIconBuilder::with_id("lumo")
         .icon(app.default_window_icon().cloned().expect("app icon"))
@@ -245,5 +348,42 @@ pub fn preview_response(core: &Core, uri_path: &str) -> tauri::http::Response<Ve
             .header("content-type", "text/plain; charset=utf-8")
             .body(e.to_string().into_bytes())
             .unwrap(),
+    }
+}
+
+fn to_key(p: &str) -> enigo::Key {
+    use enigo::Key;
+    match p {
+        "enter" | "return" => Key::Return,
+        "tab" => Key::Tab,
+        "escape" | "esc" => Key::Escape,
+        "backspace" => Key::Backspace,
+        "delete" => Key::Delete,
+        "space" => Key::Space,
+        "up" => Key::UpArrow,
+        "down" => Key::DownArrow,
+        "left" => Key::LeftArrow,
+        "right" => Key::RightArrow,
+        "home" => Key::Home,
+        "end" => Key::End,
+        "pageup" => Key::PageUp,
+        "pagedown" => Key::PageDown,
+        "ctrl" | "control" => Key::Control,
+        "alt" | "option" => Key::Alt,
+        "shift" => Key::Shift,
+        "cmd" | "command" | "meta" | "super" | "win" => Key::Meta,
+        "f1" => Key::F1,
+        "f2" => Key::F2,
+        "f3" => Key::F3,
+        "f4" => Key::F4,
+        "f5" => Key::F5,
+        "f6" => Key::F6,
+        "f7" => Key::F7,
+        "f8" => Key::F8,
+        "f9" => Key::F9,
+        "f10" => Key::F10,
+        "f11" => Key::F11,
+        "f12" => Key::F12,
+        other => Key::Unicode(other.chars().next().unwrap_or(' ')),
     }
 }

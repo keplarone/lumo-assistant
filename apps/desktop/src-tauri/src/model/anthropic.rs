@@ -297,7 +297,10 @@ impl Assembler {
                         sink(StreamEvent::ServerToolStarted { name: block["name"].as_str().unwrap_or("").into() });
                     }
                     t if t.ends_with("_tool_result") => {
-                        sink(StreamEvent::ServerToolFinished { name: t.trim_end_matches("_tool_result").into(), summary: summarize_server_result(&block) });
+                        sink(StreamEvent::ServerToolFinished {
+                            name: t.trim_end_matches("_tool_result").into(),
+                            summary: summarize_server_result(&block),
+                        });
                     }
                     _ => {}
                 }
@@ -316,11 +319,8 @@ impl Assembler {
                     }
                     "thinking_delta" => append_str(block, "thinking", delta["thinking"].as_str().unwrap_or("")),
                     "signature_delta" => {
-                        block["signature"] = json!(format!(
-                            "{}{}",
-                            block["signature"].as_str().unwrap_or(""),
-                            delta["signature"].as_str().unwrap_or("")
-                        ));
+                        block["signature"] =
+                            json!(format!("{}{}", block["signature"].as_str().unwrap_or(""), delta["signature"].as_str().unwrap_or("")));
                     }
                     "input_json_delta" => self.partial_json[idx].push_str(delta["partial_json"].as_str().unwrap_or("")),
                     "citations_delta" => {
@@ -556,7 +556,11 @@ mod tests {
     async fn retries_overload_then_succeeds() {
         let server = MockServer::start().await;
         Mock::given(method("POST"))
-            .respond_with(ResponseTemplate::new(529).insert_header("retry-after", "0").set_body_string(r#"{"type":"error","error":{"type":"overloaded_error","message":"Overloaded"}}"#))
+            .respond_with(
+                ResponseTemplate::new(529)
+                    .insert_header("retry-after", "0")
+                    .set_body_string(r#"{"type":"error","error":{"type":"overloaded_error","message":"Overloaded"}}"#),
+            )
             .up_to_n_times(1)
             .mount(&server)
             .await;
@@ -574,7 +578,11 @@ mod tests {
         let server = MockServer::start().await;
         Mock::given(method("POST"))
             .and(header("anthropic-beta", &*format!("{BETA_DISPLAY_UPDATES},{BETA_BLOCK_BINDING},{BETA_FALLBACK}")))
-            .respond_with(ResponseTemplate::new(400).set_body_string(r#"{"type":"error","error":{"type":"invalid_request_error","message":"thinking.display: unknown beta"}}"#))
+            .respond_with(
+                ResponseTemplate::new(400).set_body_string(
+                    r#"{"type":"error","error":{"type":"invalid_request_error","message":"thinking.display: unknown beta"}}"#,
+                ),
+            )
             .mount(&server)
             .await;
         Mock::given(method("POST"))
@@ -593,7 +601,10 @@ mod tests {
     async fn bad_key_is_a_clear_error_and_not_retried() {
         let server = MockServer::start().await;
         Mock::given(method("POST"))
-            .respond_with(ResponseTemplate::new(401).set_body_string(r#"{"type":"error","error":{"type":"authentication_error","message":"invalid x-api-key"}}"#))
+            .respond_with(
+                ResponseTemplate::new(401)
+                    .set_body_string(r#"{"type":"error","error":{"type":"authentication_error","message":"invalid x-api-key"}}"#),
+            )
             .expect(1)
             .mount(&server)
             .await;

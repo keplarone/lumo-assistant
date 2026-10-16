@@ -45,9 +45,7 @@ impl SecretStore for OsKeychain {
         }
     }
     fn set(&self, name: &str, value: &str) -> Result<()> {
-        Self::entry(name)?
-            .set_password(value)
-            .map_err(|e| LumoError::Unavailable(format!("Could not save to the system keychain: {e}")))
+        Self::entry(name)?.set_password(value).map_err(|e| LumoError::Unavailable(format!("Could not save to the system keychain: {e}")))
     }
     fn delete(&self, name: &str) -> Result<()> {
         match Self::entry(name)?.delete_credential() {

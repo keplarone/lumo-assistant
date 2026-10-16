@@ -6,7 +6,7 @@ import { RELEASES_URL } from '../../data/downloads';
 
 const toc = [
   ['install', 'Install'],
-  ['api-key', 'Add your API key'],
+  ['plans', 'Plans'],
   ['grant-folder', 'Grant a folder'],
   ['first-tasks', 'First tasks'],
   ['approvals', 'Approvals and risk tiers'],
@@ -17,11 +17,11 @@ const toc = [
 ];
 ---
 
-<Base title="Getting started" description="Install Lumo, add your Anthropic API key, grant a folder, run your first tasks, and learn how approvals, automations and memory work.">
+<Base title="Getting started" description="Install Lumo, learn about plans, grant a folder, run your first tasks, and learn how approvals, automations and memory work.">
   <PageHead
     eyebrow="Docs"
     title="Getting started with Lumo"
-    lede="Everything you need for the first hour: installing, connecting your model key, giving Lumo access to a folder, and how it asks before it acts."
+    lede="Everything you need for the first hour: installing, choosing a plan, giving Lumo access to a folder, and how it asks before it acts."
   />
   <div class="container docs-layout">
     <nav class="toc" aria-label="Guide sections">
@@ -52,17 +52,12 @@ const toc = [
       <pre><code>chmod +x Lumo_*.AppImage
 ./Lumo_*.AppImage</code></pre>
 
-      <h2 id="api-key">Add your Anthropic API key</h2>
-      <p>Lumo uses Claude models with your own API key. You pay Anthropic directly for usage; Lumo itself is free.</p>
-      <ol>
-        <li>Create a key in the <a href="https://console.anthropic.com/">Anthropic Console</a>.</li>
-        <li>Open Lumo. The first-run screen asks for the key; you can also add or replace it later in <strong>Settings → Model</strong>.</li>
-        <li>Paste the key and save.</li>
-      </ol>
+      <h2 id="plans">Plans</h2>
       <p>
-        The key is stored in your operating system’s keychain, not in a file. Only Lumo’s native core reads it, to attach it to requests that go
-        directly to Anthropic. You can remove it at any time from the same settings screen.
+        Lumo will have three plans at launch: Free, Lumo Lite and Lumo Pro. They differ in how many tasks you can run each month and in which
+        features are included. See <a href="/pricing/">Pricing</a> for what each plan includes.
       </p>
+      <p>Plans are not available yet. How to choose and change a plan will be described here when they open.</p>
 
       <h2 id="grant-folder">Grant a folder</h2>
       <p>Lumo cannot see your files until you give it a folder.</p>
@@ -116,11 +111,9 @@ const toc = [
       </ul>
 
       <h2 id="troubleshooting">Troubleshooting</h2>
-      <h3>“Invalid API key” or authentication errors</h3>
-      <p>Check the key in the Anthropic Console is active and has credit, then paste it again in <strong>Settings → Model</strong>.</p>
       <h3>Linux: “No keychain available”</h3>
       <p>
-        Lumo needs a Secret Service provider such as GNOME Keyring or KWallet to store your key. Install and unlock one, then restart Lumo. Lumo will
+        Lumo needs a Secret Service provider such as GNOME Keyring or KWallet to store its secrets. Install and unlock one, then restart Lumo. Lumo will
         not store secrets in plain text instead.
       </p>
       <h3>Linux: the AppImage does not start</h3>

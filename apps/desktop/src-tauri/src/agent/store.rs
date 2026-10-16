@@ -158,7 +158,8 @@ pub fn delete_conversation(core: &Core, id: &str) -> Result<()> {
 
 pub fn messages(core: &Core, conversation_id: &str) -> Result<Vec<StoredMessage>> {
     let conn = core.db.conn();
-    let mut st = conn.prepare("SELECT id, seq, role, content_json, run_id, created_at FROM messages WHERE conversation_id = ?1 ORDER BY seq")?;
+    let mut st =
+        conn.prepare("SELECT id, seq, role, content_json, run_id, created_at FROM messages WHERE conversation_id = ?1 ORDER BY seq")?;
     let rows = st
         .query_map([conversation_id], |r| {
             let raw: String = r.get(3)?;
@@ -198,7 +199,10 @@ pub fn append(core: &Core, conversation_id: &str, role: &str, content: &[Value],
             if last_role == "user" {
                 let mut merged: Vec<Value> = serde_json::from_str(raw).unwrap_or_default();
                 merged.extend_from_slice(content);
-                conn.execute("UPDATE messages SET content_json = ?2 WHERE id = ?1", rusqlite::params![id, serde_json::to_string(&merged)?])?;
+                conn.execute(
+                    "UPDATE messages SET content_json = ?2 WHERE id = ?1",
+                    rusqlite::params![id, serde_json::to_string(&merged)?],
+                )?;
                 conn.execute("UPDATE conversations SET updated_at = ?2 WHERE id = ?1", rusqlite::params![conversation_id, t])?;
                 return Ok(id.clone());
             }
@@ -221,7 +225,14 @@ pub fn create_run(core: &Core, run_id: &str, conversation_id: &str, origin: &str
     Ok(())
 }
 
-pub fn finish_run(core: &Core, run_id: &str, status: &str, summary: Option<&str>, error: Option<&str>, usage: &crate::model::Usage) -> Result<()> {
+pub fn finish_run(
+    core: &Core,
+    run_id: &str,
+    status: &str,
+    summary: Option<&str>,
+    error: Option<&str>,
+    usage: &crate::model::Usage,
+) -> Result<()> {
     core.db.conn().execute(
         "UPDATE runs SET status = ?2, summary = ?3, error = ?4, finished_at = ?5, usage_json = ?6 WHERE id = ?1",
         rusqlite::params![run_id, status, summary, error, now(), serde_json::to_string(usage)?],

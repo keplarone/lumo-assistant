@@ -1,9 +1,11 @@
 export const SITE = {
   name: 'Lumo',
   fullName: 'Lumo Assistant',
+  /** Production origin (astro.config.mjs uses the same default). */
+  url: 'https://lumo.keplar.one',
   tagline: 'Tell Lumo what you want. Lumo figures out how to make it happen.',
   description:
-    'Lumo is a desktop AI assistant that understands what you want, plans the steps, uses real tools with your permission and reports back. Free, local-first, bring your own model key.',
+    'Lumo is a desktop AI assistant that understands what you want, plans the steps, uses real tools with your permission and reports back. Local-first, with permission checks on every action.',
   repo: 'https://github.com/keplarone/lumo-assistant',
   issues: 'https://github.com/keplarone/lumo-assistant/issues',
   releases: 'https://github.com/keplarone/lumo-assistant/releases',

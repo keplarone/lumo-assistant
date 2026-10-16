@@ -2,7 +2,11 @@
 //! input, nothing returns a secret, and anything with side effects outside Lumo goes through the same
 //! policy as the agent (or is an explicit user action such as granting a folder via the OS picker).
 
-use crate::agent::{self, events::{AgentEvent, EventSink}, store, StartRequest};
+use crate::agent::{
+    self,
+    events::{AgentEvent, EventSink},
+    store, StartRequest,
+};
 use crate::automations::{self, AutomationInput};
 use crate::core::Core;
 use crate::desktop;
@@ -87,7 +91,14 @@ pub fn save_settings(app: AppHandle, state: S, settings: Settings) -> ApiResult<
         }
     }
     if old.memory_enabled != settings.memory_enabled {
-        crate::audit::record(&state.core.db, "user", if settings.memory_enabled { "enable_memory" } else { "disable_memory" }, None, None, "ok");
+        crate::audit::record(
+            &state.core.db,
+            "user",
+            if settings.memory_enabled { "enable_memory" } else { "disable_memory" },
+            None,
+            None,
+            "ok",
+        );
     }
     let _ = app.emit("settings-changed", ());
     Ok(state.core.settings())
@@ -137,7 +148,8 @@ pub async fn test_model_connection(state: S<'_>) -> ApiResult<String> {
     let s = state.core.settings();
     let http = &state.core.http;
     let resp = if s.provider == "anthropic" {
-        let key = state.core.secrets.get("anthropic_api_key")?.ok_or_else(|| LumoError::Unavailable("No Anthropic API key is saved.".into()))?;
+        let key =
+            state.core.secrets.get("anthropic_api_key")?.ok_or_else(|| LumoError::Unavailable("No Anthropic API key is saved.".into()))?;
         http.get(format!("{}/v1/models?limit=1", s.anthropic_base_url.trim_end_matches('/')))
             .header("x-api-key", key)
             .header("anthropic-version", "2023-06-01")
@@ -281,7 +293,13 @@ pub fn list_active_runs(state: S) -> Vec<ActiveRunInfo> {
         .runs
         .lock()
         .values()
-        .map(|r| ActiveRunInfo { run_id: r.run_id.clone(), conversation_id: r.conversation_id.clone(), origin: r.origin.clone(), title: r.title.clone(), started_at: r.started_at.clone() })
+        .map(|r| ActiveRunInfo {
+            run_id: r.run_id.clone(),
+            conversation_id: r.conversation_id.clone(),
+            origin: r.origin.clone(),
+            title: r.title.clone(),
+            started_at: r.started_at.clone(),
+        })
         .collect()
 }
 
@@ -309,7 +327,13 @@ pub fn register_attachment(core: &Core, path: &Path) -> Option<AttachmentInfo> {
     let token = new_id();
     core.pending.attachments.lock().insert(token.clone(), path.to_path_buf());
     let mime = mime_guess::from_path(path).first_or_octet_stream();
-    let kind = if mime.type_() == "image" { "image" } else if mime.essence_str() == "application/pdf" { "pdf" } else { "file" };
+    let kind = if mime.type_() == "image" {
+        "image"
+    } else if mime.essence_str() == "application/pdf" {
+        "pdf"
+    } else {
+        "file"
+    };
     Some(AttachmentInfo { token, name: path.file_name()?.to_string_lossy().to_string(), bytes: meta.len(), kind: kind.into() })
 }
 
@@ -409,7 +433,8 @@ pub async fn export_memories(app: AppHandle, state: S<'_>) -> ApiResult<Option<S
         let _ = tx.send(p);
     });
     let Some(path) = rx.await.ok().flatten().and_then(|p| p.into_path().ok()) else { return Ok(None) };
-    std::fs::write(&path, serde_json::to_string_pretty(&json!({"exportedAt": now(), "memories": items})).map_err(LumoError::from)?).map_err(LumoError::from)?;
+    std::fs::write(&path, serde_json::to_string_pretty(&json!({"exportedAt": now(), "memories": items})).map_err(LumoError::from)?)
+        .map_err(LumoError::from)?;
     Ok(Some(path.display().to_string()))
 }
 
@@ -498,7 +523,9 @@ pub struct AgentDef {
 #[tauri::command]
 pub fn list_agents(state: S) -> ApiResult<Vec<AgentDef>> {
     let conn = state.core.db.conn();
-    let mut st = conn.prepare("SELECT id, name, description, instructions, tools_json, model, updated_at FROM agents ORDER BY name").map_err(LumoError::from)?;
+    let mut st = conn
+        .prepare("SELECT id, name, description, instructions, tools_json, model, updated_at FROM agents ORDER BY name")
+        .map_err(LumoError::from)?;
     let rows = st
         .query_map([], |r| {
             Ok(AgentDef {
@@ -599,7 +626,11 @@ pub fn project_files(state: S, id: String) -> ApiResult<Vec<FileNode>> {
         }
         let rel = e.path().strip_prefix(root).unwrap_or(e.path()).to_string_lossy().replace('\\', "/");
         let is_dir = e.file_type().is_dir();
-        out.push(FileNode { path: rel, kind: if is_dir { "folder".into() } else { "file".into() }, bytes: if is_dir { None } else { e.metadata().ok().map(|m| m.len()) } });
+        out.push(FileNode {
+            path: rel,
+            kind: if is_dir { "folder".into() } else { "file".into() },
+            bytes: if is_dir { None } else { e.metadata().ok().map(|m| m.len()) },
+        });
     }
     Ok(out)
 }
@@ -665,7 +696,9 @@ pub fn list_audit(state: S, limit: Option<u32>, before_id: Option<i64>) -> ApiRe
 
 #[tauri::command]
 pub fn open_logs(app: AppHandle, state: S) -> ApiResult<()> {
-    app.opener().open_path(state.core.paths.log_dir.display().to_string(), None::<&str>).map_err(|e| LumoError::Unavailable(e.to_string()))?;
+    app.opener()
+        .open_path(state.core.paths.log_dir.display().to_string(), None::<&str>)
+        .map_err(|e| LumoError::Unavailable(e.to_string()))?;
     Ok(())
 }
 
@@ -682,7 +715,10 @@ pub fn toggle_compact_window(app: AppHandle) {
 #[tauri::command]
 pub async fn check_for_updates(app: AppHandle) -> ApiResult<Option<String>> {
     if !crate::updater_configured() {
-        return Err(LumoError::Unavailable("Automatic updates aren't set up for this build. Download new versions from the Lumo website.".into()).into());
+        return Err(LumoError::Unavailable(
+            "Automatic updates aren't set up for this build. Download new versions from the Lumo website.".into(),
+        )
+        .into());
     }
     use tauri_plugin_updater::UpdaterExt;
     let updater = app.updater().map_err(|e| LumoError::Unavailable(e.to_string()))?;
@@ -717,4 +753,12 @@ pub async fn verify_integration(state: S<'_>, id: String) -> ApiResult<String> {
 #[tauri::command]
 pub fn disconnect_integration(state: S, id: String) -> ApiResult<()> {
     Ok(crate::integrations::disconnect(&state.core, &id)?)
+}
+
+// ---- Voice ----------------------------------------------------------------------------------
+
+#[tauri::command]
+pub async fn transcribe_audio(app: AppHandle, state: S<'_>, audio_base64: String, mime_type: String) -> ApiResult<String> {
+    let _ = app.emit("privacy", json!({"kind": "microphone", "detail": "Sending your recording for transcription"}));
+    Ok(crate::voice::transcribe(&state.core, &audio_base64, &mime_type).await?)
 }

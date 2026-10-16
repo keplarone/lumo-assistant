@@ -59,7 +59,7 @@ impl Default for Settings {
             openai_model: "llama3.1".into(),
             memory_enabled: false,
             web_search_enabled: true,
-            global_shortcut: if cfg!(target_os = "macos") { "Alt+Space".into() } else { "Alt+Space".into() },
+            global_shortcut: "Alt+Space".into(),
             close_to_tray: true,
             retention_days: None,
             location: None,
@@ -74,11 +74,8 @@ impl Default for Settings {
     }
 }
 
-pub const MODELS: &[(&str, &str)] = &[
-    ("claude-opus-5-5", "Claude Opus 5.5"),
-    ("claude-sonnet-5-5", "Claude Sonnet 5.5"),
-    ("claude-haiku-5-5", "Claude Haiku 5.5"),
-];
+pub const MODELS: &[(&str, &str)] =
+    &[("claude-opus-5-5", "Claude Opus 5.5"), ("claude-sonnet-5-5", "Claude Sonnet 5.5"), ("claude-haiku-5-5", "Claude Haiku 5.5")];
 
 impl Settings {
     pub fn validate(&self) -> Result<()> {
@@ -121,10 +118,7 @@ fn check_endpoint(raw: &str, allow_local_http: bool) -> Result<()> {
 }
 
 pub fn load(db: &Db) -> Result<Settings> {
-    let raw: Option<String> = db
-        .conn()
-        .query_row("SELECT value FROM settings WHERE key = 'app'", [], |r| r.get(0))
-        .ok();
+    let raw: Option<String> = db.conn().query_row("SELECT value FROM settings WHERE key = 'app'", [], |r| r.get(0)).ok();
     Ok(match raw {
         Some(s) => serde_json::from_str(&s).unwrap_or_default(),
         None => Settings::default(),
@@ -156,8 +150,7 @@ mod tests {
 
     #[test]
     fn rejects_insecure_remote_endpoints() {
-        let mut s = Settings::default();
-        s.anthropic_base_url = "http://evil.example.com".into();
+        let mut s = Settings { anthropic_base_url: "http://evil.example.com".into(), ..Default::default() };
         assert!(s.validate().is_err());
         s.anthropic_base_url = "https://gateway.example.com".into();
         s.openai_base_url = "http://localhost:1234/v1".into();

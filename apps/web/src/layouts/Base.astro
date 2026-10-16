@@ -23,7 +23,7 @@ interface Props {
 
 const { title, description, jsonLd = [], noindex = false, ogImage = '/og.png' } = Astro.props;
 const fullTitle = title ? `${title} · ${SITE.fullName}` : `${SITE.fullName}: whatever you need, just ask Lumo`;
-const site = Astro.site ?? new URL('https://lumo.keplar.one');
+const site = Astro.site ?? new URL(SITE.url);
 const canonical = new URL(Astro.url.pathname, site).href;
 const ogUrl = new URL(ogImage, site).href;
 

@@ -55,10 +55,11 @@ impl TypedTool for UpdatePlan {
             }
             steps.push(PlanStep { title: crate::util::preview(&s.title, 120), status: s.status });
         }
-        let _ = ctx.core.db.conn().execute(
-            "UPDATE runs SET plan_json = ?2 WHERE id = ?1",
-            rusqlite::params![ctx.run_id, serde_json::to_string(&steps)?],
-        );
+        let _ = ctx
+            .core
+            .db
+            .conn()
+            .execute("UPDATE runs SET plan_json = ?2 WHERE id = ?1", rusqlite::params![ctx.run_id, serde_json::to_string(&steps)?]);
         let done = steps.iter().filter(|s| s.status == "done").count();
         let total = steps.len();
         ctx.sink.emit(AgentEvent::Plan { steps });

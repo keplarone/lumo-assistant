@@ -69,7 +69,13 @@ pub fn agent_definition(core: &Core, id: &str) -> Result<(String, Vec<String>, O
 }
 
 /// Record the user's message and a new run. Fast and synchronous; driving the run is separate.
-pub fn prepare(core: &Arc<Core>, registry: &Registry, req: &StartRequest, origin: Origin, automation_allowed: Vec<String>) -> Result<RunSpec> {
+pub fn prepare(
+    core: &Arc<Core>,
+    registry: &Registry,
+    req: &StartRequest,
+    origin: Origin,
+    automation_allowed: Vec<String>,
+) -> Result<RunSpec> {
     let text = req.text.trim();
     if text.is_empty() && req.attachments.is_empty() {
         return Err(invalid("say what you'd like Lumo to do"));
@@ -95,7 +101,8 @@ pub fn prepare(core: &Arc<Core>, registry: &Registry, req: &StartRequest, origin
                 None => (None, vec![], None),
             };
             let all: Vec<String> = registry.names().into_iter().map(String::from).collect();
-            let mut client: Vec<String> = if agent_tools.is_empty() { all } else { agent_tools.into_iter().filter(|t| all.contains(t)).collect() };
+            let mut client: Vec<String> =
+                if agent_tools.is_empty() { all } else { agent_tools.into_iter().filter(|t| all.contains(t)).collect() };
             // Conversation tools are always available; they have no side effects.
             for t in ["update_plan", "ask_user", "present_options"] {
                 if !client.iter().any(|c| c == t) {
@@ -108,8 +115,16 @@ pub fn prepare(core: &Arc<Core>, registry: &Registry, req: &StartRequest, origin
             if anthropic || !brave {
                 client.retain(|t| t != "search_web");
             }
-            let tools = FrozenTools { client, web_search: anthropic && settings.web_search_enabled, web_fetch: anthropic && settings.web_search_enabled };
-            let model = if settings.provider == "anthropic" { agent_model.unwrap_or(settings.model.clone()) } else { settings.openai_model.clone() };
+            let tools = FrozenTools {
+                client,
+                web_search: anthropic && settings.web_search_enabled,
+                web_fetch: anthropic && settings.web_search_enabled,
+            };
+            let model = if settings.provider == "anthropic" {
+                agent_model.unwrap_or(settings.model.clone())
+            } else {
+                settings.openai_model.clone()
+            };
             store::create_conversation(
                 core,
                 if text.is_empty() { "Attachment" } else { text },
@@ -150,7 +165,13 @@ pub fn prepare(core: &Arc<Core>, registry: &Registry, req: &StartRequest, origin
 }
 
 fn attachment_block(core: &Core, token: &str, provider: &str) -> Result<Value> {
-    let path = core.pending.attachments.lock().get(token).cloned().ok_or_else(|| invalid("that attachment is no longer available; attach it again"))?;
+    let path = core
+        .pending
+        .attachments
+        .lock()
+        .get(token)
+        .cloned()
+        .ok_or_else(|| invalid("that attachment is no longer available; attach it again"))?;
     let meta = std::fs::metadata(&path)?;
     let name = path.file_name().map(|s| s.to_string_lossy().to_string()).unwrap_or_default();
     let mime = mime_guess::from_path(&path).first_or_octet_stream();
@@ -166,7 +187,9 @@ fn attachment_block(core: &Core, token: &str, provider: &str) -> Result<Value> {
             if meta.len() > 20 * 1024 * 1024 {
                 return Err(invalid(format!("{name} is larger than 20 MB")));
             }
-            Ok(json!({"type": "document", "title": name, "source": {"type": "base64", "media_type": "application/pdf", "data": b64(std::fs::read(&path)?)}}))
+            Ok(
+                json!({"type": "document", "title": name, "source": {"type": "base64", "media_type": "application/pdf", "data": b64(std::fs::read(&path)?)}}),
+            )
         }
         _ => {
             if meta.len() > 2 * 1024 * 1024 {
@@ -195,9 +218,13 @@ pub async fn drive(core: Arc<Core>, registry: Arc<Registry>, spec: RunSpec, sink
     let mut usage = Usage::default();
     let outcome = match drive_inner(&core, &registry, &spec, &sink, &mut usage).await {
         Ok(o) => o,
-        Err(LumoError::Cancelled) => RunOutcome { status: "cancelled".into(), summary: Some("Stopped.".into()), error: None, needs_attention: false },
+        Err(LumoError::Cancelled) => {
+            RunOutcome { status: "cancelled".into(), summary: Some("Stopped.".into()), error: None, needs_attention: false }
+        }
         Err(e) => RunOutcome { status: "failed".into(), summary: None, error: Some(e.to_string()), needs_attention: false },
     };
+    tools::computer::end_session(&core, &spec.run_id);
+    core.pending.screens.lock().remove(&spec.run_id);
     let _ = store::finish_run(&core, &spec.run_id, &outcome.status, outcome.summary.as_deref(), outcome.error.as_deref(), &usage);
     core.pending.runs.lock().remove(&spec.run_id);
     sink.emit(AgentEvent::RunFinished {
@@ -226,7 +253,13 @@ fn server_label(name: &str) -> &'static str {
     }
 }
 
-async fn drive_inner(core: &Arc<Core>, registry: &Arc<Registry>, spec: &RunSpec, sink: &Arc<dyn EventSink>, usage: &mut Usage) -> Result<RunOutcome> {
+async fn drive_inner(
+    core: &Arc<Core>,
+    registry: &Arc<Registry>,
+    spec: &RunSpec,
+    sink: &Arc<dyn EventSink>,
+    usage: &mut Usage,
+) -> Result<RunOutcome> {
     let conv = store::get_conversation(core, &spec.conversation_id)?;
     let provider = core.provider()?;
     let settings = core.settings();
@@ -275,7 +308,13 @@ async fn drive_inner(core: &Arc<Core>, registry: &Arc<Registry>, spec: &RunSpec,
                 p2.server_open.lock().push((name.clone(), id.clone()));
                 p2.tools_used.store(true, Ordering::Relaxed);
                 s2.emit(AgentEvent::Phase { phase: Phase::Executing });
-                s2.emit(AgentEvent::ToolStarted { call_id: id, name: name.clone(), label: server_label(&name).into(), risk: "read".into(), input: Value::Null });
+                s2.emit(AgentEvent::ToolStarted {
+                    call_id: id,
+                    name: name.clone(),
+                    label: server_label(&name).into(),
+                    risk: "read".into(),
+                    input: Value::Null,
+                });
             }
             StreamEvent::ServerToolFinished { name, summary } => {
                 let id = {
@@ -296,7 +335,8 @@ async fn drive_inner(core: &Arc<Core>, registry: &Arc<Registry>, spec: &RunSpec,
         }
         let stored = clean_for_replay(&resp.content);
         let message_id = store::append(core, &spec.conversation_id, "assistant", &stored, Some(&spec.run_id))?;
-        let text: String = resp.content.iter().filter(|b| b["type"] == "text").filter_map(|b| b["text"].as_str()).collect::<Vec<_>>().join("");
+        let text: String =
+            resp.content.iter().filter(|b| b["type"] == "text").filter_map(|b| b["text"].as_str()).collect::<Vec<_>>().join("");
         if !text.trim().is_empty() {
             last_text = text;
         }
@@ -316,7 +356,12 @@ async fn drive_inner(core: &Arc<Core>, registry: &Arc<Registry>, spec: &RunSpec,
             "pause_turn" => {
                 pauses += 1;
                 if pauses > 5 {
-                    return Ok(RunOutcome { status: "failed".into(), summary: None, error: Some("The model kept pausing without finishing.".into()), needs_attention });
+                    return Ok(RunOutcome {
+                        status: "failed".into(),
+                        summary: None,
+                        error: Some("The model kept pausing without finishing.".into()),
+                        needs_attention,
+                    });
                 }
                 continue;
             }
@@ -383,7 +428,12 @@ async fn drive_inner(core: &Arc<Core>, registry: &Arc<Registry>, spec: &RunSpec,
             });
         }
     }
-    Ok(RunOutcome { status: "stopped".into(), summary: Some("Stopped: the task took too many steps.".into()), error: None, needs_attention })
+    Ok(RunOutcome {
+        status: "stopped".into(),
+        summary: Some("Stopped: the task took too many steps.".into()),
+        error: None,
+        needs_attention,
+    })
 }
 
 fn ctx_for(core: &Arc<Core>, spec: &RunSpec, sink: &Arc<dyn EventSink>, call_id: &str, conv: &store::Conversation) -> ToolCtx {

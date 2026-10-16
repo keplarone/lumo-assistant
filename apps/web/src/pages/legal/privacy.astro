@@ -6,8 +6,8 @@ import { ANALYTICS_ENDPOINT } from '../../lib/analytics';
 const analyticsOn = Boolean(ANALYTICS_ENDPOINT);
 ---
 
-<Base title="Privacy policy" description="What data the Lumo app and website handle: no Lumo account or cloud, an encrypted local database, and cookieless, opt-out-respecting website analytics.">
-  <PageHead eyebrow="Legal" title="Privacy policy" lede="Short version: Lumo has no account and no cloud service, your data stays on your computer, and this website does not track you.">
+<Base title="Privacy policy" description="What data the Lumo app and website handle: an encrypted local database, permissions you grant, and cookieless, opt-out-respecting website analytics.">
+  <PageHead eyebrow="Legal" title="Privacy policy" lede="Short version: your conversations and history are stored on your computer, Lumo only uses what you grant, and this website does not track you.">
     <p class="legal-meta">Last updated 16 October 2026 · Pre-release draft</p>
   </PageHead>
   <div class="container prose">
@@ -15,18 +15,22 @@ const analyticsOn = Boolean(ANALYTICS_ENDPOINT);
     <h3>What stays on your computer</h3>
     <p>
       Conversations, task history, memories, settings and the audit log are stored on your computer in an encrypted database. The database key and
-      your API keys and account tokens are kept in your operating system’s keychain. The Lumo project does not receive any of this. You choose how
-      long history is kept, and you can delete it at any time.
+      account tokens are kept in your operating system’s keychain. You choose how long history is kept, and you can delete it at any time.
     </p>
     <h3>What is sent, and to whom</h3>
     <ul>
-      <li><strong>Your model provider</strong> (for example Anthropic) receives the messages and context needed to answer each request, sent directly from your computer with your key. Their privacy policy applies.</li>
+      <li><strong>The model provider</strong> (Anthropic) receives the messages and context needed to answer each request.</li>
       <li><strong>Web pages and search</strong> you ask Lumo to read are fetched like a browser would.</li>
       <li><strong>Services you connect</strong>, such as a calendar or GitHub, receive the requests needed for actions you ask for or approve.</li>
       <li><strong>Handoffs</strong> to delivery providers or merchants open their site in your browser; what you do there is governed by their policies.</li>
       <li><strong>Updates</strong>: the app checks for new versions, which reveals your IP address and app version to the update host.</li>
     </ul>
     <p>Lumo does not include advertising, analytics or crash-reporting services in the app. Diagnostic logs stay on your computer unless you choose to share them.</p>
+    <h3 id="plans">Plans and billing</h3>
+    <p>
+      Lumo’s plans open at launch. Before then, this policy will be updated to describe what a plan involves: any account and billing details,
+      how plan limits are counted, and how requests reach the model provider.
+    </p>
 
     <h3>Permissions</h3>
     <p>

@@ -23,10 +23,18 @@ pub struct MemoryItem {
 
 pub fn list(core: &Core) -> Result<Vec<MemoryItem>> {
     let conn = core.db.conn();
-    let mut st = conn.prepare("SELECT id, content, category, source_conversation_id, created_at, updated_at FROM memories ORDER BY updated_at DESC")?;
+    let mut st = conn
+        .prepare("SELECT id, content, category, source_conversation_id, created_at, updated_at FROM memories ORDER BY updated_at DESC")?;
     let rows = st
         .query_map([], |r| {
-            Ok(MemoryItem { id: r.get(0)?, content: r.get(1)?, category: r.get(2)?, source_conversation_id: r.get(3)?, created_at: r.get(4)?, updated_at: r.get(5)? })
+            Ok(MemoryItem {
+                id: r.get(0)?,
+                content: r.get(1)?,
+                category: r.get(2)?,
+                source_conversation_id: r.get(3)?,
+                created_at: r.get(4)?,
+                updated_at: r.get(5)?,
+            })
         })?
         .collect::<std::result::Result<Vec<_>, _>>()?;
     Ok(rows)
@@ -39,7 +47,14 @@ pub fn add(core: &Core, content: &str, category: &str, source: Option<&str>) -> 
     }
     let category = if ["preference", "fact", "person", "place", "general"].contains(&category) { category } else { "general" };
     let t = now();
-    let m = MemoryItem { id: new_id(), content: content.into(), category: category.into(), source_conversation_id: source.map(String::from), created_at: t.clone(), updated_at: t };
+    let m = MemoryItem {
+        id: new_id(),
+        content: content.into(),
+        category: category.into(),
+        source_conversation_id: source.map(String::from),
+        created_at: t.clone(),
+        updated_at: t,
+    };
     core.db.conn().execute(
         "INSERT INTO memories(id, content, category, source_conversation_id, created_at, updated_at) VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
         rusqlite::params![m.id, m.content, m.category, m.source_conversation_id, m.created_at, m.updated_at],
@@ -52,7 +67,8 @@ pub fn update(core: &Core, id: &str, content: &str) -> Result<()> {
     if content.is_empty() || content.len() > 1000 {
         return Err(invalid("a memory must be 1 to 1000 characters"));
     }
-    let n = core.db.conn().execute("UPDATE memories SET content = ?2, updated_at = ?3 WHERE id = ?1", rusqlite::params![id, content, now()])?;
+    let n =
+        core.db.conn().execute("UPDATE memories SET content = ?2, updated_at = ?3 WHERE id = ?1", rusqlite::params![id, content, now()])?;
     if n == 0 {
         return Err(LumoError::NotFound("memory".into()));
     }

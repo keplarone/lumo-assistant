@@ -64,7 +64,8 @@ pub struct WriteClipInput {
 impl TypedTool for WriteClipboard {
     type Input = WriteClipInput;
     const NAME: &'static str = "write_clipboard";
-    const DESCRIPTION: &'static str = "Put text on the user's clipboard so they can paste it elsewhere (a drafted reply, a command, a summary).";
+    const DESCRIPTION: &'static str =
+        "Put text on the user's clipboard so they can paste it elsewhere (a drafted reply, a command, a summary).";
     fn schema(&self) -> Value {
         object_schema(json!({"text": {"type": "string"}}), &["text"])
     }

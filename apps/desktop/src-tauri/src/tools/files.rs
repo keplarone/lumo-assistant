@@ -93,9 +93,13 @@ impl TypedTool for ListFiles {
         let mut lines = Vec::new();
         let mut entries = Vec::new();
         let mut truncated = false;
-        for e in walkdir::WalkDir::new(&dir).min_depth(1).max_depth(depth).sort_by_file_name().into_iter().filter_entry(|e| {
-            i.include_hidden || !e.file_name().to_string_lossy().starts_with('.')
-        }) {
+        for e in walkdir::WalkDir::new(&dir)
+            .min_depth(1)
+            .max_depth(depth)
+            .sort_by_file_name()
+            .into_iter()
+            .filter_entry(|e| i.include_hidden || !e.file_name().to_string_lossy().starts_with('.'))
+        {
             let Ok(e) = e else { continue };
             if entries.len() >= 500 {
                 truncated = true;
@@ -109,7 +113,12 @@ impl TypedTool for ListFiles {
             entries.push(json!({"name": rel, "kind": kind, "bytes": if meta.is_dir() { Value::Null } else { json!(meta.len()) }, "modified": modified(&meta)}));
         }
         let n = entries.len();
-        let mut text = format!("{} ({n} entries{})\nkind\tpath\tsize\tmodified\n{}", display(&dir), if truncated { ", truncated at 500" } else { "" }, lines.join("\n"));
+        let mut text = format!(
+            "{} ({n} entries{})\nkind\tpath\tsize\tmodified\n{}",
+            display(&dir),
+            if truncated { ", truncated at 500" } else { "" },
+            lines.join("\n")
+        );
         if n == 0 {
             text = format!("{} is empty.", display(&dir));
         }
@@ -295,12 +304,19 @@ impl TypedTool for ReadFile {
         }
         let bytes = std::fs::read(&p)?;
         let text = String::from_utf8(bytes).map_err(|_| {
-            LumoError::Unavailable(format!("{} is not a text file. Lumo can read text and images; other formats (PDF, Office) are not supported yet.", display(&p)))
+            LumoError::Unavailable(format!(
+                "{} is not a text file. Lumo can read text and images; other formats (PDF, Office) are not supported yet.",
+                display(&p)
+            ))
         })?;
         let max = i.max_chars.unwrap_or(100_000).clamp(100, 200_000);
         let total = text.chars().count();
         Ok(ToolOutput {
-            text: format!("{} ({total} characters{})", display(&p), if total > max { format!(", showing the first {max}") } else { String::new() }),
+            text: format!(
+                "{} ({total} characters{})",
+                display(&p),
+                if total > max { format!(", showing the first {max}") } else { String::new() }
+            ),
             untrusted: Some(text.chars().take(max).collect()),
             summary: format!("Read {}", display(&p)),
             ..Default::default()
@@ -360,7 +376,11 @@ impl TypedTool for WriteFile {
                 ("Size".into(), human_size(i.content.len() as u64)),
                 ("Starts with".into(), crate::util::preview(&i.content, 140)),
             ],
-            warning: if exists && i.mode == "overwrite" { Some("The current version is backed up and can be restored with Undo.".into()) } else { None },
+            warning: if exists && i.mode == "overwrite" {
+                Some("The current version is backed up and can be restored with Undo.".into())
+            } else {
+                None
+            },
         })
     }
     async fn run(&self, ctx: &ToolCtx, i: WriteInput) -> Result<ToolOutput> {
@@ -434,7 +454,11 @@ impl TypedTool for CreateFolder {
     }
     fn preview(&self, ctx: &ToolCtx, i: &FolderInput) -> Result<ActionPreview> {
         let p = resolve(ctx, &i.path)?;
-        Ok(ActionPreview { title: format!("Create the folder {}", name_of(&i.path)), details: vec![("Location".into(), display(&p))], warning: None })
+        Ok(ActionPreview {
+            title: format!("Create the folder {}", name_of(&i.path)),
+            details: vec![("Location".into(), display(&p))],
+            warning: None,
+        })
     }
     async fn run(&self, ctx: &ToolCtx, i: FolderInput) -> Result<ToolOutput> {
         let p = resolve(ctx, &i.path)?;
@@ -578,7 +602,11 @@ impl TypedTool for MoveFiles {
         }
         Ok(ToolOutput {
             text,
-            summary: if skipped.is_empty() { format!("Moved {} items", done.len()) } else { format!("Moved {}, skipped {}", done.len(), skipped.len()) },
+            summary: if skipped.is_empty() {
+                format!("Moved {} items", done.len())
+            } else {
+                format!("Moved {}, skipped {}", done.len(), skipped.len())
+            },
             data: Some(json!({"moved": done.len(), "skipped": skipped})),
             ..Default::default()
         })
@@ -686,7 +714,10 @@ impl TypedTool for RequestFolderAccess {
     const NAME: &'static str = "request_folder_access";
     const DESCRIPTION: &'static str = "Ask the user to choose a folder Lumo may work in, using the system folder picker. Call it when a task needs files and no granted folder fits. The user can always cancel. Explain why in 'reason'.";
     fn schema(&self) -> Value {
-        object_schema(json!({"reason": {"type": "string", "description": "Shown to the user, e.g. 'to organize your Downloads folder'"}}), &["reason"])
+        object_schema(
+            json!({"reason": {"type": "string", "description": "Shown to the user, e.g. 'to organize your Downloads folder'"}}),
+            &["reason"],
+        )
     }
     fn risk(&self, _ctx: &ToolCtx, _: &AccessInput) -> Risk {
         // The system picker is itself the user's consent; the webview cannot choose for them.
@@ -736,7 +767,8 @@ mod tests {
         let r = Registry::standard();
         let names: Vec<String> = r.names().into_iter().map(String::from).collect();
 
-        let mv = json!({"type": "tool_use", "id": "m", "name": "move_files", "input": {"moves": [{"from": "a.png", "to": "Images/a.png"}]}});
+        let mv =
+            json!({"type": "tool_use", "id": "m", "name": "move_files", "input": {"moves": [{"from": "a.png", "to": "Images/a.png"}]}});
         let res = execute(&r, &ctx, &mv, &names).await;
         assert!(res.ok, "{}", res.block);
         assert!(root.join("Images/a.png").exists() && !root.join("a.png").exists());
@@ -747,7 +779,8 @@ mod tests {
 
         // Moving onto an existing file is refused, not overwritten.
         std::fs::write(root.join("b.txt"), b"b").unwrap();
-        let clash = json!({"type": "tool_use", "id": "c", "name": "move_files", "input": {"moves": [{"from": "b.txt", "to": "notes.txt"}]}});
+        let clash =
+            json!({"type": "tool_use", "id": "c", "name": "move_files", "input": {"moves": [{"from": "b.txt", "to": "notes.txt"}]}});
         let res = execute(&r, &ctx, &clash, &names).await;
         assert!(!res.ok, "preview should refuse the clash: {}", res.block);
         assert_eq!(std::fs::read_to_string(root.join("notes.txt")).unwrap(), "new");
@@ -774,7 +807,13 @@ mod tests {
         let ok = execute(&r, &ctx, &json!({"type": "tool_use", "id": "r", "name": "read_file", "input": {"path": "x.md"}}), &names).await;
         assert!(ok.ok);
         assert!(ok.block.to_string().contains("untrusted_content"));
-        let out = execute(&r, &ctx, &json!({"type": "tool_use", "id": "r2", "name": "read_file", "input": {"path": base.join("secret.txt").to_str().unwrap()}}), &names).await;
+        let out = execute(
+            &r,
+            &ctx,
+            &json!({"type": "tool_use", "id": "r2", "name": "read_file", "input": {"path": base.join("secret.txt").to_str().unwrap()}}),
+            &names,
+        )
+        .await;
         assert!(!out.ok);
     }
 }

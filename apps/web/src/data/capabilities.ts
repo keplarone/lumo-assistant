@@ -25,7 +25,8 @@ export type CapabilityId =
   | 'google'
   | 'github'
   | 'netlify'
-  | 'direct-food-ordering';
+  | 'direct-food-ordering'
+  | 'custom-agents';
 
 export interface Capability {
   id: CapabilityId;
@@ -42,7 +43,7 @@ export const CAPABILITIES: readonly Capability[] = [
     id: 'conversations',
     name: 'Conversations with Claude models',
     status: 'in-development',
-    summary: 'Ask in plain language and get answers, plans and finished work from Claude, using your own Anthropic API key.',
+    summary: 'Ask in plain language and get answers, plans and finished work from Claude models.',
   },
   {
     id: 'files',
@@ -103,14 +104,14 @@ export const CAPABILITIES: readonly Capability[] = [
   {
     id: 'computer-use',
     name: 'Computer use',
-    status: 'planned',
+    status: 'in-development',
     summary: 'With your permission, see the screen and use mouse and keyboard to finish tasks in other apps, with a visible indicator and a stop shortcut.',
   },
   {
     id: 'voice',
     name: 'Voice',
-    status: 'planned',
-    summary: 'Talk to Lumo and hear it answer.',
+    status: 'in-development',
+    summary: 'Speak a request instead of typing it, using a speech-to-text service you choose.',
   },
   {
     id: 'google',
@@ -121,13 +122,13 @@ export const CAPABILITIES: readonly Capability[] = [
   {
     id: 'github',
     name: 'GitHub',
-    status: 'planned',
-    summary: 'Push projects to repositories and read issues after you connect your GitHub account.',
+    status: 'in-development',
+    summary: 'Publish a project to a new GitHub repository after you connect your account and confirm.',
   },
   {
     id: 'netlify',
     name: 'Deploy to Netlify',
-    status: 'planned',
+    status: 'in-development',
     summary: 'Publish a finished website to Netlify after you connect your account and confirm the deploy.',
   },
   {
@@ -136,6 +137,12 @@ export const CAPABILITIES: readonly Capability[] = [
     status: 'planned',
     summary: 'Placing an order inside Lumo through a delivery provider’s official program (DoorDash dd-cli beta, Uber Consumer Delivery early access).',
     note: 'Pending approval from the providers. Until then, Lumo hands off to the provider to complete checkout.',
+  },
+  {
+    id: 'custom-agents',
+    name: 'Custom agents',
+    status: 'planned',
+    summary: 'Save your own specialised assistants, each with its own instructions and the tools you allow it.',
   },
 ];
 

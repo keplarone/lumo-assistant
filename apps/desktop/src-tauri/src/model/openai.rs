@@ -250,7 +250,11 @@ mod tests {
             json!({"choices": [], "usage": {"prompt_tokens": 10, "completion_tokens": 7}}),
         ];
         let body: String = chunks.iter().map(|c| format!("data: {c}\n\n")).collect::<String>() + "data: [DONE]\n\n";
-        Mock::given(method("POST")).and(path("/v1/chat/completions")).respond_with(ResponseTemplate::new(200).set_body_raw(body, "text/event-stream")).mount(&server).await;
+        Mock::given(method("POST"))
+            .and(path("/v1/chat/completions"))
+            .respond_with(ResponseTemplate::new(200).set_body_raw(body, "text/event-stream"))
+            .mount(&server)
+            .await;
         let p = OpenAiCompatible::new(reqwest::Client::new(), &format!("{}/v1", server.uri()), None, "llama".into());
         let req = ModelRequest {
             model: "x".into(),

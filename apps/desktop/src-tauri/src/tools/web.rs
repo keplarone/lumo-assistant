@@ -2,7 +2,7 @@
 
 use super::{object_schema, ToolCtx, ToolOutput, TypedTool};
 use crate::agent::events::ActionPreview;
-use crate::error::{invalid, denied, LumoError, Result};
+use crate::error::{denied, invalid, LumoError, Result};
 use crate::policy::Risk;
 use async_trait::async_trait;
 use futures_util::StreamExt;
@@ -96,7 +96,8 @@ impl TypedTool for FetchUrl {
         for _ in 0..5 {
             let r = client.get(url.clone()).header("accept", "text/html,text/plain,application/json;q=0.9,*/*;q=0.5").send().await?;
             if r.status().is_redirection() {
-                let loc = r.headers().get("location").and_then(|v| v.to_str().ok()).ok_or_else(|| invalid("redirect without a location"))?;
+                let loc =
+                    r.headers().get("location").and_then(|v| v.to_str().ok()).ok_or_else(|| invalid("redirect without a location"))?;
                 url = check_public_url(url.join(loc).map_err(|_| invalid("bad redirect"))?.as_str()).await?;
                 continue;
             }
@@ -203,7 +204,15 @@ mod tests {
 
     #[tokio::test]
     async fn internal_addresses_are_refused() {
-        for u in ["http://127.0.0.1/", "http://localhost:8080/", "http://10.0.0.5/", "http://169.254.169.254/latest", "http://[::1]/", "file:///etc/passwd", "http://user:pw@example.com/"] {
+        for u in [
+            "http://127.0.0.1/",
+            "http://localhost:8080/",
+            "http://10.0.0.5/",
+            "http://169.254.169.254/latest",
+            "http://[::1]/",
+            "file:///etc/passwd",
+            "http://user:pw@example.com/",
+        ] {
             assert!(check_public_url(u).await.is_err(), "{u}");
         }
         assert!(is_public(&"93.184.216.34".parse().unwrap()));

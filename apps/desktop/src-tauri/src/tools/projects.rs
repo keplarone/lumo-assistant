@@ -152,7 +152,10 @@ pub fn restore(core: &Core, id: &str, version: &str) -> Result<String> {
     let mut opts = git2::build::CheckoutBuilder::new();
     opts.force().remove_untracked(true);
     repo.checkout_tree(commit.as_object(), Some(&mut opts)).map_err(|e| LumoError::Other(e.into()))?;
-    let msg = format!("Restored version from {}", chrono::DateTime::from_timestamp(commit.time().seconds(), 0).map(|d| d.format("%Y-%m-%d %H:%M").to_string()).unwrap_or_default());
+    let msg = format!(
+        "Restored version from {}",
+        chrono::DateTime::from_timestamp(commit.time().seconds(), 0).map(|d| d.format("%Y-%m-%d %H:%M").to_string()).unwrap_or_default()
+    );
     let new = commit_all(Path::new(&p.path), &msg)?.unwrap_or_else(|| version.to_string());
     crate::audit::record(&core.db, "user", "restore_version", Some(&p.name), Some(&json!({"version": version})), "ok");
     Ok(new)
@@ -179,7 +182,17 @@ pub fn create(core: &Core, name: &str, kind: &str, conversation_id: Option<&str>
     let dir = std::fs::canonicalize(&dir)?;
     policy::add_folder_grant(&core.db, &dir)?;
     let t = now();
-    let p = Project { id: new_id(), name: name.into(), path: dir.display().to_string(), kind: kind.into(), conversation_id: conversation_id.map(String::from), created_at: t.clone(), updated_at: t, site_url: None, github_repo: None };
+    let p = Project {
+        id: new_id(),
+        name: name.into(),
+        path: dir.display().to_string(),
+        kind: kind.into(),
+        conversation_id: conversation_id.map(String::from),
+        created_at: t.clone(),
+        updated_at: t,
+        site_url: None,
+        github_repo: None,
+    };
     {
         let conn = core.db.conn();
         conn.execute(
@@ -250,7 +263,10 @@ impl TypedTool for CreateProject {
     const NAME: &'static str = "create_project";
     const DESCRIPTION: &'static str = "Create a project folder for something you are building for the user (a website, document or code), with version history and a live preview. Then write its files with write_file using paths relative to the project, save versions with save_version, and show it with preview_project.";
     fn schema(&self) -> Value {
-        object_schema(json!({"name": {"type": "string"}, "kind": {"type": "string", "enum": ["website", "document", "code", "other"]}}), &["name", "kind"])
+        object_schema(
+            json!({"name": {"type": "string"}, "kind": {"type": "string", "enum": ["website", "document", "code", "other"]}}),
+            &["name", "kind"],
+        )
     }
     fn risk(&self, _ctx: &ToolCtx, _: &CreateInput) -> Risk {
         Risk::Write
@@ -269,7 +285,10 @@ impl TypedTool for CreateProject {
         let p = create(&ctx.core, &i.name, &i.kind, Some(&ctx.conversation_id))?;
         ctx.core.platform.broadcast("projects-changed", json!({"id": p.id}));
         Ok(ToolOutput {
-            text: format!("Created project \"{}\" at {} (id {}). Write files there with absolute paths under that folder.", p.name, p.path, p.id),
+            text: format!(
+                "Created project \"{}\" at {} (id {}). Write files there with absolute paths under that folder.",
+                p.name, p.path, p.id
+            ),
             summary: format!("Created {}", p.name),
             data: Some(json!({"projectId": p.id, "path": p.path})),
             ..Default::default()

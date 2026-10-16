@@ -816,3 +816,86 @@ main li > span a,
 main p a:not(.lu-button):hover {
   text-decoration-color: currentColor;
 }
+
+/* ── Plans ─────────────────────────────────────────────────────────────────── */
+.plans {
+  display: grid;
+  gap: var(--lu-space-4);
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 18rem), 1fr));
+  align-items: start;
+}
+.plan {
+  display: grid;
+  gap: var(--lu-space-3);
+  border: 1px solid transparent;
+}
+.plan > * + * {
+  margin-top: 0;
+}
+.plan[data-highlighted] {
+  border-color: var(--lu-line-strong);
+  background: var(--lu-surface-2);
+}
+.plan-top {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--lu-space-2);
+}
+.plan-price {
+  display: flex;
+  align-items: baseline;
+  gap: var(--lu-space-1);
+  color: var(--lu-text) !important;
+}
+.plan-amount {
+  font-family: var(--lu-font-display);
+  font-size: clamp(2rem, 4vw, var(--lu-text-3xl));
+  font-weight: var(--lu-weight-semibold);
+  letter-spacing: var(--lu-tracking-display);
+  line-height: 1.1;
+}
+.plan-period {
+  color: var(--lu-text-secondary);
+  font-size: var(--lu-text-md);
+}
+.plan-tagline {
+  color: var(--lu-text-secondary);
+}
+.plan-includes {
+  margin-top: var(--lu-space-2) !important;
+  font-size: var(--lu-text-sm);
+  font-weight: var(--lu-weight-medium);
+  color: var(--lu-text) !important;
+}
+.plan-features {
+  display: grid;
+  gap: var(--lu-space-2);
+  font-size: var(--lu-text-md);
+}
+.plan-features li {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--lu-space-1-5) var(--lu-space-2);
+  padding-left: var(--lu-space-5);
+  position: relative;
+  color: var(--lu-text-secondary);
+}
+.plan-features li::before {
+  content: '';
+  position: absolute;
+  left: var(--lu-space-1);
+  top: 0.6em;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--lu-accent-text);
+}
+.plans-cta {
+  margin-top: var(--lu-space-6);
+}
+.plans.compact .plan {
+  gap: var(--lu-space-2);
+}
