@@ -8,6 +8,7 @@ on:
   pull_request:
     paths:
       - apps/desktop/src-tauri/src/stt/**
+      - apps/desktop/src-tauri/vendor/candle-core/**
       - apps/desktop/src-tauri/Cargo.toml
       - .github/workflows/speech-smoke.yml
       - .github/scripts/check_speech_pins.py
