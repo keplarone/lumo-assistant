@@ -10,7 +10,7 @@ concurrency:
   cancel-in-progress: true
 
 env:
-  LINUX_DEPS: libwebkit2gtk-4.1-dev libayatana-appindicator3-dev librsvg2-dev libxdo-dev libssl-dev libpipewire-0.3-dev libgbm-dev libxcb1-dev libxrandr-dev libdbus-1-dev
+  LINUX_DEPS: libwebkit2gtk-4.1-dev libayatana-appindicator3-dev librsvg2-dev libxdo-dev libssl-dev libpipewire-0.3-dev libgbm-dev libxcb1-dev libxrandr-dev libdbus-1-dev libvulkan-dev glslc spirv-headers
 
 jobs:
   web:
@@ -72,8 +72,12 @@ jobs:
       - run: mkdir -p ../dist && echo '<!doctype html>' > ../dist/index.html
         shell: bash
       - run: cargo fmt --check
-      - run: cargo clippy --all-targets -- -D warnings
-      - run: cargo test --lib
+      # Linux builds the on-device engine with its Vulkan backend, as releases do (docs/release.md).
+      - name: Choose cargo features
+        shell: bash
+        run: echo "FEATURES=${{ runner.os == 'Linux' && '--features vulkan' || '' }}" >> "$GITHUB_ENV"
+      - run: cargo clippy --all-targets ${{ env.FEATURES }} -- -D warnings
+      - run: cargo test --lib ${{ env.FEATURES }}
 
   audit:
     name: Dependency audit

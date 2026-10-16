@@ -117,7 +117,8 @@ debugger, send synthetic input, or replace the app binary. What Lumo does provid
 ### 3.5 A network attacker
 
 - All provider and integration traffic uses HTTPS (rustls). `settings::check_endpoint` refuses plain HTTP
-  except to localhost. The on-device runtime must be local.
+  except to localhost. On-device model files come only from the pinned catalog, over https on every
+  redirect, and are used only when their SHA-256 matches the catalog (`local_models.rs`).
 - `fetch_url` refuses non-public addresses on every redirect hop (`tools/web.rs`). Since this review,
   it connects only to the addresses it checked (no second DNS lookup) and also refuses IPv6 forms that
   carry an internal IPv4 address (see section 4).

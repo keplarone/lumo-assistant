@@ -584,7 +584,10 @@ mod tests {
         assert_eq!(required_plan(&core, "gpt-oss:20b"), Some("lite"));
         assert_eq!(required_plan(&core, "qwen3:8b"), None);
         set_plan(&core, "lite");
-        assert!(core.provider().is_ok());
+        // Allowed now: what's missing is only the download.
+        let err = core.provider().err().unwrap();
+        assert_eq!(err.code(), "unavailable");
+        assert!(err.to_string().starts_with("Solar 5.4 isn't downloaded yet"), "{err}");
         assert_eq!(required_plan(&core, "gpt-oss:20b"), None);
         let u = usage(&core);
         assert_eq!(u.allowed_models.len(), 4);

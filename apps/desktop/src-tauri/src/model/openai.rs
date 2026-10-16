@@ -1,5 +1,5 @@
-//! OpenAI-compatible Chat Completions adapter, for local models (Ollama, LM Studio, llama.cpp
-//! server) and other vendors that speak this protocol. Thinking and server-tool blocks in history
+//! OpenAI-compatible Chat Completions adapter, for model servers the user runs themselves (LM
+//! Studio, Ollama, a llama.cpp server) and other vendors that speak this protocol. Thinking and server-tool blocks in history
 //! are dropped when converting, since these endpoints cannot read them.
 
 use super::{retry_delay, retryable_status, EventSink, Message, ModelProvider, ModelRequest, ModelResponse, StreamEvent, Usage};

@@ -61,7 +61,10 @@
     ],
     "linux": {
       "deb": {
-        "depends": []
+        "depends": ["libvulkan1"]
+      },
+      "rpm": {
+        "depends": ["vulkan-loader"]
       }
     },
     "macOS": {

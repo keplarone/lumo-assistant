@@ -19,7 +19,8 @@ const analyticsOn = Boolean(ANALYTICS_ENDPOINT);
     </p>
     <h3>What is sent, and to whom</h3>
     <ul>
-      <li><strong>The model provider</strong> (Anthropic) receives the messages and context needed to answer each request.</li>
+      <li><strong>The model provider</strong> (Anthropic) receives the messages and context needed to answer each request. With an on-device model, Lumo answers on your computer and nothing is sent.</li>
+      <li><strong>On-device model downloads</strong> come from Hugging Face over https, which sees your IP address and which model file is downloaded.</li>
       <li><strong>Web pages and search</strong> you ask Lumo to read are fetched like a browser would.</li>
       <li><strong>Services you connect</strong>, such as a calendar or GitHub, receive the requests needed for actions you ask for or approve.</li>
       <li><strong>Handoffs</strong> to delivery providers or merchants open their site in your browser; what you do there is governed by their policies.</li>

@@ -25,10 +25,13 @@ and writes ask in the app while sensitive actions (screen control, deploys, purc
 native OS dialog. Content from web pages and files is wrapped as untrusted and cannot change your
 instructions. Details are in [docs/02-architecture.md](docs/02-architecture.md).
 
+On-device models run inside Lumo itself: the Rust core links llama.cpp (MIT) and downloads the catalog's
+GGUF files from Hugging Face, pinned and checked by SHA-256. Nothing else needs to be installed.
+
 ## Develop
 
-Requirements: Node 22+, pnpm 10, a stable Rust toolchain, and on Linux the packages listed in
-[docs/release.md](docs/release.md).
+Requirements: Node 22+, pnpm 10, a stable Rust toolchain, CMake, a C++ compiler and libclang (for the
+built-in llama.cpp engine), and on Linux the packages listed in [docs/release.md](docs/release.md).
 
 ```sh
 pnpm install

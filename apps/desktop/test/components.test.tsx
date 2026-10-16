@@ -197,35 +197,49 @@ describe('LocalModels', () => {
     baseModel: 'Qwen3 8B',
     license: 'Apache-2.0',
     licenseUrl: 'https://www.apache.org/licenses/LICENSE-2.0',
-    downloadGb: 5.2,
+    sourceRepo: 'Qwen/Qwen3-8B-GGUF',
+    downloadGb: 5.0,
     minMemoryGb: 16,
     summary: 'Good everyday choice.',
     displayName: 'Nebula 4.2',
     installed: false,
+    partialBytes: 0,
     fits: true,
     selected: false,
     requiredPlan: null,
   };
   const status = (over: object) => ({
     brand: 'Lumo on-device models',
-    runtimeRunning: true,
-    runtimeVersion: '0.9.0',
-    runtimeDownloadUrl: 'https://ollama.com/download',
+    engine: 'llama.cpp',
+    accelerator: 'Metal',
     memoryGb: 16,
     models: [model],
-    otherInstalled: [],
     ...over,
   });
 
-  it('asks for the runtime when it is not running', async () => {
+  it('runs models itself: nothing to install, downloads straight away', async () => {
     invoke.mockImplementation(async (cmd: string) =>
-      cmd === 'local_models_status' ? status({ runtimeRunning: false, runtimeVersion: null }) : undefined,
+      cmd === 'local_models_status' ? status({}) : undefined,
     );
     wrap(<LocalModels />);
-    expect(await screen.findByText('On-device models need the free Ollama app')).toBeTruthy();
-    await userEvent.click(screen.getByRole('button', { name: 'Get Ollama' }));
-    expect(invoke).toHaveBeenCalledWith('open_external_url', { url: 'https://ollama.com/download' });
-    expect(screen.getByRole('button', { name: 'Download' })).toHaveProperty('disabled', true);
+    expect(await screen.findByText('Built in · uses the graphics chip (Metal)')).toBeTruthy();
+    expect(screen.queryByText(/Ollama/)).toBeNull();
+    const download = screen.getByRole('button', { name: 'Download' });
+    expect(download).toHaveProperty('disabled', false);
+    await userEvent.click(download);
+    expect(invoke).toHaveBeenCalledWith('download_local_model', { id: 'qwen3:8b' });
+  });
+
+  it('offers to resume an unfinished download', async () => {
+    invoke.mockImplementation(async (cmd: string) =>
+      cmd === 'local_models_status'
+        ? status({ accelerator: 'CPU', models: [{ ...model, partialBytes: 2_000_000_000 }] })
+        : undefined,
+    );
+    wrap(<LocalModels />);
+    expect(await screen.findByText('Built in · runs on the processor')).toBeTruthy();
+    expect(screen.getByText(/2\.0 GB already downloaded/)).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Resume download' })).toBeTruthy();
   });
 
   it('shows attribution, and asks before downloading a model that may not fit', async () => {

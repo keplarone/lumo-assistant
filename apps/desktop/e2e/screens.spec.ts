@@ -24,7 +24,6 @@ const settings = {
   anthropicBaseUrl: 'https://api.anthropic.com',
   openaiBaseUrl: 'http://localhost:11434/v1',
   openaiModel: 'llama3.1',
-  localBaseUrl: 'http://127.0.0.1:11434',
   localModel: '',
   memoryEnabled: true,
   webSearchEnabled: true,
@@ -91,11 +90,13 @@ const localModel = (
   baseModel: base,
   license: 'Apache-2.0',
   licenseUrl: 'https://www.apache.org/licenses/LICENSE-2.0',
+  sourceRepo: `Qwen/${base.replace(' ', '-')}-GGUF`,
   downloadGb: gb,
   minMemoryGb: mem,
   summary,
   displayName: tier,
   installed: false,
+  partialBytes: 0,
   fits: true,
   selected: false,
   requiredPlan: null,
@@ -196,16 +197,15 @@ const base: Fixtures = {
   plan_usage: planUsage,
   local_models_status: {
     brand: 'Lumo on-device models',
-    runtimeRunning: true,
-    runtimeVersion: '0.12.3',
-    runtimeDownloadUrl: 'https://ollama.com/download',
+    engine: 'llama.cpp',
+    accelerator: 'Metal',
     memoryGb: 16,
     models: [
       localModel(
         'qwen3:4b',
         'Orbit 3.8',
         'Qwen3 4B',
-        2.6,
+        2.5,
         8,
         'Quick answers and simple tasks on most laptops.',
         { installed: true, selected: true },
@@ -214,7 +214,7 @@ const base: Fixtures = {
         'qwen3:8b',
         'Nebula 4.2',
         'Qwen3 8B',
-        5.2,
+        5.0,
         16,
         'Good everyday choice for planning and using tools.',
       ),
@@ -222,7 +222,7 @@ const base: Fixtures = {
         'gpt-oss:20b',
         'Solar 5.4',
         'gpt-oss 20B',
-        14,
+        12.1,
         16,
         'Stronger reasoning; needs a recent computer with 16 GB of memory or more.',
         { requiredPlan: 'lite' },
@@ -231,13 +231,12 @@ const base: Fixtures = {
         'qwen3:30b',
         'Nova 5.5',
         'Qwen3 30B-A3B',
-        19,
+        18.6,
         32,
         'The most capable on-device option, for machines with 32 GB of memory or more.',
         { fits: false, requiredPlan: 'lite' },
       ),
     ],
-    otherInstalled: [],
   },
 };
 
@@ -505,7 +504,7 @@ test('settings: models the plan doesn’t include are marked', async ({ page }) 
   await expect(page.getByRole('button', { name: 'Download' })).toHaveCount(1);
 });
 
-test('settings: on-device runtime missing', async ({ page }) => {
+test('settings: on-device models before any download, one half downloaded', async ({ page }) => {
   const st = base.local_models_status as Record<string, unknown>;
   await boot(page, {
     route: '#/settings/model',
@@ -513,14 +512,21 @@ test('settings: on-device runtime missing', async ({ page }) => {
       get_settings: { ...settings, provider: 'local' },
       local_models_status: {
         ...st,
-        runtimeRunning: false,
-        runtimeVersion: null,
-        models: (st.models as object[]).map((m) => ({ ...m, installed: false, selected: false })),
+        accelerator: 'CPU',
+        models: (st.models as Record<string, unknown>[]).map((m) => ({
+          ...m,
+          installed: false,
+          selected: false,
+          partialBytes: m.id === 'qwen3:8b' ? 1_200_000_000 : 0,
+        })),
       },
     },
   });
-  await expect(page.getByText('On-device models need the free Ollama app')).toBeVisible();
-  await shot(page, 'settings-local-no-runtime');
+  // The engine is built in: nothing to install, and nothing mentions another app.
+  await expect(page.getByText('Built in · runs on the processor')).toBeVisible();
+  await expect(page.getByText(/Ollama/)).toHaveCount(0);
+  await expect(page.getByRole('button', { name: 'Resume download' })).toHaveCount(1);
+  await shot(page, 'settings-local-first-download');
 });
 
 test('settings: general, plans, help, privacy, about', async ({ page }) => {

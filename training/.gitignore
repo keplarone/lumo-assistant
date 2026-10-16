@@ -1,0 +1,4 @@
+out/
+data/train.jsonl
+data/eval.jsonl
+__pycache__/

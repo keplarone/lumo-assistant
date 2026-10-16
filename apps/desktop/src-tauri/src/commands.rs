@@ -160,13 +160,6 @@ pub async fn test_model_connection(state: S<'_>) -> ApiResult<String> {
     let http = &state.core.http;
     if s.provider == "local" {
         let st = crate::local_models::status(&state.core).await;
-        if !st.runtime_running {
-            return Err(LumoError::Unavailable(format!(
-                "The on-device runtime is not running. Install it from {}.",
-                st.runtime_download_url
-            ))
-            .into());
-        }
         return match st.models.iter().find(|m| m.selected && m.installed) {
             Some(m) => Ok(format!("{} is ready on this computer.", m.display_name)),
             None => Err(LumoError::Unavailable("Download and choose an on-device model first.".into()).into()),

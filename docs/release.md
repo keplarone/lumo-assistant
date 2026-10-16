@@ -63,4 +63,18 @@ pnpm --filter @lumo/desktop tauri build          # installers for the current OS
 ```
 
 Linux needs: `libwebkit2gtk-4.1-dev libayatana-appindicator3-dev librsvg2-dev libxdo-dev libssl-dev
-libpipewire-0.3-dev libgbm-dev libxcb1-dev libxrandr-dev libdbus-1-dev`.
+libpipewire-0.3-dev libgbm-dev libxcb1-dev libxrandr-dev libdbus-1-dev`. The on-device engine (llama.cpp)
+also needs CMake, a C++ compiler and libclang on every platform (preinstalled on GitHub's runners).
+
+### On-device engine: GPU builds
+
+- **macOS** always builds with Metal.
+- **Windows and Linux** build CPU-only unless the `vulkan` cargo feature is on
+  (`pnpm --filter @lumo/desktop tauri build --features vulkan`). That needs the Vulkan SDK on the build
+  machine: on Ubuntu 24.04 `libvulkan-dev glslc spirv-headers`; on Windows the LunarG Vulkan SDK with `VULKAN_SDK` set. A Vulkan
+  build links the Vulkan loader (`libvulkan.so.1` / `vulkan-1.dll`), which GPU drivers install; on a
+  computer without it the app will not start. The release workflow turns Vulkan on for Linux (the .deb
+  and .rpm declare the loader as a dependency) and leaves Windows on the CPU until the loader can be
+  loaded at run time instead (llama.cpp's dynamic backends).
+- On x86-64, `.cargo/config.toml` builds llama.cpp with AVX2/FMA/F16C (every x86-64 CPU since 2013).
+  Set `GGML_AVX2=OFF` (and the others) in the environment to build for older processors.
