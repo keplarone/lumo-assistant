@@ -48,7 +48,7 @@ impl TypedTool for FindPlaces {
     const DESCRIPTION: &'static str = "Find real restaurants, cafés, shops and other places near a location using OpenStreetMap. Returns names, cuisine, address, opening hours, website and distance where OpenStreetMap has them. It has no menus, prices, ratings, delivery times or availability, so never present those as known.";
     fn schema(&self) -> Value {
         object_schema(
-            json!({"query": {"type": "string"}, "near": {"type": "string", "description": "City, neighborhood or address. Omit to use the user's saved location."},
+            json!({"query": {"type": "string"}, "near": {"type": "string", "description": "City, neighborhood or address. Omit to use the user's current location (from get_current_location) or their saved one."},
                    "radius_m": {"type": "integer", "minimum": 200, "maximum": 20000}}),
             &["query"],
         )
@@ -68,7 +68,7 @@ impl TypedTool for FindPlaces {
         // Where to search.
         let (lat, lon, where_label) = match &i.near {
             Some(near) if !near.trim().is_empty() => {
-                polite_wait(ctx).await;
+                crate::location::nominatim_wait(&ctx.core).await;
                 let r: Value = ctx
                     .core
                     .http
@@ -85,11 +85,12 @@ impl TypedTool for FindPlaces {
                 let lon: f64 = first["lon"].as_str().and_then(|s| s.parse().ok()).ok_or_else(|| invalid("bad geocoder response"))?;
                 (lat, lon, first["display_name"].as_str().unwrap_or(near).to_string())
             }
-            _ => match ctx.core.settings().location {
+            // Where the user is, if they let Lumo detect it in this conversation; else their default.
+            _ => match ctx.core.pending.current_locations.lock().get(&ctx.conversation_id).cloned().or(ctx.core.settings().location) {
                 Some(l) => (l.lat, l.lon, l.label),
                 None => {
                     return Err(LumoError::Unavailable(
-                        "No location is set. Ask the user where to search, or they can set a default location in Settings → General."
+                        "No location is set. Call get_current_location to find where the user is (they confirm it in a system dialog), or ask them where to search."
                             .into(),
                     ))
                 }
@@ -180,13 +181,6 @@ impl TypedTool for FindPlaces {
             data: Some(json!({"places": places, "center": {"lat": lat, "lon": lon, "label": where_label}})),
             ..Default::default()
         })
-    }
-}
-
-/// Nominatim's usage policy allows at most one request per second.
-async fn polite_wait(ctx: &ToolCtx) {
-    while ctx.core.rate.check("nominatim", 1, std::time::Duration::from_millis(1100)).is_err() {
-        tokio::time::sleep(std::time::Duration::from_millis(250)).await;
     }
 }
 

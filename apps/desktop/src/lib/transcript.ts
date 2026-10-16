@@ -130,6 +130,8 @@ export function fallbackToolLabel(name: string, input: unknown): string {
       return 'Moved items to the Trash';
     case 'find_places':
       return str('query') ? `Looked for ${str('query')} nearby` : 'Looked for places';
+    case 'get_current_location':
+      return 'Checked your location';
     case 'open_url':
       return str('url') ? `Opened ${hostOf(str('url'))}` : 'Opened a link';
     case 'control_computer':
