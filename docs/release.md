@@ -52,7 +52,8 @@ never ship inside the app. To turn it on:
    installers, then deploy the site.
 7. Plans: Whop checkout links open real purchases. Confirm license activation works against the deployed
    license server before announcing paid plans.
-8. Write release notes, then publish the draft. Untick "pre-release" only for a stable release.
+8. Write release notes, then publish the draft (on GitHub, or by running the **Publish release** workflow, which
+   publishes it as a pre-release). Untick "pre-release" only for a stable release.
 
 ## Building locally
 

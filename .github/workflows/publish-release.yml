@@ -1,0 +1,25 @@
+name: Publish release
+
+# Publishes the draft that release.yml built for the current app version, as a pre-release, after
+# the checklist in docs/release.md is done. Run it by hand from the Actions tab.
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  publish:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: Publish the draft as a pre-release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          tag="v$(jq -r .version apps/desktop/src-tauri/tauri.conf.json)"
+          gh release view "$tag" --json name,isDraft,assets --jq '{name, isDraft, assets: [.assets[] | "\(.name) \(.size)"]}'
+          gh release edit "$tag" --draft=false --prerelease --target "$GITHUB_SHA"
+          gh release view "$tag" --json url,tagName,isDraft,isPrerelease
