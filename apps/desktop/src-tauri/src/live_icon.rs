@@ -12,7 +12,9 @@ use std::time::{Duration, Instant};
 
 use parking_lot::Mutex;
 use tauri::image::Image;
-use tauri::{AppHandle, Manager};
+use tauri::AppHandle;
+#[cfg(not(target_os = "macos"))]
+use tauri::Manager;
 
 use crate::agent::events::AgentEvent;
 use crate::core::Core;
