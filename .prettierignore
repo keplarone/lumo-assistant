@@ -7,3 +7,4 @@ docs/reference/
 **/playwright-report/
 apps/web/.astro/
 **/node_modules/
+apps/desktop/src-tauri/vendor/
