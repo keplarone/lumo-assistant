@@ -24,7 +24,9 @@ import {
   type SecretStatus,
   type Settings,
 } from '../lib/ipc';
-import { mascotEventsFor } from '../lib/mascotEvents';
+import { hopFor, mascotEventsFor } from '../lib/mascotEvents';
+import { lumoVoice } from '@lumo/mascot';
+import { getCurrentWindow } from '@tauri-apps/api/window';
 import { applyTheme } from '../lib/theme';
 import { mascotBus } from './mascot';
 import { runStore } from './runs';
@@ -127,6 +129,21 @@ export function AppProvider({ boot, children }: { boot: Boot; children: ReactNod
   useEffect(() => {
     document.documentElement.toggleAttribute('data-reduced-motion', settings.reducedMotion);
   }, [settings.reducedMotion]);
+  // Sounds follow the setting. Only one window makes Lumo's mood noises: the desktop buddy when he
+  // is out, otherwise the main window.
+  useEffect(() => {
+    lumoVoice.enabled = settings.soundsEnabled;
+    let label = 'main';
+    try {
+      label = getCurrentWindow().label;
+    } catch {
+      /* not in Tauri */
+    }
+    mascotBus.voiced = settings.buddyEnabled && settings.onboarded ? label === 'buddy' : label === 'main';
+  }, [settings.soundsEnabled, settings.buddyEnabled, settings.onboarded]);
+  useEffect(() => {
+    document.documentElement.dataset.mode = settings.mode;
+  }, [settings.mode]);
 
   useEffect(() => {
     void reloadSecrets();
@@ -139,6 +156,8 @@ export function AppProvider({ boot, children }: { boot: Boot; children: ReactNod
       on('agent-event', (env) => {
         runStore.apply(env);
         mascotBus.send(mascotEventsFor(env.event));
+        const hop = hopFor(env.event);
+        if (hop) mascotBus.act({ kind: 'hop', target: hop.target });
         const ev = env.event;
         if (ev.type === 'run_started') void reloadConversations();
         if (ev.type === 'approval_requested' && !ev.native)

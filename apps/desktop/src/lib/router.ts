@@ -10,6 +10,7 @@ export type Route =
   | { name: 'tasks' }
   | { name: 'settings'; section: string }
   | { name: 'compact' }
+  | { name: 'buddy' }
   | { name: 'styleguide' };
 
 export function parseRoute(hash: string): Route {
@@ -28,6 +29,8 @@ export function parseRoute(hash: string): Route {
       return { name: 'settings', section: b ?? 'general' };
     case 'compact':
       return { name: 'compact' };
+    case 'buddy':
+      return { name: 'buddy' };
     case 'styleguide':
       return { name: 'styleguide' };
     default:
@@ -53,6 +56,8 @@ export function routeHref(r: Route): string {
       return `#/settings/${r.section}`;
     case 'compact':
       return '#/compact';
+    case 'buddy':
+      return '#/buddy';
     case 'styleguide':
       return '#/styleguide';
   }

@@ -109,6 +109,9 @@ pub async fn save_settings(app: AppHandle, state: S<'_>, mut settings: Settings)
         );
     }
     let _ = app.emit("settings-changed", ());
+    if old.onboarded != settings.onboarded || old.buddy_enabled != settings.buddy_enabled {
+        desktop::set_buddy_visible(&app, settings.onboarded && settings.buddy_enabled);
+    }
     Ok(state.core.settings())
 }
 
@@ -741,6 +744,25 @@ pub fn show_main_window(app: AppHandle) {
 #[tauri::command]
 pub fn toggle_compact_window(app: AppHandle) {
     desktop::toggle_compact(&app);
+}
+
+/// The displays, the buddy window and the pointer (physical pixels). Only the buddy window may ask.
+#[tauri::command]
+pub fn buddy_screen(window: tauri::WebviewWindow) -> ApiResult<desktop::BuddyScreen> {
+    Ok(desktop::buddy_screen(&window)?)
+}
+
+/// Move the buddy window; the position is clamped so he stays fully on one display. Only the buddy
+/// window may move itself.
+#[tauri::command]
+pub fn buddy_move(window: tauri::WebviewWindow, x: i32, y: i32) -> ApiResult<()> {
+    Ok(desktop::buddy_move(&window, x, y)?)
+}
+
+/// Send the buddy home: turns "Lumo on desktop" off and closes his window.
+#[tauri::command]
+pub async fn buddy_hide(app: AppHandle, state: S<'_>) -> ApiResult<()> {
+    Ok(desktop::set_buddy_enabled(&app, &state.core, false)?)
 }
 
 #[tauri::command]

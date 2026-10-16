@@ -38,7 +38,7 @@ pub fn run() {
                 .max_file_size(5_000_000)
                 .build(),
         )
-        .plugin(tauri_plugin_window_state::Builder::new().with_denylist(&["compact"]).build())
+        .plugin(tauri_plugin_window_state::Builder::new().with_denylist(&["compact", "buddy"]).build())
         .plugin(tauri_plugin_global_shortcut::Builder::new().build())
         .plugin(tauri_plugin_notification::init())
         .plugin(tauri_plugin_dialog::init())
@@ -101,6 +101,10 @@ pub fn run() {
                 log::warn!("{e}");
             }
             tauri::async_runtime::spawn(automations::scheduler(core.clone(), registry));
+            let s = core.settings();
+            if s.onboarded && s.buddy_enabled {
+                desktop::set_buddy_visible(&handle, true);
+            }
 
             if let Some(w) = app.get_webview_window("main") {
                 let core2 = core.clone();
@@ -179,6 +183,9 @@ pub fn run() {
             commands::open_logs,
             commands::show_main_window,
             commands::toggle_compact_window,
+            commands::buddy_screen,
+            commands::buddy_move,
+            commands::buddy_hide,
             commands::check_for_updates,
             commands::install_update,
             commands::integrations_status,

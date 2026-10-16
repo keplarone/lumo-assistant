@@ -3,12 +3,15 @@ import { getCurrentWindow } from '@tauri-apps/api/window';
 import { useEffect, useRef, useState } from 'react';
 import { ConversationView } from './components/ConversationView';
 import { InputControlBanner } from './components/InputControlBanner';
+import { Backdrop } from './components/Backdrop';
 import { LumoMark } from './components/Mascot';
+import { PageTransition } from './components/PageTransition';
 import { Sidebar } from './components/Sidebar';
 import { api, errorMessage, hasBridge, on } from './lib/ipc';
 import { navigate, useRoute, type Route } from './lib/router';
 import { applyTheme } from './lib/theme';
 import { Automations } from './screens/Automations';
+import { Buddy } from './screens/Buddy';
 import { Compact } from './screens/Compact';
 import { Home } from './screens/Home';
 import { Onboarding } from './screens/Onboarding';
@@ -17,6 +20,7 @@ import { Settings } from './screens/Settings';
 import { Styleguide } from './screens/Styleguide';
 import { Tasks } from './screens/Tasks';
 import { AppProvider, useApp, type Boot } from './state/app';
+import { useHiddenTricks } from './state/companion';
 
 function windowLabel(): string {
   try {
@@ -57,6 +61,9 @@ export function App() {
   }, [bridge]);
 
   useShowWhenPainted(!!boot || !!error || !bridge);
+  // The desktop buddy window is transparent: never paint a loading screen or error card in it.
+  const buddy = windowLabel() === 'buddy';
+  if (buddy && (!boot || error)) return null;
 
   if (!bridge) {
     return (
@@ -96,6 +103,7 @@ export function App() {
 function Root() {
   const app = useApp();
   const route = useRoute();
+  if (route.name === 'buddy') return <Buddy />;
   if (route.name === 'compact') {
     if (!app.settings.onboarded) {
       return (
@@ -141,6 +149,7 @@ function GlobalPrivacy() {
 
 function Shell({ route }: { route: Route }) {
   const search = useRef<HTMLInputElement>(null);
+  useHiddenTricks();
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -169,17 +178,25 @@ function Shell({ route }: { route: Route }) {
 
   return (
     <div className="lm-app">
+      <Backdrop />
       <a className="lm-skip" href="#main">
         Skip to content
       </a>
       <Sidebar ref={search} route={route} />
       <main className="lm-main" id="main" tabIndex={-1}>
         <InputControlBanner />
-        <RouteView route={route} />
+        <PageTransition routeKey={routeKey(route)}>
+          <RouteView route={route} />
+        </PageTransition>
       </main>
       <GlobalPrivacy />
     </div>
   );
+}
+
+/** Page changes animate; switching between settings sections or conversations counts as a change. */
+function routeKey(r: Route) {
+  return r.name === 'conversation' || r.name === 'project' ? `${r.name}:${r.id}` : r.name === 'settings' ? 'settings' : r.name;
 }
 
 function RouteView({ route }: { route: Route }) {

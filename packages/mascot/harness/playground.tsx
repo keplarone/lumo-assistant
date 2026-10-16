@@ -12,8 +12,7 @@ import {
   type MascotEvent,
   type MascotOutput,
 } from '../src/behavior/machine';
-import { STATES } from '../src/core/lumo';
-import '../src/core/companion';
+import { MOOD_NAMES } from '../src/core/moods';
 
 const PHASES: AgentPhase[] = [
   'idle',
@@ -137,7 +136,7 @@ function Playground() {
           <div className="group">
             <h2>Mood (direct)</h2>
             <div className="btns">
-              {Object.keys(STATES).map((s) => (
+              {MOOD_NAMES.map((s) => (
                 <button key={s} data-mood={s} aria-pressed={mood === s} onClick={() => setMood(s)}>
                   {s}
                 </button>
@@ -152,6 +151,7 @@ function Playground() {
               <button onClick={() => ref.current?.pulse()}>pulse</button>
               <button onClick={() => ref.current?.celebrate()}>celebrate</button>
               <button onClick={() => ref.current?.wave('right')}>wave</button>
+              <button onClick={() => ref.current?.boop()}>boop</button>
               <button onClick={() => ref.current?.turnAround()}>turn around</button>
             </div>
           </div>

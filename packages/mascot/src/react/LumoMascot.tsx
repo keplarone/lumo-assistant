@@ -5,9 +5,9 @@
  *   while asleep, and min(fps, 30) under prefers-reduced-motion;
  * - no frames at all (and no rAF loop) while the canvas is off-screen or the document is hidden,
  *   and window pointer listeners are attached only while visible;
- * - high-DPI via dpr [1, 2]; linear output and no tone mapping (`linear flat`), which together with
- *   rawColor()/ADDITIVE in core/lumo.ts reproduce the reference's r149 colors exactly;
- * - prefers-reduced-motion builds the rig with `calm` (damped amplitudes, no hops or turns);
+ * - high-DPI via dpr [1, 2]; sRGB output with neutral tone mapping so the pastel whites stay white;
+ * - prefers-reduced-motion builds the character with `calm` (damped amplitudes, no flips or spins);
+ * - clicking him boops him (a giggle, a spin or a jump) and calls onPoke;
  * - disposes every GPU resource on unmount.
  */
 import { Canvas, useFrame, useThree, type RootState } from '@react-three/fiber';
@@ -22,8 +22,7 @@ import {
   type MutableRefObject,
 } from 'react';
 import * as THREE from 'three';
-import { LumoCompanion, type WingSide } from '../core/companion';
-import { STATES } from '../core/lumo';
+import { Lumo, type ArmSide, type BoopKind } from '../core/character';
 import { gazeTowardClientPoint } from '../core/gaze';
 import type { Facing, MascotOutput, Point } from '../behavior/machine';
 
@@ -46,15 +45,21 @@ export interface LumoFrameStats {
 
 export interface LumoMascotHandle {
   /** The live character, for anything not covered below. */
-  readonly lumo: LumoCompanion | null;
+  readonly lumo: Lumo | null;
   readonly renderer: THREE.WebGLRenderer | null;
-  /** Hop-glide to x in -1..1 across the canvas (same units as the machine's locomotion.x). */
+  /** Jetpack to x in -1..1 across the canvas (same units as the machine's locomotion.x). */
   walkTo(x: number): void;
   turnAround(): void;
   pulse(): void;
   blink(): void;
   celebrate(): void;
-  wave(side?: WingSide): void;
+  wave(side?: ArmSide): void;
+  boop(kind?: BoopKind): void;
+  /**
+   * How fast the host is moving the whole canvas (CSS px per second, y down), e.g. a desktop
+   * overlay window flying across the screen. He banks, burns harder and leaves a trail.
+   */
+  setFlight(vx: number, vy: number): void;
   /** Look at an element or client-space point (even outside the canvas); null releases the gaze. */
   lookAt(target: LookTarget | null, durationMs?: number): void;
   stats(): LumoFrameStats;
@@ -83,6 +88,10 @@ export interface LumoMascotProps {
   framing?: number;
   /** Fewer particles for compact surfaces. */
   particles?: number;
+  /** Soft ground shadow under him (off when he floats over other things). */
+  ground?: boolean;
+  /** Boop him when clicked (default true). */
+  boopOnPoke?: boolean;
   /** 0..1 TTS level to drive the beak; null for automatic. */
   speakLevel?: number | null;
   className?: string;
@@ -109,7 +118,9 @@ function usePrefersReducedMotion(force?: boolean) {
 }
 
 interface Shared {
-  lumo: LumoCompanion | null;
+  lumo: Lumo | null;
+  /** Scene units per CSS pixel at his depth (for setFlight). */
+  unitsPerPx: number;
   gl: THREE.WebGLRenderer | null;
   /** Scene units Lumo may walk either side of centre. */
   walkRange: number;
@@ -127,14 +138,15 @@ function Framing({ framing, shared }: { framing: number; shared: MutableRefObjec
     const cam = camera as THREE.PerspectiveCamera;
     const aspect = size.width / Math.max(1, size.height);
     const tanH = Math.tan(THREE.MathUtils.degToRad(cam.fov / 2));
-    // Same fit rule as the reference: fit 5.5 units tall or 5.9 units wide, whichever is tighter.
-    const dist = Math.max(framing / (2 * tanH), (framing + 0.4) / (2 * tanH * aspect));
+    // Fit `framing` units tall, or a little wider than that across, whichever is tighter.
+    const dist = Math.max(framing / (2 * tanH), (framing - 1.6) / (2 * tanH * aspect));
     cam.aspect = aspect;
-    cam.position.set(0, 0.35, dist);
-    cam.lookAt(0, 0.2, 0);
+    cam.position.set(0, 0.5, dist);
+    cam.lookAt(0, 0.35, 0);
     cam.updateProjectionMatrix();
-    // Visible half-width at the character's depth, minus its own half-width (wings, halo).
-    shared.current.walkRange = Math.max(0, dist * tanH * aspect - 1.35);
+    // Visible half-width at the character's depth, minus his own half-width (arms, ears, fins).
+    shared.current.walkRange = Math.max(0, dist * tanH * aspect - 1.3);
+    shared.current.unitsPerPx = (2 * dist * tanH) / Math.max(1, size.height);
   }, [camera, size, framing, shared]);
   return null;
 }
@@ -184,6 +196,8 @@ function Character({
   onPoke,
   calm,
   particles,
+  ground,
+  boopOnPoke,
   speakLevel,
   active,
 }: {
@@ -195,14 +209,16 @@ function Character({
   onPoke?: () => void;
   calm: boolean;
   particles: number;
+  ground: boolean;
+  boopOnPoke: boolean;
   speakLevel: number | null;
   active: boolean;
 }) {
   const gl = useThree((s) => s.gl);
   const camera = useThree((s) => s.camera);
   const lumo = useMemo(
-    () => new LumoCompanion({ pixelRatio: gl.getPixelRatio(), calm, particles }),
-    [gl, calm, particles],
+    () => new Lumo({ pixelRatio: gl.getPixelRatio(), calm, particles, ground }),
+    [gl, calm, particles, ground],
   );
   useEffect(() => {
     const holder = shared.current;
@@ -215,16 +231,13 @@ function Character({
     };
   }, [lumo, gl, shared]);
 
-  // Keep particle size right when the DPR changes (dpr is [1, 2]).
-  const dpr = useThree((s) => s.viewport.dpr);
-  useEffect(() => lumo.setPixelRatio(dpr), [lumo, dpr]);
 
   // Mood
   useEffect(() => {
     if (lumo.state !== behavior.mood) lumo.setState(behavior.mood);
   }, [lumo, behavior.mood]);
 
-  // Celebration (edge-triggered by the pulse counter): pulse + hop + wing flourish.
+  // Celebration (edge-triggered by the pulse counter): pulse, sparkles and a backflip.
   const pulses = useRef(behavior.pulses);
   useEffect(() => {
     if (behavior.pulses !== pulses.current) {
@@ -283,8 +296,7 @@ function Character({
     if (target) {
       const rect = gl.domElement.getBoundingClientRect();
       // Head origin in client px, from where the character actually is (it may have walked).
-      lumo.parts.head.getWorldPosition(_head);
-      _head.y += 0.35;
+      lumo.head.getWorldPosition(_head);
       _head.project(camera);
       const origin = {
         x: rect.left + ((_head.x + 1) / 2) * rect.width,
@@ -294,12 +306,12 @@ function Character({
       if (p) g = gazeTowardClientPoint(p, rect, origin);
     } else if (behavior.gaze) g = behavior.gaze;
 
-    const moodLock = STATES[lumo.state]?.gazeLock ?? 0;
+    const moodLock = lumo.moodGazeLock;
     if (g) {
       lumo.gaze(g.x, g.y);
-      lumo.targets.gazeLock = 0;
+      lumo.gazeLock = 0;
     } else {
-      lumo.targets.gazeLock = moodLock;
+      lumo.gazeLock = moodLock;
       const p = pointer.current;
       if (lumo.state !== 'search') lumo.gaze(p ? p.x : null, p ? p.y : 0);
     }
@@ -315,6 +327,7 @@ function Character({
       object={lumo}
       onClick={(e: { stopPropagation(): void }) => {
         e.stopPropagation();
+        if (boopOnPoke) lumo.boop();
         onPoke?.();
       }}
     />
@@ -338,8 +351,10 @@ export const LumoMascot = forwardRef<LumoMascotHandle, LumoMascotProps>(function
     idleFps = 30,
     sleepFps = 12,
     reducedMotion,
-    framing = 5.5,
+    framing = 5.6,
     particles = 150,
+    ground = true,
+    boopOnPoke = true,
     speakLevel = null,
     className,
     style,
@@ -350,6 +365,7 @@ export const LumoMascot = forwardRef<LumoMascotHandle, LumoMascotProps>(function
   const reduce = usePrefersReducedMotion(reducedMotion);
   const shared = useRef<Shared>({
     lumo: null,
+    unitsPerPx: 0.01,
     gl: null,
     walkRange: 0,
     frames: 0,
@@ -380,6 +396,11 @@ export const LumoMascot = forwardRef<LumoMascotHandle, LumoMascotProps>(function
       blink: () => shared.current.lumo?.blink(),
       celebrate: () => shared.current.lumo?.celebrate(),
       wave: (side) => shared.current.lumo?.wave(side),
+      boop: (kind) => shared.current.lumo?.boop(kind),
+      setFlight: (vx, vy) => {
+        const k = shared.current.unitsPerPx;
+        shared.current.lumo?.setFlight(vx * k, -vy * k);
+      },
       lookAt: (target, durationMs = 2500) => {
         shared.current.look = target ? { target, until: performance.now() + durationMs } : null;
       },
@@ -438,13 +459,14 @@ export const LumoMascot = forwardRef<LumoMascotHandle, LumoMascotProps>(function
       <Canvas
         frameloop="never"
         dpr={[1, 2]}
-        linear
-        flat
         gl={{ antialias: true, alpha: true, powerPreference: 'low-power' }}
-        camera={{ fov: 32, near: 0.1, far: 100, position: [0, 0.35, 10] }}
+        camera={{ fov: 32, near: 0.1, far: 100, position: [0, 0.5, 10] }}
         style={{ position: 'absolute', inset: 0 }}
         onCreated={(s: RootState) => {
-          shared.current.gl = s.gl as THREE.WebGLRenderer;
+          const gl = s.gl as THREE.WebGLRenderer;
+          gl.toneMapping = THREE.NeutralToneMapping;
+          gl.setClearColor(0x000000, 0);
+          shared.current.gl = gl;
         }}
       >
         <Framing framing={framing} shared={shared} />
@@ -458,6 +480,8 @@ export const LumoMascot = forwardRef<LumoMascotHandle, LumoMascotProps>(function
           onPoke={onPoke}
           calm={reduce}
           particles={particles}
+          ground={ground}
+          boopOnPoke={boopOnPoke}
           speakLevel={speakLevel}
           active={active}
         />

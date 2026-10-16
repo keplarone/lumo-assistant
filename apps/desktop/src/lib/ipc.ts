@@ -87,9 +87,35 @@ export interface Settings {
   ttsEnabled: boolean;
   mascotEnabled: boolean;
   reducedMotion: boolean;
+  /** Lumo flies around the desktop in his own little window (on top of other apps). */
+  buddyEnabled: boolean;
+  /** Lumo's little noises. */
+  soundsEnabled: boolean;
+  /** "lumo" (personal, the default) or "linx" (Linx Code: work and build tools). */
+  mode: AppMode;
   /** "free", "lite", "pro" or "unlimited". Set only by Rust's license check; saving settings keeps it. */
   plan: string;
   planCheckedAt: string | null;
+}
+
+export type AppMode = 'lumo' | 'linx';
+
+export interface ScreenRect {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+}
+
+/** What the desktop buddy window needs to fly around (all physical pixels). */
+export interface BuddyScreen {
+  /** Usable area of each display (without taskbars and docks). */
+  monitors: ScreenRect[];
+  /** Scale factor of the display the buddy is on. */
+  scale: number;
+  /** The buddy window's outer position and size. */
+  window: ScreenRect;
+  cursor: { x: number; y: number } | null;
 }
 
 export interface AppInfo {
@@ -611,6 +637,11 @@ export const api = {
   openLogs: () => call<void>('open_logs'),
   showMainWindow: () => call<void>('show_main_window'),
   toggleCompactWindow: () => call<void>('toggle_compact_window'),
+
+  // The desktop buddy window (these only work from that window; Rust checks)
+  buddyScreen: () => call<BuddyScreen>('buddy_screen'),
+  buddyMove: (x: number, y: number) => call<void>('buddy_move', { x: Math.round(x), y: Math.round(y) }),
+  buddyHide: () => call<void>('buddy_hide'),
   checkForUpdates: () => call<string | null>('check_for_updates'),
   installUpdate: () => call<void>('install_update'),
 
@@ -662,6 +693,8 @@ export interface AppEvents {
   'local-model-progress': LocalModelProgress;
   /** Sent by the compact window ("Open in Lumo") to the main window. */
   'open-conversation': string;
+  /** To the buddy window: Lumo is about to act at this screen spot (logical px), fly next to it. */
+  'buddy-point': { x: number; y: number };
 }
 
 export function on<K extends keyof AppEvents>(

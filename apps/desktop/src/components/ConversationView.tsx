@@ -32,7 +32,7 @@ import { speech } from '../lib/speech';
 import { SpeakingControl } from './SpeakingControl';
 import { Composer, type ComposerHandle } from './Composer';
 import { Markdown } from './Markdown';
-import { Mascot } from './Mascot';
+import { ChatBuddy } from './ChatBuddy';
 import { PreviewPane } from './PreviewPane';
 import {
   ActivityList,
@@ -382,7 +382,7 @@ function ConversationHeader({
 
   return (
     <header className="lm-conv-header">
-      <Mascot size="small" className="lm-conv-mascot" />
+      <ChatBuddy />
       {renaming ? (
         <form
           className="lm-rename"

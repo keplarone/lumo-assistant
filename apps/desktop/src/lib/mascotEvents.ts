@@ -48,14 +48,16 @@ export function mascotEventsFor(ev: AgentEvent): MascotEvent[] {
     case 'options':
       return [{ type: 'attend', target: 'options', durationMs: 2500 }];
     case 'mood':
-      // Closest existing expression; the next agent phase replaces it as usual.
+      // The agent's own read of the conversation; the next agent phase replaces it as usual.
       switch (ev.mood) {
         case 'warm':
+          return [{ type: 'react', reaction: 'love' }]; // hugging himself, hearts
         case 'happy':
+          return [{ type: 'react', reaction: 'laugh' }]; // smiling eyes
         case 'celebrating':
-          return [agent('done')]; // a happy look (with a small celebration pulse)
+          return [{ type: 'react', reaction: 'cheer' }]; // a backflip and sparkles
         case 'concerned':
-          return [agent('uncertain')]; // soft tilt, crest lowered
+          return [{ type: 'react', reaction: 'concern' }]; // soft eyes, ears down, quiet
         case 'calm':
         case 'neutral':
           return [agent('idle')];
@@ -68,5 +70,22 @@ export function mascotEventsFor(ev: AgentEvent): MascotEvent[] {
       return [agent('idle')];
     default:
       return [];
+  }
+}
+
+/**
+ * Where Lumo hops out of the chat icon to: the thing that needs the person (an approval card or a
+ * question), or the finished reply. null = stay in the icon.
+ */
+export function hopFor(ev: AgentEvent): { target: string | null } | null {
+  switch (ev.type) {
+    case 'approval_requested':
+      return ev.native ? null : { target: 'approval' };
+    case 'question':
+      return { target: 'question' };
+    case 'run_finished':
+      return ev.status === 'done' ? { target: null } : null;
+    default:
+      return null;
   }
 }

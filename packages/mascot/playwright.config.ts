@@ -39,7 +39,7 @@ export default defineConfig({
     baseURL: 'http://localhost:5179',
     viewport: { width: 1100, height: 760 },
     deviceScaleFactor: 1,
-    colorScheme: 'dark',
+    colorScheme: 'light',
     launchOptions: {
       executablePath: chromiumExecutable(),
       // Headless Chromium with WebGL on SwiftShader (software GL), deterministic across runs.

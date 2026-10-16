@@ -1,0 +1,31 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Meet Lumo</title>
+    <style>
+      :root { color-scheme: light dark; --blue: #2f6bff; --ink: #18213d; --page: #f7f9fd; --chip-a: #fff; --chip-b: #eef3ff; --chip-line: #d6e1ff; --chip-edge: var(--chip-edge); }
+      @media (prefers-color-scheme: dark) { :root:not([data-theme='light']) { --ink: #e8eeff; --page: #10141f; --chip-a: #232a3d; --chip-b: #1a2032; --chip-line: #2f3a57; --chip-edge: #0b0f1a; } }
+      :root[data-theme='dark'] { --ink: #e8eeff; --page: #10141f; --chip-a: #232a3d; --chip-b: #1a2032; --chip-line: #2f3a57; --chip-edge: #0b0f1a; }
+      html, body { margin: 0; height: 100%; background: var(--page); font-family: ui-rounded, 'SF Pro Rounded', system-ui, sans-serif; color: var(--ink); overflow: hidden; }
+      #bg { position: fixed; inset: 0; }
+      #stage { position: fixed; inset: 0; cursor: pointer; }
+      header { position: fixed; top: 20px; left: 0; right: 0; text-align: center; pointer-events: none; }
+      h1 { margin: 0; font-size: clamp(22px, 4vw, 34px); letter-spacing: -0.02em; }
+      header p { margin: 6px 0 0; opacity: 0.65; font-size: 14px; }
+      nav { position: fixed; left: 50%; bottom: 18px; transform: translateX(-50%); display: flex; flex-wrap: wrap; justify-content: center; gap: 8px; width: min(760px, calc(100% - 32px)); }
+      button { font: 600 13px/1 inherit; font-family: inherit; color: var(--ink); background: linear-gradient(var(--chip-a), var(--chip-b)); border: 1px solid var(--chip-line); border-radius: 999px; padding: 9px 14px 10px; box-shadow: 0 3px 0 var(--chip-edge), 0 6px 14px -6px rgba(47,107,255,.35); cursor: pointer; transition: transform .12s cubic-bezier(.3,1.6,.5,1), box-shadow .12s; }
+      button:hover { transform: translateY(-2px); box-shadow: 0 5px 0 var(--chip-edge), 0 10px 18px -6px rgba(47,107,255,.45); }
+      button:active { transform: translateY(2px); box-shadow: 0 1px 0 var(--chip-edge), 0 3px 8px -4px rgba(47,107,255,.35); }
+      button.on { background: linear-gradient(#4f86ff, #2f6bff); color: #fff; border-color: #2f6bff; box-shadow: 0 3px 0 #1d4fd1, 0 8px 18px -6px rgba(47,107,255,.6); }
+    </style>
+  </head>
+  <body>
+    <div id="bg"></div>
+    <div id="stage"></div>
+    <header><h1>Meet the new Lumo</h1><p>Click him for a boop. He tours his moods on his own, or pick one below.</p></header>
+    <nav id="moods"></nav>
+    <script type="module" src="./preview.ts"></script>
+  </body>
+</html>

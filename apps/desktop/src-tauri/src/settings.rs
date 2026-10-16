@@ -41,6 +41,12 @@ pub struct Settings {
     pub tts_enabled: bool,
     pub mascot_enabled: bool,
     pub reduced_motion: bool,
+    /// The mascot on the desktop: a small always-on-top window he flies around in.
+    pub buddy_enabled: bool,
+    /// The mascot's little noises.
+    pub sounds_enabled: bool,
+    /// "lumo" (personal assistant) or "linx" (Linx Code, for businesses).
+    pub mode: String,
     /// "free", "lite", "pro" or "unlimited". Only the license check changes it; saving settings from the UI keeps it.
     pub plan: String,
     pub plan_checked_at: Option<String>,
@@ -60,7 +66,7 @@ impl Default for Settings {
         Settings {
             onboarded: false,
             user_name: None,
-            theme: "system".into(),
+            theme: "light".into(),
             provider: "local".into(),
             model: "claude-opus-5-5".into(),
             effort: "medium".into(),
@@ -82,6 +88,9 @@ impl Default for Settings {
             tts_enabled: false,
             mascot_enabled: true,
             reduced_motion: false,
+            buddy_enabled: true,
+            sounds_enabled: true,
+            mode: "lumo".into(),
             plan: "free".into(),
             plan_checked_at: None,
         }
@@ -95,6 +104,9 @@ impl Settings {
     pub fn validate(&self) -> Result<()> {
         if !["system", "dark", "light"].contains(&self.theme.as_str()) {
             return Err(invalid("theme must be system, dark or light"));
+        }
+        if !["lumo", "linx"].contains(&self.mode.as_str()) {
+            return Err(invalid("mode must be lumo or linx"));
         }
         if !["anthropic", "openai_compatible", "local"].contains(&self.provider.as_str()) {
             return Err(invalid("unknown provider"));
@@ -281,5 +293,20 @@ mod tests {
             assert!(Settings { plan: plan.into(), ..Default::default() }.validate().is_ok(), "{plan}");
         }
         assert!(Settings { plan: "platinum".into(), ..Default::default() }.validate().is_err());
+    }
+
+    #[test]
+    fn mode_is_lumo_or_linx() {
+        assert_eq!(Settings::default().mode, "lumo");
+        for mode in ["lumo", "linx"] {
+            assert!(Settings { mode: mode.into(), ..Default::default() }.validate().is_ok(), "{mode}");
+        }
+        for mode in ["", "Lumo", "business", "linx "] {
+            assert!(Settings { mode: mode.into(), ..Default::default() }.validate().is_err(), "{mode}");
+        }
+        // Settings saved before these fields existed get the defaults.
+        let old: Settings = serde_json::from_str(r#"{"onboarded":true}"#).unwrap();
+        assert!(old.buddy_enabled && old.sounds_enabled);
+        assert_eq!(old.mode, "lumo");
     }
 }
