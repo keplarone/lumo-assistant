@@ -1,14 +1,16 @@
 name: On-device models
 
-# Checks the built-in engine against real models: every pinned Hugging Face download must match its
-# size and SHA-256, and Orbit (Qwen3 4B) must chat and call a tool on each OS. Runs when the engine or
-# catalog changes, and on demand.
+# Checks the built-in engine against real models: every pinned Hugging Face download (models and image
+# projectors) must match its size and SHA-256, Orbit (Qwen3 4B) must chat and call a tool on each OS,
+# and Nebula Vision (Qwen3-VL 8B) must see a screenshot and click the right spot. Runs when the engine
+# or catalog changes, and on demand.
 on:
   workflow_dispatch:
   pull_request:
     paths:
       - apps/desktop/src-tauri/src/model/local/**
       - apps/desktop/src-tauri/src/local_models.rs
+      - apps/desktop/src-tauri/src/tools/computer.rs
       - apps/desktop/src-tauri/Cargo.toml
       - .github/workflows/model-smoke.yml
       - .github/scripts/check_model_pins.py
@@ -65,3 +67,42 @@ jobs:
         env:
           LUMO_GPU: ${{ runner.os == 'macOS' && 'off' || '' }}
         run: cargo test --lib ${{ runner.os == 'Linux' && '--features vulkan' || '' }} smoke -- --ignored --nocapture --test-threads=1
+
+  vision:
+    name: Nebula Vision clicks the red button (ubuntu-24.04, CPU)
+    runs-on: ubuntu-24.04
+    # An 8B vision model on a 4-core runner without a GPU: reading the screenshot and the prompt takes
+    # a few minutes per attempt, and the test asks three times.
+    timeout-minutes: 150
+    defaults:
+      run:
+        working-directory: apps/desktop/src-tauri
+    steps:
+      - uses: actions/checkout@v4
+      - name: Make room for the model (5.8 GB) and the build
+        working-directory: .
+        run: sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache/CodeQL && df -h /
+      - run: sudo apt-get update && sudo apt-get install -y $LINUX_DEPS
+        working-directory: .
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: apps/desktop/src-tauri
+      - run: mkdir -p ../dist && echo '<!doctype html>' > ../dist/index.html
+      - name: Download Nebula Vision and its projector from their pinned URLs and check their SHA-256
+        working-directory: .
+        run: |
+          mkdir -p "$RUNNER_TEMP/vl"
+          python3 .github/scripts/check_model_pins.py qwen3-vl:8b > "$RUNNER_TEMP/vl/pins.txt"
+          test "$(wc -l < "$RUNNER_TEMP/vl/pins.txt")" -eq 2
+          while read -r url sha; do
+            out="$RUNNER_TEMP/vl/${url##*/}"
+            curl -fL --retry 3 -o "$out" "$url"
+            echo "$sha  $out" | sha256sum -c -
+          done < "$RUNNER_TEMP/vl/pins.txt"
+          echo "LUMO_SMOKE_VL_GGUF=$RUNNER_TEMP/vl/Qwen3VL-8B-Instruct-Q4_K_M.gguf" >> "$GITHUB_ENV"
+          echo "LUMO_SMOKE_VL_MMPROJ=$RUNNER_TEMP/vl/mmproj-Qwen3VL-8B-Instruct-Q8_0.gguf" >> "$GITHUB_ENV"
+      - name: See a synthetic screen and click its red button through the engine
+        env:
+          LUMO_GPU: 'off'
+        run: cargo test --lib smoke_vision -- --ignored --nocapture --test-threads=1

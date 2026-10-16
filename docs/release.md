@@ -64,7 +64,9 @@ pnpm --filter @lumo/desktop tauri build          # installers for the current OS
 
 Linux needs: `libwebkit2gtk-4.1-dev libayatana-appindicator3-dev librsvg2-dev libxdo-dev libssl-dev
 libpipewire-0.3-dev libgbm-dev libxcb1-dev libxrandr-dev libdbus-1-dev`. The on-device engine (llama.cpp)
-also needs CMake, a C++ compiler and libclang on every platform (preinstalled on GitHub's runners).
+also needs CMake, a C++ compiler and libclang on every platform (preinstalled on GitHub's runners). Its
+multimodal library (`mtmd`, for the vision model) is built from the same llama.cpp sources and needs
+nothing more.
 
 ### On-device engine: GPU builds
 

@@ -19,8 +19,8 @@ const analyticsOn = Boolean(ANALYTICS_ENDPOINT);
     </p>
     <h3>What is sent, and to whom</h3>
     <ul>
-      <li><strong>The model provider</strong> (Anthropic) receives the messages and context needed to answer each request. With an on-device model, Lumo answers on your computer and nothing is sent.</li>
-      <li><strong>On-device model downloads</strong> come from Hugging Face over https, which sees your IP address and which model file is downloaded.</li>
+      <li><strong>The model provider</strong> (Anthropic) receives the messages and context needed to answer each request. With an on-device model, Lumo answers on your computer and nothing is sent, including the screenshots Nebula Vision reads when it uses your screen.</li>
+      <li><strong>On-device model downloads</strong> come from Hugging Face over https, which sees your IP address and which model files are downloaded.</li>
       <li><strong>Web pages and search</strong> you ask Lumo to read are fetched like a browser would.</li>
       <li><strong>Your location</strong> is only checked when you ask (in Settings, or when Lumo asks you in a system dialog) and is rounded to about 100 m. It is sent to OpenStreetMap’s Nominatim to look up the neighborhood name, and the rounded coordinates are used for place searches on OpenStreetMap. The model sees only the neighborhood name. Your coordinates are not sent anywhere else.</li>
       <li><strong>Services you connect</strong>, such as a calendar or GitHub, receive the requests needed for actions you ask for or approve.</li>

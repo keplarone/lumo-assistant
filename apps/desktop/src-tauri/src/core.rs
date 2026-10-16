@@ -168,7 +168,7 @@ impl Core {
             "local" => {
                 let choose = || {
                     crate::error::LumoError::Unavailable(
-                        "Download an on-device model (Orbit, Nebula, Solar or Nova) in Settings → Model to start.".into(),
+                        "Download an on-device model (Orbit, Nebula, Solar, Nova or Nebula Vision) in Settings → Model to start.".into(),
                     )
                 };
                 let entry = crate::local_models::catalog_entry(&s.local_model).map_err(|_| choose())?;

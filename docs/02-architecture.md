@@ -122,13 +122,18 @@ deltas to a sink and returns the complete, replayable content blocks. Implementa
 
 ### 4.1.1 On-device models
 
-Lumo runs its on-device models (Orbit 3.8, Nebula 4.2, Solar 5.4, Nova 5.5) itself, with llama.cpp
-(MIT) linked into the Rust core through the `llama-cpp-2` bindings. There is no separate runtime to install.
+Lumo runs its on-device models (Orbit 3.8, Nebula 4.2, Solar 5.4, Nova 5.5, and the vision model Nebula
+Vision 4.2) itself, with llama.cpp (MIT) linked into the Rust core through the `llama-cpp-2` bindings,
+including llama.cpp's multimodal library (`mtmd` feature) for images. There is no separate runtime to install.
 
 - **Catalog and downloads** (`local_models.rs`). Each catalog entry pins one GGUF file on Hugging Face: the
   repository, a commit revision, the file name, its size and its SHA-256 (Hugging Face's LFS object id).
   Qwen3 4B/8B/30B-A3B use the official `Qwen/*-GGUF` Q4_K_M files; gpt-oss 20B uses
-  `ggml-org/gpt-oss-20b-GGUF` in its native MXFP4 quantization. Downloads stream over https (every redirect
+  `ggml-org/gpt-oss-20b-GGUF` in its native MXFP4 quantization. Nebula Vision is Qwen3-VL 8B Instruct
+  (Apache-2.0) from the official `Qwen/Qwen3-VL-8B-Instruct-GGUF`: a Q4_K_M model plus a second pinned
+  file, its Q8_0 image projector (`mmproj-*.gguf`), from the same revision. Every file of an entry goes
+  through the same download path, progress counts all of them, the entry is installed only when all are in
+  place, and deleting removes all. Downloads stream over https (every redirect
   must be https too) into `<app data>/models/<file>.part`, continue with a range request after a cancel or a
   dropped connection, and are renamed into place only when the size and SHA-256 match. Progress is broadcast
   as `local-model-progress`. The webview sees catalog ids only, never paths or URLs it could change; only
@@ -139,6 +144,23 @@ Lumo runs its on-device models (Orbit 3.8, Nebula 4.2, Solar 5.4, Nova 5.5) itse
   idle model is unloaded after 15 minutes. All layers go to the GPU when the build has a GPU backend (Metal
   on macOS; Vulkan on Windows/Linux when built with the `vulkan` feature), falling back to the CPU if the
   GPU load fails. Cancelling a run stops generation between tokens.
+- **Vision** (`engine.rs`, `format.rs`). For a vision entry the engine loads the projector next to the model
+  (`MtmdContext`) and unloads both together. Images in the history (screenshots from `take_screenshot` and
+  `control_computer`, and attachments) are decoded to RGB and scaled so the long side is at most 1280 px
+  (about 1,000 tokens for a 16:9 screenshot). The prompt puts llama.cpp's media marker where each image
+  goes, and only the latest two images are kept (older ones become "[earlier screenshot omitted]"). The
+  text before the first image is tokenized and decoded as usual, reusing the KV cache; the rest goes through
+  `MtmdContext::tokenize` and `eval_chunks`. Positions after an image no longer count tokens (Qwen3-VL uses
+  M-RoPE), so the cache is only trusted up to the first image. Text-only models still get a placeholder
+  saying they can't see the image.
+- **Screen control on-device** (`model/local/mod.rs`, `tools/computer.rs`). `control_computer` and
+  `take_screenshot` are offered only to vision entries (a text-only model can't aim). Qwen3-VL points on a
+  relative 0–1000 grid whatever the image size (Qwen's computer-use cookbook tells the model "The screen's
+  resolution is 1000x1000" and converts with `x / 1000 * width`), so the vision model gets a copy of
+  `control_computer` whose description and schema say so, and the provider marks its calls
+  `coordinate_space: "relative_1000"`. The tool converts grid points to the latest screenshot's pixels
+  (`round(v / 1000 * size)`, kept inside the image) and then to the display, exactly as for pixel
+  coordinates. Cloud models never see the field and default to pixels.
 - **Prompts and tool calls** (`model/local/format.rs`). Qwen3 turns are rendered the way Qwen3's own
   template does (`<tools>` JSON in the system turn, `<tool_call>` blocks, `<tool_response>` blocks) and
   formatted with the model's built-in chat template from its GGUF metadata; an empty `<think></think>`
@@ -148,7 +170,9 @@ Lumo runs its on-device models (Orbit 3.8, Nebula 4.2, Solar 5.4, Nova 5.5) itse
   into the same `tool_use` blocks the cloud adapters return, so the agent loop is unchanged. Markers that
   structure the prompt (`<|...`, `<tool_call>`, `<tool_response>`, `<think>`) are broken with a zero-width
   space inside content, so web pages, files or tool output cannot open a turn or forge a tool call.
-- **Context**. Each model gets a fixed context window (16k tokens; 32k for gpt-oss). When a conversation
+- **Context**. Each model gets a fixed context window (16k tokens; 24k for Nebula Vision, so the system
+  prompt, every tool and two screenshots fit; 32k for gpt-oss). Models with 16k leave out the project,
+  publishing and deploy tools. When a conversation
   outgrows it, the oldest whole turns are left out of the prompt (history itself is unchanged).
 
 ### 4.2 Conversation history is append-only

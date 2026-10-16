@@ -58,15 +58,18 @@ parking_lot = "0.12"
 xcap = { version = "0.7", default-features = false }
 zip = { version = "2", default-features = false, features = ["deflate"] }
 enigo = "0.6"
+# Decodes screenshots and attached images for on-device vision models. Already built for xcap.
+image = { version = "0.25", default-features = false, features = ["png", "jpeg"] }
 sysinfo = { version = "0.36.1", default-features = false, features = ["system"] }
 # The built-in on-device engine (llama.cpp, MIT). Pinned: the bindings track llama.cpp closely.
-llama-cpp-2 = { version = "=0.1.158", default-features = false }
+# `mtmd` adds llama.cpp's multimodal library, which lets vision models (Nova Vision) see screenshots.
+llama-cpp-2 = { version = "=0.1.158", default-features = false, features = ["mtmd"] }
 # Not used directly: keeps the llama.cpp sources the bindings were generated for.
 llama-cpp-sys-2 = "=0.1.158"
 
 # Apple GPUs through Metal on every Mac build.
 [target.'cfg(target_os = "macos")'.dependencies]
-llama-cpp-2 = { version = "=0.1.158", default-features = false, features = ["metal"] }
+llama-cpp-2 = { version = "=0.1.158", default-features = false, features = ["metal", "mtmd"] }
 # Current location (src/location/macos.rs): CoreLocation.
 objc2 = "0.6"
 objc2-foundation = { version = "0.3", default-features = false, features = ["std", "NSArray", "NSDate", "NSError", "NSObjCRuntime", "NSObject", "NSRunLoop", "NSString"] }

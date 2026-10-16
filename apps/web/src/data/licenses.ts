@@ -40,7 +40,7 @@ export const PACKAGES: LicenseEntry[] = [
     name: 'llama.cpp and ggml',
     license: 'MIT',
     url: 'https://github.com/ggml-org/llama.cpp',
-    use: 'The built-in engine that runs on-device models',
+    use: 'The built-in engine that runs on-device models, and its multimodal library (mtmd) that lets them see screenshots',
     copyright: 'Copyright (c) 2023-2026 The ggml authors',
   },
   {

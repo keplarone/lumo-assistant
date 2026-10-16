@@ -68,11 +68,17 @@ impl TypedTool for TakeScreenshot {
     fn label(&self, _: &ShotInput) -> String {
         "Looking at your screen".into()
     }
-    fn preview(&self, _ctx: &ToolCtx, i: &ShotInput) -> Result<ActionPreview> {
+    fn preview(&self, ctx: &ToolCtx, i: &ShotInput) -> Result<ActionPreview> {
+        // An on-device model reads the capture on this computer (only a vision model is offered this tool).
+        let warning = if ctx.core.settings().provider == "local" {
+            "The capture stays on this computer: the on-device model reads it. Close anything private first."
+        } else {
+            "The capture is sent to your model provider. Close anything private first."
+        };
         Ok(ActionPreview {
             title: "Let Lumo capture your screen once".into(),
             details: vec![("Why".into(), crate::util::preview(&i.reason, 160))],
-            warning: Some("The capture is sent to your model provider. Close anything private first.".into()),
+            warning: Some(warning.into()),
         })
     }
     async fn run(&self, ctx: &ToolCtx, _: ShotInput) -> Result<ToolOutput> {

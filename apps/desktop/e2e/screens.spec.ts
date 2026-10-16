@@ -94,6 +94,7 @@ const localModel = (
   downloadGb: gb,
   minMemoryGb: mem,
   summary,
+  vision: false,
   displayName: tier,
   installed: false,
   partialBytes: 0,

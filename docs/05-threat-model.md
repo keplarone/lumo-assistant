@@ -124,7 +124,8 @@ debugger, send synthetic input, or replace the app binary. What Lumo does provid
 
 - All provider and integration traffic uses HTTPS (rustls). `settings::check_endpoint` refuses plain HTTP
   except to localhost. On-device model files come only from the pinned catalog, over https on every
-  redirect, and are used only when their SHA-256 matches the catalog (`local_models.rs`).
+  redirect, and are used only when their SHA-256 matches the catalog (`local_models.rs`). A vision model's
+  image projector is a second pinned file with its own SHA-256; the model is not usable until both match.
 - `fetch_url` refuses non-public addresses on every redirect hop (`tools/web.rs`). Since this review,
   it connects only to the addresses it checked (no second DNS lookup) and also refuses IPv6 forms that
   carry an internal IPv4 address (see section 4).
@@ -165,7 +166,11 @@ Stated plainly, highest first.
 3. **Computer control after the first approval.** Later `control_computer` calls in the run are UI tier
    (`tools/computer.rs` `risk`). They are not confirmed or audited one by one, and screenshots are not
    marked untrusted. Text on screen can steer what Lumo types: it could open a terminal and type commands.
-   The stop shortcut and the banner are the user's control.
+   The stop shortcut and the banner are the user's control. With the on-device vision model (Nebula
+   Vision) the same holds, but screenshots never leave the computer: they are decoded and read by the
+   built-in engine in Lumo's process and kept only in the conversation history, like with any provider.
+   Its clicks arrive on a 0–1000 grid and are converted and bounds-checked against the latest screenshot
+   before anything moves; the plan gate (no computer control on Free) applies to it as to cloud models.
 4. **Wayland.** Synthetic input and screen capture may fail or behave differently on Wayland compositors.
    The stop shortcut depends on global-shortcut support. Computer control is only tested on X11.
 5. **Memory poisoning.** `remember` is UI tier in conversations, so injected content the user is looking at

@@ -201,6 +201,7 @@ describe('LocalModels', () => {
     downloadGb: 5.0,
     minMemoryGb: 16,
     summary: 'Good everyday choice.',
+    vision: false,
     displayName: 'Nebula 4.2',
     installed: false,
     partialBytes: 0,
@@ -240,6 +241,25 @@ describe('LocalModels', () => {
     expect(await screen.findByText('Built in · runs on the processor')).toBeTruthy();
     expect(screen.getByText(/2\.0 GB already downloaded/)).toBeTruthy();
     expect(screen.getByRole('button', { name: 'Resume download' })).toBeTruthy();
+  });
+
+  it('marks the model that can see the screen', async () => {
+    const vision = {
+      ...model,
+      id: 'qwen3-vl:8b',
+      tier: 'Nebula Vision 4.2',
+      displayName: 'Nebula Vision 4.2',
+      baseModel: 'Qwen3-VL 8B Instruct',
+      downloadGb: 5.8,
+      vision: true,
+    };
+    invoke.mockImplementation(async (cmd: string) =>
+      cmd === 'local_models_status' ? status({ models: [model, vision] }) : undefined,
+    );
+    wrap(<LocalModels />);
+    expect(await screen.findByText('Nebula Vision 4.2')).toBeTruthy();
+    expect(screen.getAllByText('Sees your screen')).toHaveLength(1);
+    expect(screen.getByText(/5\.8 GB download/)).toBeTruthy();
   });
 
   it('shows attribution, and asks before downloading a model that may not fit', async () => {
