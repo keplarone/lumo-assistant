@@ -36,6 +36,9 @@ pub trait Platform: Send + Sync {
     fn active_window(&self) -> Result<(String, String)>;
     /// Tell every window about something (privacy indicators, list changes).
     fn broadcast(&self, event: &str, payload: serde_json::Value);
+    /// One position fix from the operating system's location service (may show the OS permission
+    /// prompt). Callers confirm with the user first; see `crate::location`.
+    async fn current_position(&self) -> Result<crate::location::Fix>;
 }
 
 /// A screen capture and where it sits on the desktop, so model coordinates map back to the screen.
@@ -96,6 +99,9 @@ pub struct Pending {
     pub input_sessions: Mutex<std::collections::HashSet<String>>,
     /// Geometry of the last screenshot, per run.
     pub screens: Mutex<HashMap<String, Screenshot>>,
+    /// Where the user is, per conversation, after they let Lumo detect it. Memory only; `find_places`
+    /// searches around it when no place is named.
+    pub current_locations: Mutex<HashMap<String, crate::settings::Location>>,
 }
 
 #[derive(Clone)]
@@ -215,6 +221,9 @@ pub mod testing {
         pub control_active: Mutex<Vec<bool>>,
         pub screen: Mutex<Option<Screenshot>>,
         pub broadcasts: Mutex<Vec<(String, serde_json::Value)>>,
+        /// What `current_position` returns; None means no location service.
+        pub position: Mutex<Option<std::result::Result<crate::location::Fix, crate::location::FixError>>>,
+        pub position_requests: Mutex<usize>,
     }
 
     #[async_trait]
@@ -256,6 +265,11 @@ pub mod testing {
         }
         fn broadcast(&self, event: &str, payload: serde_json::Value) {
             self.broadcasts.lock().push((event.to_string(), payload));
+        }
+        async fn current_position(&self) -> Result<crate::location::Fix> {
+            *self.position_requests.lock() += 1;
+            let r = self.position.lock().clone().unwrap_or(Err(crate::location::FixError::NotSupported));
+            r.map_err(|e| e.into_error(std::env::consts::OS))
         }
     }
 

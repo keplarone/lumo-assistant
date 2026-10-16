@@ -22,6 +22,7 @@ const analyticsOn = Boolean(ANALYTICS_ENDPOINT);
       <li><strong>The model provider</strong> (Anthropic) receives the messages and context needed to answer each request. With an on-device model, Lumo answers on your computer and nothing is sent.</li>
       <li><strong>On-device model downloads</strong> come from Hugging Face over https, which sees your IP address and which model file is downloaded.</li>
       <li><strong>Web pages and search</strong> you ask Lumo to read are fetched like a browser would.</li>
+      <li><strong>Your location</strong> is only checked when you ask (in Settings, or when Lumo asks you in a system dialog) and is rounded to about 100 m. It is sent to OpenStreetMap’s Nominatim to look up the neighborhood name, and the rounded coordinates are used for place searches on OpenStreetMap. The model sees only the neighborhood name. Your coordinates are not sent anywhere else.</li>
       <li><strong>Services you connect</strong>, such as a calendar or GitHub, receive the requests needed for actions you ask for or approve.</li>
       <li><strong>Handoffs</strong> to delivery providers or merchants open their site in your browser; what you do there is governed by their policies.</li>
       <li><strong>Updates</strong>: the app checks for new versions, which reveals your IP address and app version to the update host.</li>
@@ -36,7 +37,7 @@ const analyticsOn = Boolean(ANALYTICS_ENDPOINT);
     <h3>Permissions</h3>
     <p>
       Folders, screen, microphone, clipboard, location and accounts are only used after you grant them, and grants can be revoked in Settings →
-      Permissions. A visible indicator shows whenever the screen, microphone or input control is in use.
+      Permissions. A visible indicator shows whenever the screen, microphone, location or input control is in use.
     </p>
 
     <h2 id="website">This website</h2>

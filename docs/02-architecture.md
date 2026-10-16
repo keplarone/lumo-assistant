@@ -187,7 +187,8 @@ previous one and that system prompt and tools never change within a conversation
 | `fetch_url`                                                               | read                                       | Public addresses only; content untrusted.                                                                                                                                                              |
 | `web_search`, `web_fetch` (Anthropic server tools) / `search_web` (Brave) | read                                       | Server tools on Anthropic; Brave for local models when a key is added.                                                                                                                                 |
 | `open_url`                                                                | write / sensitive for checkout and sign-in | Handoff to the user's browser.                                                                                                                                                                         |
-| `find_places`                                                             | read                                       | OpenStreetMap (Nominatim + Overpass); no menus, prices or ratings.                                                                                                                                     |
+| `find_places`                                                             | read                                       | OpenStreetMap (Nominatim + Overpass); no menus, prices or ratings. Without `near`: the detected location, else the saved one.                                                                          |
+| `get_current_location`                                                    | sensitive                                  | Native "Let Lumo use your current location?" dialog each time; OS location service, rounded to ~100 m, named via Nominatim. The model sees only the label. Saved as default if none.                   |
 | `prepare_checkout_handoff`                                                | sensitive                                  | Shows merchant, items, quantities, address and total (or "unknown until checkout"); copies the list and opens the merchant's site. Never places an order.                                              |
 | `read_clipboard` / `write_clipboard`                                      | read after grant, else write / write       |                                                                                                                                                                                                        |
 | `notify`                                                                  | UI                                         | Desktop notification.                                                                                                                                                                                  |
@@ -224,6 +225,8 @@ compact windows both follow a run.
 - Projects: `list_projects`, `create_project`, `project_files`, `read_project_file`, `write_project_file`,
   `project_history`, `save_project_version`, `restore_project_version`, `reveal_project`.
 - Integrations: `integrations_status`, `verify_integration`, `disconnect_integration`.
+- Location: `detect_location` (native confirmation, then the OS location service; rounds to ~100 m, names it
+  with Nominatim, saves it as `settings.location`, records it in the audit log).
 - Windows: `show_main_window`, `toggle_compact_window`.
 
 `AgentEvent` (serde tag `type`): `run_started`, `phase` (`understanding | planning | executing | verifying |
@@ -233,6 +236,14 @@ reporting`), `text_delta`, `progress_note`, `plan`, `tool_started`, `tool_finish
 App events: `files-dropped` (attachment tokens from drag and drop), `runs-changed`, `settings-changed`,
 `automations-changed`, `projects-changed`, `input-control` (`{active, stopShortcut}` while Lumo is driving
 the mouse and keyboard).
+
+Location (`src-tauri/src/location/`): only on request, through the `Platform::current_position` trait method.
+Windows uses `Windows.Devices.Geolocation.Geolocator`; macOS uses CoreLocation (when-in-use authorization;
+`NSLocationUsageDescription` in `Info.plist`, `com.apple.security.personal-information.location` in
+`Entitlements.plist` for the hardened runtime); Linux uses GeoClue2 over the system D-Bus and reports
+"location services aren't available" without it. Coordinates are rounded to 3 decimals before use; the only
+network request is the reverse geocode to Nominatim (one per second, Lumo's User-Agent), plus the place
+searches that already go to OpenStreetMap. A per-conversation detected location lives in memory only.
 
 Voice: `transcribe_audio` sends recorded audio to the configured speech-to-text endpoint
 (`{stt_base_url}/audio/transcriptions`, OpenAI-compatible; a key is required unless the endpoint is local).

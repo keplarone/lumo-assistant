@@ -16,6 +16,7 @@ Paths are relative to `apps/desktop/src-tauri/src` unless they say otherwise.
 | Conversations, memories, audit log, file journal                                                | SQLCipher database in the app data folder (`db.rs`)              | Personal data.                                                          |
 | The user's files                                                                                | Folders the user granted (`policy.rs`)                           | Can be read, changed, moved to the Trash, or uploaded.                  |
 | The user's session (screen, mouse and keyboard, clipboard)                                      | `tools/system.rs`, `tools/computer.rs`, `tools/clipboard.rs`     | Full control of the desktop while computer control is on.               |
+| The user's location                                                                             | `settings.location` (~100 m); a per-conversation copy in memory  | Reveals where the user is.                                              |
 | Ability to run programs                                                                         | `tools/shell.rs`                                                 | Allowlisted programs run with the user's own permissions.               |
 | Whop API key                                                                                    | License server environment only (`services/license/validate.js`) | Can read Whop memberships and member emails. It never ships in the app. |
 
@@ -27,8 +28,10 @@ Paths are relative to `apps/desktop/src-tauri/src` unless they say otherwise.
 2. **Model output ↔ tool execution.** A tool call from the model is a request. `tools::execute`
    (`tools/mod.rs`) parses it into a typed struct (`deny_unknown_fields`), runs `authorize`, and only then
    runs the tool.
-3. **External content ↔ model context.** Web pages, files, clipboard text, command output, place listings
-   and attachments are wrapped by `tools::wrap_untrusted` before they reach the model.
+3. **External content ↔ model context.** Web pages, files, clipboard text, command output, place listings,
+   location names from OpenStreetMap and attachments are wrapped by `tools::wrap_untrusted` before they
+   reach the model. A detected location's name is also cut to 80 characters of plain text
+   (`location::label_from_address`), because the saved label appears in each turn's context.
 4. **Project preview ↔ app.** Project files are served by the `preview:` protocol (`desktop.rs`
    `preview_response`) into a sandboxed iframe.
 5. **App ↔ network.** Model providers, integrations, OpenStreetMap and `fetch_url`. Keys are attached in
@@ -96,6 +99,9 @@ escapes its sandbox.
   new origin (`settings.rs` `confirm_key_destinations`). The webview can also no longer use the Tauri
   core defaults for trays, menus, image reads or window listing (`capabilities/default.json`).
 - Sensitive actions still need the native dialog.
+- Detecting the location (`detect_location`, the Settings button) asks in a native dialog first, as the
+  `get_current_location` tool does, so the webview cannot read the user's position silently. It shows the
+  privacy indicator and is recorded in the audit log.
 
 What a compromised webview **can** still do (by design, or not yet addressed): answer write-tier approval
 cards; request the `screen`, `clipboard_read` and `active_window` capabilities (`grant_capability`, which now
