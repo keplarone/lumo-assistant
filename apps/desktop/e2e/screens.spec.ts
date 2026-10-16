@@ -599,3 +599,24 @@ test('onboarding, model step offers the free on-device path first', async ({ pag
   await settle(page);
   await shot(page, 'onboarding-model');
 });
+
+test('a build with accounts asks people to sign in first', async ({ page }) => {
+  const signedOut = {
+    configured: true,
+    signedIn: false,
+    signingIn: false,
+    account: null,
+    recommendPasskey: false,
+    recommendTwoStep: false,
+  };
+  await boot(page, {
+    route: '#/',
+    fixtures: { get_settings: { ...settings, account: null }, account_status: signedOut },
+  });
+  await expect(page.getByRole('heading', { name: 'Welcome to Lumo' })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Continue with Google' })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Create an account' })).toBeVisible();
+  await expect(page.getByRole('textbox', { name: 'Message to Lumo' })).toHaveCount(0);
+  await settle(page);
+  await shot(page, 'sign-in');
+});

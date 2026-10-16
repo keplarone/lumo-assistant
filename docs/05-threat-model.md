@@ -130,6 +130,26 @@ The license server checks that the key maps to an active Whop membership on a Lu
 (`services/license/validate.js`). The app stores the key in the keychain and the resulting plan in the
 encrypted settings.
 
+In builds with accounts, a key is linked to exactly one Lumo account on the server (`services/license/accounts.js`),
+so a shared key can't be used by a second account. The link index is named by the key's SHA-256 and kept in a
+private Blob store; keys never appear in file names or responses.
+
+### 3.7 Account takeover and the sign-in flow
+
+- Sign-in runs in the system browser on WorkOS AuthKit's hosted page (passwords, Google, passkeys, two-step codes);
+  Lumo never sees a password. The core uses PKCE (RFC 8252); the code that passes through the https callback
+  (`api/auth/callback.js`) is useless without the verifier, which never leaves the core. The callback only ever
+  redirects to `127.0.0.1` on a port from 1024 to 65535 named in `state`, and the core checks `state` in constant time.
+- The refresh token lives only in the OS keychain and the access token only in memory; the webview gets neither.
+  Refresh tokens rotate, and refreshes are serialized so two calls never spend the same one.
+- The account server verifies every access token's signature against the client's WorkOS keys before any lookup.
+- Two-step: a factor counts only after it is proven with a code; an unconfirmed one is deleted on cancel or after
+  15 minutes, so an abandoned setup can't lock anyone out. Turning it off needs a current code, so a stolen access
+  token alone can't remove it. Account deletion needs a native confirmation dialog.
+- Signing in is enforced in the core (`agent::prepare`), not only by the sign-in screen.
+- Residual: passkeys and two-step are optional. Passkeys are bound to the AuthKit domain; moving to a custom domain
+  later means re-enrolling them.
+
 ## 4. Fixed in this review
 
 | Issue                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       | Severity                  | Fix                                                                                                                                                                                                      | Regression test                                                                   |

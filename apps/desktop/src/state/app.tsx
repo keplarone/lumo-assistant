@@ -61,6 +61,8 @@ export function useApp(): AppState {
 export interface Boot {
   settings: Settings;
   info: AppInfo;
+  /** This build has Lumo accounts, so people sign in before using it. */
+  accountsRequired: boolean;
 }
 
 export function AppProvider({ boot, children }: { boot: Boot; children: ReactNode }) {

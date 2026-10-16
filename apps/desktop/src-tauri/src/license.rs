@@ -1,5 +1,7 @@
 //! Lumo plans, sold through Whop. The desktop app never holds a Whop secret: it opens Whop checkout pages
 //! and asks Lumo's license server (services/license) whether a license key grants Lite or Pro.
+//! In builds with accounts (see account.rs), a license key is linked to the signed-in account instead,
+//! so the plan follows the person to any computer.
 //!
 //! Build-time configuration (empty means "not set up in this build", and the UI says so):
 //!   LUMO_LICENSE_SERVER    e.g. https://license.lumo.keplar.one/api/validate
@@ -11,7 +13,7 @@ use crate::error::{invalid, LumoError, Result};
 use serde::Serialize;
 use std::time::Duration;
 
-const SECRET: &str = "whop_license_key";
+pub const SECRET: &str = "whop_license_key";
 /// Whop plan ids. These are public identifiers, not secrets.
 pub const WHOP_PLAN_LITE: &str = "plan_0KzI2YIP7k6Pp";
 pub const WHOP_PLAN_PRO: &str = "plan_1ucbcMEoxhW3g";
@@ -46,7 +48,10 @@ pub fn status(core: &Core) -> LicenseStatus {
     let s = core.settings();
     LicenseStatus {
         plan: s.plan.clone(),
-        has_key: core.secrets.get(SECRET).ok().flatten().is_some(),
+        has_key: match crate::account::config(core) {
+            Some(_) => s.account.as_ref().is_some_and(|a| a.license_linked),
+            None => core.secrets.get(SECRET).ok().flatten().is_some(),
+        },
         licensing_configured: server().is_some(),
         checkout_lite: checkout(option_env!("LUMO_WHOP_CHECKOUT_LITE"), WHOP_PLAN_LITE),
         checkout_pro: checkout(option_env!("LUMO_WHOP_CHECKOUT_PRO"), WHOP_PLAN_PRO),
@@ -60,6 +65,11 @@ pub async fn activate(core: &Core, server_url: Option<String>, key: &str) -> Res
     let key = key.trim();
     if key.len() < 6 || key.len() > 128 || !key.chars().all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '_') {
         return Err(invalid("That does not look like a license key."));
+    }
+    if crate::account::config(core).is_some() {
+        crate::account::link_license(core, key).await?;
+        crate::audit::record(&core.db, "user", "license_activated", Some(&core.settings().plan), None, "ok");
+        return Ok(status(core));
     }
     let url = server_url.ok_or_else(|| LumoError::Unavailable("Plans are not available in this build yet.".into()))?;
     let resp = core
@@ -88,6 +98,17 @@ pub async fn activate(core: &Core, server_url: Option<String>, key: &str) -> Res
     crate::audit::record(&core.db, "user", "license_activated", Some(&tier), None, "ok");
     crate::plans::pause_excess_automations(core)?;
     Ok(status(core))
+}
+
+/// Remove the license: unlink it from the account, or forget it on this computer in builds without accounts.
+pub async fn remove(core: &Core) -> Result<LicenseStatus> {
+    if crate::account::config(core).is_some() {
+        crate::account::unlink_license(core).await?;
+        let _ = core.secrets.delete(SECRET);
+        crate::audit::record(&core.db, "user", "license_removed", None, None, "ok");
+        return Ok(status(core));
+    }
+    deactivate(core)
 }
 
 pub fn deactivate(core: &Core) -> Result<LicenseStatus> {

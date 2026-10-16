@@ -3,11 +3,15 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
-  "description": "Checks Whop memberships for the Lumo desktop app. Deploy as a serverless function (Vercel: api/validate.js).",
+  "description": "Lumo accounts and Whop plan checks for the desktop app. Deploy as Vercel functions (api/).",
   "scripts": {
     "test": "node --test test/*.test.js"
   },
   "engines": {
     "node": ">=22"
+  },
+  "dependencies": {
+    "@vercel/blob": "^2.8.2",
+    "jose": "^6.2.12"
   }
 }

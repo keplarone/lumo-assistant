@@ -38,12 +38,32 @@ never ship inside the app. To turn it on:
 3. Release builds use `https://lumo-license.vercel.app/api/validate` (the deployed `lumo-license` Vercel project). To point them elsewhere, set the repository variable `LUMO_LICENSE_SERVER` to the function URL (for example
    `https://license.lumo.keplar.one/api/validate`) so release builds compile it in.
 
+## Accounts (WorkOS AuthKit)
+
+People sign in before using Lumo: with Google, or an email and password, on the sign-in page WorkOS AuthKit hosts
+(free up to 1 million users). That page also offers passkeys and asks for a two-step code when someone turned it on.
+The app uses PKCE, so it holds no WorkOS secret; `services/license/api/account.js` checks the access tokens and links
+each Whop membership to one account, so a plan follows the person to any computer. See `apps/desktop/src-tauri/src/account.rs`.
+
+1. In the WorkOS dashboard (Production): turn on Email + Password (with email verification), Google (with your own
+   Google OAuth client) and Passkeys (with progressive enrollment). Leave MFA optional.
+2. Add the redirect `https://lumo-license.vercel.app/api/auth/callback`. Production redirects must be https, so the
+   server passes the code on to the app waiting on `127.0.0.1` (the port travels in `state`).
+3. On the `lumo-license` Vercel project set `WORKOS_CLIENT_ID` and the secret `WORKOS_API_KEY`, and connect a
+   **private** Blob store (it holds the account-to-membership links; `BLOB_READ_WRITE_TOKEN` is added for you).
+4. Set the repository variable `LUMO_WORKOS_CLIENT_ID` so release builds compile it in. Builds without it don't ask
+   anyone to sign in (development builds). `LUMO_ACCOUNT_SERVER` defaults to the license server's origin.
+
+Passkeys are bound to the sign-in page's domain. Adding an AuthKit custom domain later means people set up their
+passkeys again; their passwords, Google sign-in and two-step keep working.
+
 ## Checklist before publishing a draft
 
 1. CI is green on the tagged commit (web, Rust on all three platforms, audit).
 2. Version numbers match in `apps/desktop/src-tauri/tauri.conf.json`, `apps/desktop/src-tauri/Cargo.toml`
    and `apps/desktop/package.json`.
-3. Install each installer on a clean machine and walk the first-run journey: onboarding, add a model key,
+3. Install each installer on a clean machine and walk the first-run journey: sign in (Google, and a new email
+   account), onboarding, add a model key,
    send a message, grant a folder, organize files and undo, approve and deny a sensitive action, stop a run.
 4. macOS: confirm the Screen Recording, Accessibility and Microphone prompts appear when the matching feature
    is first used, and that denying them gives a clear message rather than a crash.

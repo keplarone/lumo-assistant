@@ -114,6 +114,8 @@ pub struct Core {
     pub provider_override: Mutex<Option<Arc<dyn ModelProvider>>>,
     pub endpoints: Mutex<Endpoints>,
     pub api_bases: Mutex<crate::integrations::ApiBases>,
+    /// The Lumo account configuration and its in-memory access token (see account.rs).
+    pub account: Mutex<crate::account::AccountState>,
 }
 
 impl Core {
@@ -134,6 +136,7 @@ impl Core {
             provider_override: Mutex::new(None),
             endpoints: Mutex::new(Endpoints::default()),
             api_bases: Mutex::new(Default::default()),
+            account: Mutex::new(crate::account::AccountState::new(crate::account::AccountConfig::from_build())),
         })
     }
 

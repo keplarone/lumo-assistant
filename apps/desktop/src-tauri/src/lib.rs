@@ -1,5 +1,6 @@
 //! Lumo's Rust core and desktop shell.
 
+pub mod account;
 pub mod agent;
 pub mod audit;
 pub mod automations;
@@ -101,6 +102,7 @@ pub fn run() {
                 log::warn!("{e}");
             }
             tauri::async_runtime::spawn(automations::scheduler(core.clone(), registry));
+            tauri::async_runtime::spawn(account::keep_checking(core.clone()));
 
             if let Some(w) = app.get_webview_window("main") {
                 let core2 = core.clone();
@@ -186,6 +188,16 @@ pub fn run() {
             commands::disconnect_integration,
             commands::transcribe_audio,
             commands::open_external_url,
+            commands::account_status,
+            commands::account_sign_in,
+            commands::account_cancel_sign_in,
+            commands::account_refresh,
+            commands::account_sign_out,
+            commands::account_delete,
+            commands::account_two_step_start,
+            commands::account_two_step_confirm,
+            commands::account_two_step_cancel,
+            commands::account_two_step_off,
             commands::license_status,
             commands::activate_license,
             commands::remove_license,

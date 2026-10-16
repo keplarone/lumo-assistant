@@ -44,6 +44,8 @@ pub struct Settings {
     /// "free", "lite", "pro" or "unlimited". Only the license check changes it; saving settings from the UI keeps it.
     pub plan: String,
     pub plan_checked_at: Option<String>,
+    /// The signed-in Lumo account. Only signing in changes it; saving settings from the UI keeps it.
+    pub account: Option<crate::account::AccountInfo>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
@@ -84,6 +86,7 @@ impl Default for Settings {
             reduced_motion: false,
             plan: "free".into(),
             plan_checked_at: None,
+            account: None,
         }
     }
 }
