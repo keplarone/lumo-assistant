@@ -1,9 +1,13 @@
 """Fine-tune Lumo 1 from Qwen3 (Apache-2.0) with a small LoRA, then export a GGUF file Ollama can run.
 
-Needs one NVIDIA GPU: a free Google Colab or Kaggle T4 is enough for the 4B and 8B bases.
+Sizes (bigger is smarter, but needs a stronger computer to run):
+    --size 4b    8 GB laptops        trains on a free Colab/Kaggle T4
+    --size 8b    16 GB computers     trains on a free Colab/Kaggle T4   (default)
+    --size 14b   24 GB computers     trains on a free T4 (slow) or a rented 24 GB GPU
+    --size 30b   32 GB computers     Qwen3 30B-A3B: smartest and still fast; needs a rented 40-80 GB GPU (~$2-4)
+
     pip install unsloth
-    python3 train_lumo.py                    # Qwen3 8B -> out/lumo-1-8b
-    python3 train_lumo.py --base unsloth/Qwen3-4B --name lumo-1-4b
+    python3 train_lumo.py --size 8b          # -> out/lumo-1-8b
 
 A small LoRA (rank 16, two epochs) teaches Lumo's voice and safety habits without wearing away the base
 model's tool use. Run eval.py on the result before publishing it.
@@ -17,16 +21,19 @@ from unsloth import FastLanguageModel
 from unsloth.chat_templates import train_on_responses_only
 
 
+BASES = {"4b": "unsloth/Qwen3-4B", "8b": "unsloth/Qwen3-8B", "14b": "unsloth/Qwen3-14B", "30b": "unsloth/Qwen3-30B-A3B"}
+
+
 def main() -> None:
     ap = argparse.ArgumentParser()
-    ap.add_argument("--base", default="unsloth/Qwen3-8B")
-    ap.add_argument("--name", default="lumo-1-8b")
+    ap.add_argument("--size", choices=sorted(BASES), default="8b")
     ap.add_argument("--train", default="data/train.jsonl")
     ap.add_argument("--eval", default="data/eval.jsonl")
     ap.add_argument("--epochs", type=float, default=2)
     ap.add_argument("--max-len", type=int, default=4096)
     ap.add_argument("--quant", default="q4_k_m", help="GGUF quantization (q4_k_m matches the other on-device models)")
     args = ap.parse_args()
+    args.base, args.name = BASES[args.size], f"lumo-1-{args.size}"
 
     model, tokenizer = FastLanguageModel.from_pretrained(args.base, max_seq_length=args.max_len, load_in_4bit=True)
     model = FastLanguageModel.get_peft_model(
@@ -73,7 +80,7 @@ def main() -> None:
     model.save_pretrained(f"out/{args.name}-lora")
     tokenizer.save_pretrained(f"out/{args.name}-lora")
     model.save_pretrained_gguf(f"out/{args.name}", tokenizer, quantization_method=args.quant)
-    print(f"Done. The .gguf file is in out/{args.name}/; next, make_modelfile.sh (see README).")
+    print(f"Done. The .gguf file is in out/{args.name}/; next, test it with eval.py (see README).")
 
 
 if __name__ == "__main__":
