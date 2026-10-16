@@ -119,7 +119,17 @@ fn luhn(digits: &[u32]) -> bool {
         .iter()
         .rev()
         .enumerate()
-        .map(|(i, d)| if i % 2 == 1 { if d * 2 > 9 { d * 2 - 9 } else { d * 2 } } else { *d })
+        .map(|(i, d)| {
+            if i % 2 == 1 {
+                if d * 2 > 9 {
+                    d * 2 - 9
+                } else {
+                    d * 2
+                }
+            } else {
+                *d
+            }
+        })
         .sum();
     sum % 10 == 0
 }

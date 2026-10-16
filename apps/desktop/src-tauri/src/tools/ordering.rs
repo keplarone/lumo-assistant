@@ -38,51 +38,17 @@ pub fn check_control(core: &Core, run_id: &str) -> Result<()> {
     }
 }
 
-pub struct ListOrderingApps;
-
-#[derive(Deserialize)]
-#[serde(deny_unknown_fields)]
-pub struct NoInput {}
-
-#[async_trait]
-impl TypedTool for ListOrderingApps {
-    type Input = NoInput;
-    const NAME: &'static str = "list_ordering_apps";
-    const DESCRIPTION: &'static str = "List the apps Lumo can order with (food delivery, groceries, shopping, rides, restaurant tables), with whether the user said they are signed in to each. Prefer an app they are signed in to.";
-    fn schema(&self) -> Value {
-        object_schema(json!({}), &[])
-    }
-    fn risk(&self, _: &ToolCtx, _: &NoInput) -> Risk {
-        Risk::Read
-    }
-    fn label(&self, _: &NoInput) -> String {
-        "Checking your ordering apps".into()
-    }
-    async fn run(&self, ctx: &ToolCtx, _: NoInput) -> Result<ToolOutput> {
-        let list = apps::for_model(&ctx.core);
-        Ok(ToolOutput {
-            text: list.to_string(),
-            summary: "Checked your ordering apps".into(),
-            ..Default::default()
-        })
-    }
-}
-
 pub struct StartOrder;
 
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct StartOrderInput {
-    /// An id from list_ordering_apps.
+    /// An app id (listed in the turn context).
     pub app: String,
     /// What to search for in the app, e.g. a restaurant or product name.
     #[serde(default)]
     pub search: Option<String>,
     pub items: Vec<OrderItem>,
-    #[serde(default)]
-    pub delivery_address: Option<String>,
-    #[serde(default)]
-    pub notes: Option<String>,
 }
 
 #[derive(Deserialize)]
@@ -100,12 +66,6 @@ fn order_text(app: &str, i: &StartOrderInput) -> String {
     for it in &i.items {
         s.push_str(&format!("{} × {}\n", it.quantity, it.name));
     }
-    if let Some(a) = &i.delivery_address {
-        s.push_str(&format!("Deliver to: {a}\n"));
-    }
-    if let Some(n) = &i.notes {
-        s.push_str(&format!("Notes: {n}\n"));
-    }
     s
 }
 
@@ -117,24 +77,25 @@ fn can_control(ctx: &ToolCtx) -> bool {
 impl TypedTool for StartOrder {
     type Input = StartOrderInput;
     const NAME: &'static str = "start_order";
-    const DESCRIPTION: &'static str = "Order with one of the user's apps (see list_ordering_apps). After the user confirms in a system dialog, the app opens in their browser and you fill the cart on screen with take_screenshot and control_computer: search, pick the store, add exactly the confirmed items, and go to the checkout page. Stop BEFORE paying: never press Place order, Pay, Request ride or Reserve, never type passwords or card details, and call cart_ready_for_user as soon as the checkout page shows (or if the user must sign in or choose something). Never say an order was placed; only the user can place it.";
+    const DESCRIPTION: &'static str = "Order food, groceries, products, rides or tables in one of the user's apps (ids in context). After the user confirms, fill the cart on screen with control_computer, then call cart_ready_for_user at checkout.";
     fn schema(&self) -> Value {
         object_schema(
             json!({
-                "app": {"type": "string", "enum": apps::APPS.iter().map(|a| a.id).collect::<Vec<_>>()},
-                "search": {"type": "string", "description": "What to search for in the app: a restaurant, store or product"},
+                "app": {"type": "string"},
+                "search": {"type": "string"},
                 "items": {"type": "array", "minItems": 1, "maxItems": 30, "items": object_schema(json!({
                     "name": {"type": "string"}, "quantity": {"type": "integer", "minimum": 1, "maximum": 99}
-                }), &["name", "quantity"])},
-                "delivery_address": {"type": "string"},
-                "notes": {"type": "string"}
+                }), &["name", "quantity"])}
             }),
             &["app", "items"],
         )
     }
     fn check(&self, _ctx: &ToolCtx, i: &StartOrderInput) -> Result<()> {
         apps::find(&i.app)?;
-        if i.items.is_empty() || i.items.len() > 30 || i.items.iter().any(|it| it.quantity == 0 || it.quantity > 99 || it.name.trim().is_empty()) {
+        if i.items.is_empty()
+            || i.items.len() > 30
+            || i.items.iter().any(|it| it.quantity == 0 || it.quantity > 99 || it.name.trim().is_empty())
+        {
             return Err(invalid("give 1 to 30 items, each with a name and a quantity from 1 to 99"));
         }
         Ok(())
@@ -154,10 +115,7 @@ impl TypedTool for StartOrder {
         for it in &i.items {
             details.push((format!("{} ×", it.quantity), crate::util::preview(&it.name, 80)));
         }
-        details.push((
-            "Deliver to".into(),
-            i.delivery_address.clone().unwrap_or_else(|| format!("The address in your {} account", app.name)),
-        ));
+        details.push(("Deliver to".into(), format!("The address in your {} account", app.name)));
         details.push(("You pay".into(), format!("Only when you tap the final button in {} yourself", app.name)));
         if can_control(ctx) {
             Ok(ActionPreview {
@@ -186,7 +144,8 @@ impl TypedTool for StartOrder {
             return Err(invalid("that page does not belong to the app"));
         }
         let signed_in = apps::is_connected(&ctx.core, app.id);
-        let items: Vec<apps::RecentItem> = i.items.iter().map(|it| apps::RecentItem { name: it.name.trim().into(), quantity: it.quantity }).collect();
+        let items: Vec<apps::RecentItem> =
+            i.items.iter().map(|it| apps::RecentItem { name: it.name.trim().into(), quantity: it.quantity }).collect();
         if let Err(e) = apps::remember_order(&ctx.core, app.id, i.search.as_deref(), &items) {
             log::warn!("could not remember the order: {e}");
         }
@@ -237,13 +196,8 @@ pub struct CartReadyInput {
     /// "checkout" (the cart is ready to place), "sign_in" or "user_choice" (the user must do
     /// something first), or "problem" (Lumo couldn't continue).
     pub stopped_for: String,
-    /// What is in the cart, as shown on screen.
-    #[serde(default)]
-    pub items_in_cart: Vec<String>,
-    /// The total exactly as the checkout page shows it, if it does.
-    #[serde(default)]
-    pub total: Option<String>,
-    /// One short line for the user.
+    /// One short line for the user: the cart and total exactly as the screen shows them, or what
+    /// they need to do.
     pub message: String,
 }
 
@@ -251,13 +205,11 @@ pub struct CartReadyInput {
 impl TypedTool for CartReady {
     type Input = CartReadyInput;
     const NAME: &'static str = "cart_ready_for_user";
-    const DESCRIPTION: &'static str = "Hand the screen back to the user during start_order: when the checkout page shows (stopped_for \"checkout\"), when they must sign in (\"sign_in\") or choose something (\"user_choice\"), or when you can't continue (\"problem\"). Ends Lumo's control of the mouse and keyboard for this task. Report the cart and the total only as the screen shows them.";
+    const DESCRIPTION: &'static str = "During start_order, hand the screen back at checkout, when the user must sign in or choose, or on a problem. Ends screen control for this task.";
     fn schema(&self) -> Value {
         object_schema(
             json!({
                 "stopped_for": {"type": "string", "enum": ["checkout", "sign_in", "user_choice", "problem"]},
-                "items_in_cart": {"type": "array", "maxItems": 40, "items": {"type": "string"}},
-                "total": {"type": "string"},
                 "message": {"type": "string"}
             }),
             &["stopped_for", "message"],
@@ -299,7 +251,7 @@ impl TypedTool for CartReady {
                 "Lumo's control of the mouse and keyboard has ended for this task. Tell the user: {next} Nothing has been ordered by Lumo; do not claim it was. If they want Lumo to continue after signing in or choosing, call start_order again."
             ),
             summary: title,
-            data: Some(json!({"app": app_id, "status": i.stopped_for, "items": i.items_in_cart, "total": i.total, "message": i.message})),
+            data: Some(json!({"app": app_id, "status": i.stopped_for, "message": i.message})),
             ..Default::default()
         })
     }
@@ -354,7 +306,7 @@ mod tests {
         let res = execute(&r, &ctx, &card, &names).await;
         assert!(!res.ok && res.block.to_string().contains("never types payment card numbers"));
 
-        let ready = json!({"type": "tool_use", "id": "d", "name": "cart_ready_for_user", "input": {"stopped_for": "checkout", "items_in_cart": ["2 × Pad thai"], "total": "$31.40", "message": "Ready"}});
+        let ready = json!({"type": "tool_use", "id": "d", "name": "cart_ready_for_user", "input": {"stopped_for": "checkout", "message": "2 × Pad thai, $31.40"}});
         assert!(execute(&r, &ctx, &ready, &names).await.ok);
         assert!(!session_active(&core, &ctx.run_id));
         assert_eq!(platform.notifications.lock()[0].0, "Your Uber Eats cart is ready");
@@ -405,7 +357,8 @@ mod tests {
         assert!(platform.opened.lock().is_empty());
         assert!(!session_active(&core, &user.run_id) && !session_active(&core, &auto.run_id));
         // No order in progress: nothing to hand back.
-        let ready = json!({"type": "tool_use", "id": "d", "name": "cart_ready_for_user", "input": {"stopped_for": "checkout", "message": "x"}});
+        let ready =
+            json!({"type": "tool_use", "id": "d", "name": "cart_ready_for_user", "input": {"stopped_for": "checkout", "message": "x"}});
         assert!(!execute(&r, &user, &ready, &names).await.ok);
     }
 

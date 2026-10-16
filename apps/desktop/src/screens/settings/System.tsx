@@ -133,12 +133,18 @@ function OrderingAppRow({ app, onChanged }: { app: OrderingApp; onChanged: () =>
     <li className="lm-card lm-integration" data-status={app.connected ? 'connected' : 'not_connected'}>
       <div className="lm-integration-head">
         <span className="lm-integration-name">{app.name}</span>
-        <Badge tone={app.connected ? 'success' : 'neutral'}>{app.connected ? 'Signed in' : 'Not set up'}</Badge>
+        <Badge tone={app.connected ? 'success' : 'neutral'}>
+          {app.connected ? 'Signed in' : 'Not set up'}
+        </Badge>
         <span className="lm-row-meta">{app.regions}</span>
       </div>
       {!app.connected ? (
         <div className="lm-row-actions">
-          <Button size="sm" variant="secondary" onClick={() => void run('open', () => api.openOrderingApp(app.id))}>
+          <Button
+            size="sm"
+            variant="secondary"
+            onClick={() => void run('open', () => api.openOrderingApp(app.id))}
+          >
             Open {app.name} to sign in
           </Button>
           <Button
@@ -159,7 +165,9 @@ function OrderingAppRow({ app, onChanged }: { app: OrderingApp; onChanged: () =>
               void run(
                 'payment',
                 () => api.setOrderingAppPayment(app.id, payment),
-                payment.trim() ? `Lumo will pick ${payment.trim()} at checkout.` : 'Lumo will leave payment as it is.',
+                payment.trim()
+                  ? `Lumo will pick ${payment.trim()} at checkout.`
+                  : 'Lumo will leave payment as it is.',
               );
             }}
           >

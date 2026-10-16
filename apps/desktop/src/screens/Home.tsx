@@ -1,5 +1,14 @@
 import { Button, Callout } from '@lumo/ui';
-import { Coffee, FileText, FolderInput, Globe, MapPin, RotateCcw, ShoppingBag, UtensilsCrossed } from 'lucide-react';
+import {
+  Coffee,
+  FileText,
+  FolderInput,
+  Globe,
+  MapPin,
+  RotateCcw,
+  ShoppingBag,
+  UtensilsCrossed,
+} from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import { Composer, type ComposerHandle } from '../components/Composer';
 import { rememberPendingSend } from '../components/ConversationView';
@@ -39,9 +48,21 @@ const SUGGESTIONS = [
 
 /** One-tap orders. Lumo still shows the order in a system dialog before it opens the app. */
 const QUICK_ORDERS = [
-  { icon: <UtensilsCrossed />, label: "Get me McDonald's", prompt: "Get me McDonald's. Ask me what I want if you don't know my usual." },
-  { icon: <Coffee />, label: 'Get me coffee', prompt: 'Get me a coffee from somewhere near me. Ask me what I want if you don\'t know my usual.' },
-  { icon: <ShoppingBag />, label: 'Get my groceries', prompt: 'Help me order groceries. Ask me what I need.' },
+  {
+    icon: <UtensilsCrossed />,
+    label: "Get me McDonald's",
+    prompt: "Get me McDonald's. Ask me what I want if you don't know my usual.",
+  },
+  {
+    icon: <Coffee />,
+    label: 'Get me coffee',
+    prompt: "Get me a coffee from somewhere near me. Ask me what I want if you don't know my usual.",
+  },
+  {
+    icon: <ShoppingBag />,
+    label: 'Get my groceries',
+    prompt: 'Help me order groceries. Ask me what I need.',
+  },
 ];
 
 function againPrompt(o: RecentOrder): string {

@@ -185,7 +185,6 @@ impl Registry {
             Arc::new(Typed(web::OpenUrl)),
             Arc::new(Typed(places::FindPlaces)),
             Arc::new(Typed(places::PrepareCheckoutHandoff)),
-            Arc::new(Typed(ordering::ListOrderingApps)),
             Arc::new(Typed(ordering::StartOrder)),
             Arc::new(Typed(ordering::CartReady)),
             Arc::new(Typed(clipboard::ReadClipboard)),

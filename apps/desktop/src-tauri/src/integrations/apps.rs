@@ -30,26 +30,186 @@ pub struct OrderingApp {
 }
 
 pub const APPS: &[OrderingApp] = &[
-    OrderingApp { id: "ubereats", name: "Uber Eats", category: "food", home: "https://www.ubereats.com/", search: Some("https://www.ubereats.com/search?q={q}"), hosts: &["ubereats.com"], regions: "US, Canada, UK, Australia and more" },
-    OrderingApp { id: "doordash", name: "DoorDash", category: "food", home: "https://www.doordash.com/", search: Some("https://www.doordash.com/search/store/{q}/"), hosts: &["doordash.com"], regions: "US, Canada, Australia, New Zealand" },
-    OrderingApp { id: "grubhub", name: "Grubhub", category: "food", home: "https://www.grubhub.com/", search: Some("https://www.grubhub.com/search?queryText={q}"), hosts: &["grubhub.com"], regions: "US" },
-    OrderingApp { id: "deliveroo", name: "Deliveroo", category: "food", home: "https://deliveroo.co.uk/", search: None, hosts: &["deliveroo.co.uk", "deliveroo.com"], regions: "UK, Ireland, France, Italy and more" },
-    OrderingApp { id: "justeat", name: "Just Eat", category: "food", home: "https://www.just-eat.co.uk/", search: None, hosts: &["just-eat.co.uk"], regions: "UK" },
-    OrderingApp { id: "dominos", name: "Domino's", category: "food", home: "https://www.dominos.com/", search: None, hosts: &["dominos.com"], regions: "US" },
-    OrderingApp { id: "starbucks", name: "Starbucks", category: "food", home: "https://app.starbucks.com/", search: None, hosts: &["starbucks.com"], regions: "US" },
-    OrderingApp { id: "instacart", name: "Instacart", category: "groceries", home: "https://www.instacart.com/", search: Some("https://www.instacart.com/store/s?k={q}"), hosts: &["instacart.com"], regions: "US, Canada" },
-    OrderingApp { id: "walmart", name: "Walmart", category: "groceries", home: "https://www.walmart.com/", search: Some("https://www.walmart.com/search?q={q}"), hosts: &["walmart.com"], regions: "US" },
-    OrderingApp { id: "target", name: "Target", category: "groceries", home: "https://www.target.com/", search: Some("https://www.target.com/s?searchTerm={q}"), hosts: &["target.com"], regions: "US" },
-    OrderingApp { id: "kroger", name: "Kroger", category: "groceries", home: "https://www.kroger.com/", search: Some("https://www.kroger.com/search?query={q}"), hosts: &["kroger.com"], regions: "US" },
-    OrderingApp { id: "costco", name: "Costco", category: "groceries", home: "https://www.costco.com/", search: Some("https://www.costco.com/CatalogSearch?keyword={q}"), hosts: &["costco.com"], regions: "US" },
-    OrderingApp { id: "amazon", name: "Amazon", category: "shopping", home: "https://www.amazon.com/", search: Some("https://www.amazon.com/s?k={q}"), hosts: &["amazon.com"], regions: "US" },
-    OrderingApp { id: "bestbuy", name: "Best Buy", category: "shopping", home: "https://www.bestbuy.com/", search: Some("https://www.bestbuy.com/site/searchpage.jsp?st={q}"), hosts: &["bestbuy.com"], regions: "US" },
-    OrderingApp { id: "ebay", name: "eBay", category: "shopping", home: "https://www.ebay.com/", search: Some("https://www.ebay.com/sch/i.html?_nkw={q}"), hosts: &["ebay.com"], regions: "Worldwide" },
-    OrderingApp { id: "etsy", name: "Etsy", category: "shopping", home: "https://www.etsy.com/", search: Some("https://www.etsy.com/search?q={q}"), hosts: &["etsy.com"], regions: "Worldwide" },
-    OrderingApp { id: "uber", name: "Uber rides", category: "rides", home: "https://m.uber.com/", search: None, hosts: &["uber.com"], regions: "Worldwide" },
-    OrderingApp { id: "lyft", name: "Lyft", category: "rides", home: "https://ride.lyft.com/", search: None, hosts: &["lyft.com"], regions: "US, Canada" },
-    OrderingApp { id: "opentable", name: "OpenTable", category: "tables", home: "https://www.opentable.com/", search: Some("https://www.opentable.com/s?term={q}"), hosts: &["opentable.com"], regions: "Worldwide" },
-    OrderingApp { id: "resy", name: "Resy", category: "tables", home: "https://resy.com/", search: None, hosts: &["resy.com"], regions: "US and more" },
+    OrderingApp {
+        id: "ubereats",
+        name: "Uber Eats",
+        category: "food",
+        home: "https://www.ubereats.com/",
+        search: Some("https://www.ubereats.com/search?q={q}"),
+        hosts: &["ubereats.com"],
+        regions: "US, Canada, UK, Australia and more",
+    },
+    OrderingApp {
+        id: "doordash",
+        name: "DoorDash",
+        category: "food",
+        home: "https://www.doordash.com/",
+        search: Some("https://www.doordash.com/search/store/{q}/"),
+        hosts: &["doordash.com"],
+        regions: "US, Canada, Australia, New Zealand",
+    },
+    OrderingApp {
+        id: "grubhub",
+        name: "Grubhub",
+        category: "food",
+        home: "https://www.grubhub.com/",
+        search: Some("https://www.grubhub.com/search?queryText={q}"),
+        hosts: &["grubhub.com"],
+        regions: "US",
+    },
+    OrderingApp {
+        id: "deliveroo",
+        name: "Deliveroo",
+        category: "food",
+        home: "https://deliveroo.co.uk/",
+        search: None,
+        hosts: &["deliveroo.co.uk", "deliveroo.com"],
+        regions: "UK, Ireland, France, Italy and more",
+    },
+    OrderingApp {
+        id: "justeat",
+        name: "Just Eat",
+        category: "food",
+        home: "https://www.just-eat.co.uk/",
+        search: None,
+        hosts: &["just-eat.co.uk"],
+        regions: "UK",
+    },
+    OrderingApp {
+        id: "dominos",
+        name: "Domino's",
+        category: "food",
+        home: "https://www.dominos.com/",
+        search: None,
+        hosts: &["dominos.com"],
+        regions: "US",
+    },
+    OrderingApp {
+        id: "starbucks",
+        name: "Starbucks",
+        category: "food",
+        home: "https://app.starbucks.com/",
+        search: None,
+        hosts: &["starbucks.com"],
+        regions: "US",
+    },
+    OrderingApp {
+        id: "instacart",
+        name: "Instacart",
+        category: "groceries",
+        home: "https://www.instacart.com/",
+        search: Some("https://www.instacart.com/store/s?k={q}"),
+        hosts: &["instacart.com"],
+        regions: "US, Canada",
+    },
+    OrderingApp {
+        id: "walmart",
+        name: "Walmart",
+        category: "groceries",
+        home: "https://www.walmart.com/",
+        search: Some("https://www.walmart.com/search?q={q}"),
+        hosts: &["walmart.com"],
+        regions: "US",
+    },
+    OrderingApp {
+        id: "target",
+        name: "Target",
+        category: "groceries",
+        home: "https://www.target.com/",
+        search: Some("https://www.target.com/s?searchTerm={q}"),
+        hosts: &["target.com"],
+        regions: "US",
+    },
+    OrderingApp {
+        id: "kroger",
+        name: "Kroger",
+        category: "groceries",
+        home: "https://www.kroger.com/",
+        search: Some("https://www.kroger.com/search?query={q}"),
+        hosts: &["kroger.com"],
+        regions: "US",
+    },
+    OrderingApp {
+        id: "costco",
+        name: "Costco",
+        category: "groceries",
+        home: "https://www.costco.com/",
+        search: Some("https://www.costco.com/CatalogSearch?keyword={q}"),
+        hosts: &["costco.com"],
+        regions: "US",
+    },
+    OrderingApp {
+        id: "amazon",
+        name: "Amazon",
+        category: "shopping",
+        home: "https://www.amazon.com/",
+        search: Some("https://www.amazon.com/s?k={q}"),
+        hosts: &["amazon.com"],
+        regions: "US",
+    },
+    OrderingApp {
+        id: "bestbuy",
+        name: "Best Buy",
+        category: "shopping",
+        home: "https://www.bestbuy.com/",
+        search: Some("https://www.bestbuy.com/site/searchpage.jsp?st={q}"),
+        hosts: &["bestbuy.com"],
+        regions: "US",
+    },
+    OrderingApp {
+        id: "ebay",
+        name: "eBay",
+        category: "shopping",
+        home: "https://www.ebay.com/",
+        search: Some("https://www.ebay.com/sch/i.html?_nkw={q}"),
+        hosts: &["ebay.com"],
+        regions: "Worldwide",
+    },
+    OrderingApp {
+        id: "etsy",
+        name: "Etsy",
+        category: "shopping",
+        home: "https://www.etsy.com/",
+        search: Some("https://www.etsy.com/search?q={q}"),
+        hosts: &["etsy.com"],
+        regions: "Worldwide",
+    },
+    OrderingApp {
+        id: "uber",
+        name: "Uber rides",
+        category: "rides",
+        home: "https://m.uber.com/",
+        search: None,
+        hosts: &["uber.com"],
+        regions: "Worldwide",
+    },
+    OrderingApp {
+        id: "lyft",
+        name: "Lyft",
+        category: "rides",
+        home: "https://ride.lyft.com/",
+        search: None,
+        hosts: &["lyft.com"],
+        regions: "US, Canada",
+    },
+    OrderingApp {
+        id: "opentable",
+        name: "OpenTable",
+        category: "tables",
+        home: "https://www.opentable.com/",
+        search: Some("https://www.opentable.com/s?term={q}"),
+        hosts: &["opentable.com"],
+        regions: "Worldwide",
+    },
+    OrderingApp {
+        id: "resy",
+        name: "Resy",
+        category: "tables",
+        home: "https://resy.com/",
+        search: None,
+        hosts: &["resy.com"],
+        regions: "US and more",
+    },
 ];
 
 pub fn find(id: &str) -> Result<&'static OrderingApp> {
@@ -99,13 +259,9 @@ pub fn set_payment_label(core: &Core, id: &str, label: &str) -> Result<()> {
     if label.chars().count() > 40 {
         return Err(invalid("keep it short, like \"Visa ending 4242\" or \"Apple Pay\""));
     }
-    // Only a label. A run of 5+ digits could be part of a card number, so it is never kept.
-    let mut run = 0;
-    for c in label.chars() {
-        run = if c.is_ascii_digit() { run + 1 } else { 0 };
-        if run > 4 {
-            return Err(invalid("don't enter card numbers. Lumo only needs a name like \"Visa ending 4242\"; your card stays in the app"));
-        }
+    // Only a label. More than four digits could be part of a card number, so it is never kept.
+    if label.chars().filter(char::is_ascii_digit).count() > 4 {
+        return Err(invalid("don't enter card numbers. Lumo only needs a name like \"Visa ending 4242\"; your card stays in the app"));
     }
     let mut m = meta(core, id);
     if !m.is_object() {
@@ -123,10 +279,7 @@ pub fn set_payment_label(core: &Core, id: &str, label: &str) -> Result<()> {
 }
 
 pub fn is_connected(core: &Core, id: &str) -> bool {
-    core.db
-        .conn()
-        .query_row("SELECT 1 FROM integrations WHERE id = ?1 AND status = 'connected'", [key(id)], |_| Ok(()))
-        .is_ok()
+    core.db.conn().query_row("SELECT 1 FROM integrations WHERE id = ?1 AND status = 'connected'", [key(id)], |_| Ok(())).is_ok()
 }
 
 #[derive(Debug, Serialize)]
@@ -143,7 +296,15 @@ pub struct AppStatus {
 
 pub fn list(core: &Core) -> Vec<AppStatus> {
     APPS.iter()
-        .map(|a| AppStatus { id: a.id, name: a.name, category: a.category, home: a.home, regions: a.regions, connected: is_connected(core, a.id), payment: payment_label(core, a.id) })
+        .map(|a| AppStatus {
+            id: a.id,
+            name: a.name,
+            category: a.category,
+            home: a.home,
+            regions: a.regions,
+            connected: is_connected(core, a.id),
+            payment: payment_label(core, a.id),
+        })
         .collect()
 }
 
@@ -170,12 +331,21 @@ pub fn set_connected(core: &Core, id: &str, connected: bool) -> Result<()> {
     Ok(())
 }
 
-/// What the agent sees when choosing an app.
-pub fn for_model(core: &Core) -> Value {
-    json!(APPS
+/// One line for the turn context: every app id, and which ones the user is signed in to.
+pub fn context_line(core: &Core) -> String {
+    let signed_in: Vec<String> = APPS
         .iter()
-        .map(|a| json!({"id": a.id, "name": a.name, "category": a.category, "regions": a.regions, "signed_in": is_connected(core, a.id), "pick_payment": payment_label(core, a.id)}))
-        .collect::<Vec<_>>())
+        .filter(|a| is_connected(core, a.id))
+        .map(|a| match payment_label(core, a.id) {
+            Some(p) => format!("{} (pay with {p})", a.id),
+            None => a.id.to_string(),
+        })
+        .collect();
+    format!(
+        "Ordering apps for start_order: {}. Signed in: {}.",
+        APPS.iter().map(|a| a.id).collect::<Vec<_>>().join(", "),
+        if signed_in.is_empty() { "none yet".into() } else { signed_in.join(", ") }
+    )
 }
 
 #[derive(Debug, Serialize, serde::Deserialize, Clone, PartialEq)]
@@ -203,7 +373,10 @@ pub fn remember_order(core: &Core, app: &str, store: Option<&str>, items: &[Rece
     find(app)?;
     let store = store.map(str::trim).filter(|s| !s.is_empty());
     let conn = core.db.conn();
-    conn.execute("DELETE FROM recent_orders WHERE app = ?1 AND IFNULL(lower(store), '') = IFNULL(lower(?2), '')", rusqlite::params![app, store])?;
+    conn.execute(
+        "DELETE FROM recent_orders WHERE app = ?1 AND IFNULL(lower(store), '') = IFNULL(lower(?2), '')",
+        rusqlite::params![app, store],
+    )?;
     conn.execute(
         "INSERT INTO recent_orders(id, app, store, items_json, created_at) VALUES (?1, ?2, ?3, ?4, ?5)",
         rusqlite::params![crate::util::new_id(), app, store, serde_json::to_string(items)?, crate::util::now()],
@@ -217,7 +390,8 @@ pub fn remember_order(core: &Core, app: &str, store: Option<&str>, items: &[Rece
 
 pub fn recent_orders(core: &Core, limit: usize) -> Result<Vec<RecentOrder>> {
     let conn = core.db.conn();
-    let mut st = conn.prepare("SELECT id, app, store, items_json, created_at FROM recent_orders ORDER BY created_at DESC, rowid DESC LIMIT ?1")?;
+    let mut st =
+        conn.prepare("SELECT id, app, store, items_json, created_at FROM recent_orders ORDER BY created_at DESC, rowid DESC LIMIT ?1")?;
     let rows = st.query_map([limit as i64], |r| {
         Ok((r.get::<_, String>(0)?, r.get::<_, String>(1)?, r.get::<_, Option<String>>(2)?, r.get::<_, String>(3)?, r.get::<_, String>(4)?))
     })?;

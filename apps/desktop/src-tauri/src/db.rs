@@ -59,7 +59,9 @@ impl Db {
     }
 }
 
-const MIGRATIONS: &[&str] = &[include_str!("../migrations/001_init.sql"), include_str!("../migrations/002_plan_usage.sql"),
+const MIGRATIONS: &[&str] = &[
+    include_str!("../migrations/001_init.sql"),
+    include_str!("../migrations/002_plan_usage.sql"),
     include_str!("../migrations/003_recent_orders.sql"),
 ];
 
