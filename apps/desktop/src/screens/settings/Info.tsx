@@ -2,15 +2,15 @@
 import { Badge, Button, Callout, Input, Kbd, ProgressBar } from '@lumo/ui';
 import { useEffect, useState } from 'react';
 import { Bug, Check, ExternalLink } from 'lucide-react';
-import { ExternalAnchor } from '../../components/LocalModels';
+import { ExternalAnchor } from '../../components/ExternalAnchor';
 import { modKey } from '../../lib/format';
 import { api, errorMessage, type LicenseStatus, type PlanUsage } from '../../lib/ipc';
 import {
   asPlanId,
   checkoutUrl,
   nextPlan,
-  PLAN_PRICES,
   planFeatures,
+  planPrice,
   planName,
   planRank,
   resetDate,
@@ -25,20 +25,20 @@ export const TERMS_URL = 'https://lumo.keplar.one/terms';
 
 // ---- Plans --------------------------------------------------------------------------------------
 
-/** "X% of this month's usage" with one bar, or "Unlimited usage". From plan_usage (Rust). */
+/** "X% of this month's usage" with one bar. From plan_usage (Rust, from Lumo's model service). */
 export function UsageMeter({ usage }: { usage: PlanUsage }) {
-  const unlimited = usage.percentUsed === null;
+  const known = usage.percentUsed !== null;
   return (
     <div className="lm-usage" aria-label="Usage">
       <div className="lm-usage-head">
         <span className="lm-usage-label">This month</span>
         <span className="lm-row-meta">
-          {unlimited
-            ? 'Unlimited usage'
-            : `${usage.percentUsed}% of this month’s usage · Resets ${resetDate(usage.resetsAt)}`}
+          {known
+            ? `${usage.percentUsed}% of this month’s usage · Resets ${resetDate(usage.resetsAt)}`
+            : 'Usage isn’t available right now'}
         </span>
       </div>
-      {!unlimited && <ProgressBar value={(usage.percentUsed ?? 0) / 100} label="This month’s usage" />}
+      {known && <ProgressBar value={(usage.percentUsed ?? 0) / 100} label="This month’s usage" />}
     </div>
   );
 }
@@ -96,7 +96,7 @@ export function PlansSection() {
         {plans.map((p, i) => {
           const checkout = checkoutUrl(lic, p.id);
           const isCurrent = p.id === current;
-          const { price, period } = PLAN_PRICES[p.id];
+          const { price, period } = planPrice(p);
           return (
             <li key={p.id} className="lm-card lm-plan-card" data-current={isCurrent || undefined}>
               <div className="lm-plan-card-head">
@@ -237,8 +237,8 @@ export function HelpSection() {
       <h3 className="lm-section-title">Getting started</h3>
       <ol className="lm-help-steps">
         <li>
-          <strong>Choose a model.</strong> Use a free on-device model that runs on this computer, or add an
-          Anthropic API key for the most capable model.{' '}
+          <strong>Pick a model, if you like.</strong> Lumo works right away with the models in your plan;
+          “Auto” picks a good one for you.{' '}
           <a href={routeHref({ name: 'settings', section: 'model' })}>Model settings</a>
         </li>
         <li>
@@ -309,14 +309,15 @@ export function PrivacySection() {
           again, and Lumo’s interface can only see whether one is set.
         </li>
         <li>Recordings, until you stop recording. Read-aloud uses your computer’s own voices.</li>
-        <li>Everything, when you use an on-device model: requests are answered on this computer.</li>
       </ul>
-      <h3 className="lm-section-title">Sent to your model provider</h3>
+      <h3 className="lm-section-title">Sent to Lumo’s model service</h3>
       <ul className="lm-prose-list">
         <li>
-          When you use Anthropic or another server: your messages, the files you attach, the results of the
-          tools Lumo uses for the task (for example a folder listing), and a short context with the date and,
-          if memory is on, what Lumo remembers about you.
+          For each step of a task: your messages, the files you attach, the results of the tools Lumo uses
+          (for example a folder listing or a screenshot you allowed), and a short context with the date and,
+          if memory is on, what Lumo remembers about you. Lumo’s server checks your plan and passes this to
+          the AI model you chose through OpenRouter, which answers it. Lumo’s server keeps only how much you
+          used this month, not what you sent.
         </li>
         <li>
           When you use voice input: the recording, to the speech-to-text service you set up under Voice.
@@ -359,8 +360,6 @@ export function PrivacySection() {
 
 export const OPEN_SOURCE: [string, string][] = [
   ['Tauri', 'Apache-2.0 or MIT'],
-  ['llama.cpp and ggml (the on-device engine)', 'MIT'],
-  ['llama-cpp-rs bindings', 'MIT or Apache-2.0'],
   ['React', 'MIT'],
   ['three.js and React Three Fiber', 'MIT'],
   ['Radix UI', 'MIT'],

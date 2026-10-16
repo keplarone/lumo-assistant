@@ -12,8 +12,6 @@ use serde_json::Value;
 #[serde(rename_all = "camelCase")]
 pub struct FrozenTools {
     pub client: Vec<String>,
-    pub web_search: bool,
-    pub web_fetch: bool,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -71,7 +69,7 @@ fn conv_row(r: &rusqlite::Row) -> rusqlite::Result<Conversation> {
         provider: r.get(3)?,
         model: r.get(4)?,
         system_prompt: r.get(5)?,
-        tools: serde_json::from_str(&tools_json).unwrap_or(FrozenTools { client: vec![], web_search: false, web_fetch: false }),
+        tools: serde_json::from_str(&tools_json).unwrap_or(FrozenTools { client: vec![] }),
         project_id: r.get(7)?,
         origin: r.get(8)?,
         created_at: r.get(9)?,

@@ -1,6 +1,6 @@
 [package]
 name = "lumo"
-version = "0.1.0"
+version = "0.2.0"
 description = "Lumo Assistant"
 authors = ["Keplar"]
 license = "UNLICENSED"
@@ -59,14 +59,8 @@ xcap = { version = "0.7", default-features = false }
 zip = { version = "2", default-features = false, features = ["deflate"] }
 enigo = "0.6"
 sysinfo = { version = "0.36.1", default-features = false, features = ["system"] }
-# The built-in on-device engine (llama.cpp, MIT). Pinned: the bindings track llama.cpp closely.
-llama-cpp-2 = { version = "=0.1.158", default-features = false }
-# Not used directly: keeps the llama.cpp sources the bindings were generated for.
-llama-cpp-sys-2 = "=0.1.158"
 
-# Apple GPUs through Metal on every Mac build.
 [target.'cfg(target_os = "macos")'.dependencies]
-llama-cpp-2 = { version = "=0.1.158", default-features = false, features = ["metal"] }
 # Current location (src/location/macos.rs): CoreLocation. The live Dock icon (live_icon.rs): AppKit.
 objc2 = "0.6"
 objc2-foundation = { version = "0.3", default-features = false, features = ["std", "NSArray", "NSData", "NSDate", "NSError", "NSObjCRuntime", "NSObject", "NSRunLoop", "NSString"] }
@@ -84,12 +78,6 @@ zbus = "5"
 [dev-dependencies]
 tempfile = "3"
 wiremock = "0.6"
-
-[features]
-default = []
-# GPU acceleration for on-device models on Windows and Linux. Needs the Vulkan SDK (headers, loader
-# and glslc) on the build machine, and links the Vulkan loader, so it is opt-in: see docs/release.md.
-vulkan = ["llama-cpp-2/vulkan"]
 
 [profile.release]
 codegen-units = 1

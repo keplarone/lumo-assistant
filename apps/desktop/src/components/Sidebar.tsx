@@ -11,13 +11,13 @@ import {
   Timer,
 } from 'lucide-react';
 import { forwardRef, useEffect, useState } from 'react';
+import appIcon from '../assets/app-icon-512.png';
 import { api, type AppMode, type Conversation } from '../lib/ipc';
 import { chirp } from '../state/mascot';
 import { modKey, relativeTime } from '../lib/format';
 import { navigate, routeHref, type Route } from '../lib/router';
 import { useApp } from '../state/app';
 import { useRuns } from '../state/runs';
-import { LumoMark } from './Mascot';
 
 export const Sidebar = forwardRef<HTMLInputElement, { route: Route; open?: boolean }>(function Sidebar(
   { route, open },
@@ -58,7 +58,7 @@ export const Sidebar = forwardRef<HTMLInputElement, { route: Route; open?: boole
   return (
     <nav className="lm-sidebar" id="lm-sidebar" aria-label="Lumo" data-open={open || undefined}>
       <div className="lm-brand" data-tauri-drag-region>
-        <LumoMark size={22} />
+        <img className="lm-brand-icon" src={appIcon} width={24} height={24} alt="" />
         <span>{app.settings.mode === 'linx' ? 'Linx Code' : 'Lumo'}</span>
       </div>
       <ModeSwitch />

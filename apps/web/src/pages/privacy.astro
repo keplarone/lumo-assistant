@@ -19,8 +19,7 @@ const analyticsOn = Boolean(ANALYTICS_ENDPOINT);
     </p>
     <h3>What is sent, and to whom</h3>
     <ul>
-      <li><strong>The model provider</strong> (Anthropic) receives the messages and context needed to answer each request. With an on-device model, Lumo answers on your computer and nothing is sent.</li>
-      <li><strong>On-device model downloads</strong> come from Hugging Face over https, which sees your IP address and which model file is downloaded.</li>
+      <li><strong>Lumo’s model service</strong> receives the messages and context needed to answer each request, checks your plan, and passes them to the AI model you chose through <a href="https://openrouter.ai/privacy">OpenRouter</a> and the company that runs that model. Lumo’s service keeps only how much of your monthly allowance you used, not what you sent. On the Free plan, the free models’ providers may use requests to improve their models.</li>
       <li><strong>Web pages and search</strong> you ask Lumo to read are fetched like a browser would.</li>
       <li><strong>Your location</strong> is only checked when you ask (in Settings, or when Lumo asks you in a system dialog) and is rounded to about 100 m. It is sent to OpenStreetMap’s Nominatim to look up the neighborhood name, and the rounded coordinates are used for place searches on OpenStreetMap. The model sees only the neighborhood name. Your coordinates are not sent anywhere else.</li>
       <li><strong>Services you connect</strong>, such as a calendar or GitHub, receive the requests needed for actions you ask for or approve.</li>
@@ -30,8 +29,9 @@ const analyticsOn = Boolean(ANALYTICS_ENDPOINT);
     <p>Lumo does not include advertising, analytics or crash-reporting services in the app. Diagnostic logs stay on your computer unless you choose to share them.</p>
     <h3 id="plans">Plans and billing</h3>
     <p>
-      Lumo’s plans open at launch. Before then, this policy will be updated to describe what a plan involves: any account and billing details,
-      how plan limits are counted, and how requests reach the model provider.
+      Paid plans are sold through Whop, which handles payment details; Lumo never sees your card. Your license key is checked with Whop when you
+      activate it and when Lumo’s model service handles your requests. Usage is counted per month by what your requests cost, and shown in the
+      app as a percentage. On Free, a random ID made when you install Lumo is used to count usage instead.
     </p>
 
     <h3>Permissions</h3>
