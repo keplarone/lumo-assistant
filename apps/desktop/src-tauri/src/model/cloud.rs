@@ -1,30 +1,38 @@
-//! OpenAI-compatible Chat Completions adapter, for model servers the user runs themselves (LM
-//! Studio, Ollama, a llama.cpp server) and other vendors that speak this protocol. Thinking and server-tool blocks in history
-//! are dropped when converting, since these endpoints cannot read them.
+//! Lumo's models: a client for Lumo's model gateway (services/license, `POST /api/chat`), which runs
+//! OpenRouter models with Lumo's own key after checking the plan, its models and its monthly allowance.
+//! The app never holds a model provider key. Requests and responses are OpenAI-style Chat Completions;
+//! the canonical (Anthropic-shaped) history is converted here.
 
-use super::{retry_delay, retryable_status, EventSink, Message, ModelProvider, ModelRequest, ModelResponse, StreamEvent, Usage};
+use super::{retry_delay, EventSink, Message, ModelProvider, ModelRequest, ModelResponse, StreamEvent, Usage};
 use crate::error::{LumoError, Result};
 use async_trait::async_trait;
 use futures_util::StreamExt;
 use serde_json::{json, Value};
 use tokio_util::sync::CancellationToken;
 
-pub struct OpenAiCompatible {
+/// Older screenshots are dropped from what's sent: they cost the most and the model has acted on them.
+const MAX_IMAGES: usize = 3;
+
+pub struct LumoCloud {
     http: reqwest::Client,
+    /// The gateway's base address, e.g. https://lumo-license.vercel.app.
     base_url: String,
-    api_key: Option<String>,
-    model: String,
+    install_id: String,
+    /// Paid plans only; Free is counted by the install id.
+    license_key: Option<String>,
 }
 
-impl OpenAiCompatible {
-    pub fn new(http: reqwest::Client, base_url: &str, api_key: Option<String>, model: String) -> Self {
-        OpenAiCompatible { http, base_url: base_url.trim_end_matches('/').to_string(), api_key, model }
+impl LumoCloud {
+    pub fn new(http: reqwest::Client, base_url: &str, install_id: String, license_key: Option<String>) -> Self {
+        LumoCloud { http, base_url: base_url.trim_end_matches('/').to_string(), install_id, license_key }
     }
 }
 
 /// Convert canonical (Anthropic-shaped) history into chat messages.
 pub fn to_chat_messages(system: &str, messages: &[Message]) -> Vec<Value> {
     let mut out = vec![json!({"role": "system", "content": system})];
+    let images: usize = messages.iter().flat_map(|m| &m.content).map(count_images).sum();
+    let mut skip = images.saturating_sub(MAX_IMAGES);
     for m in messages {
         match m.role.as_str() {
             "system" => {
@@ -36,10 +44,15 @@ pub fn to_chat_messages(system: &str, messages: &[Message]) -> Vec<Value> {
                 for b in &m.content {
                     match b["type"].as_str() {
                         Some("text") => parts.push(json!({"type": "text", "text": b["text"]})),
-                        Some("image") if b["source"]["type"] == "base64" => parts.push(json!({
-                            "type": "image_url",
-                            "image_url": {"url": format!("data:{};base64,{}", b["source"]["media_type"].as_str().unwrap_or("image/png"), b["source"]["data"].as_str().unwrap_or(""))}
-                        })),
+                        Some("image") if skip > 0 => {
+                            skip -= 1;
+                            parts.push(json!({"type": "text", "text": "[An earlier image, no longer shown.]"}));
+                        }
+                        Some("image") => {
+                            if let Some(p) = image_part(b) {
+                                parts.push(p);
+                            }
+                        }
                         Some("tool_result") => {
                             let content = match &b["content"] {
                                 Value::String(s) => s.clone(),
@@ -47,6 +60,17 @@ pub fn to_chat_messages(system: &str, messages: &[Message]) -> Vec<Value> {
                                 _ => String::new(),
                             };
                             out.push(json!({"role": "tool", "tool_call_id": b["tool_use_id"], "content": content}));
+                            // Chat Completions tool results are text only, so a screenshot a tool
+                            // returned follows as a user message.
+                            if let Value::Array(items) = &b["content"] {
+                                for img in items.iter().filter(|i| i["type"] == "image") {
+                                    if skip > 0 {
+                                        skip -= 1;
+                                    } else if let Some(p) = image_part(img) {
+                                        parts.push(p);
+                                    }
+                                }
+                            }
                         }
                         _ => {}
                     }
@@ -75,14 +99,43 @@ pub fn to_chat_messages(system: &str, messages: &[Message]) -> Vec<Value> {
     out
 }
 
+fn image_part(b: &Value) -> Option<Value> {
+    (b["source"]["type"] == "base64").then(|| {
+        json!({
+            "type": "image_url",
+            "image_url": {"url": format!("data:{};base64,{}", b["source"]["media_type"].as_str().unwrap_or("image/png"), b["source"]["data"].as_str().unwrap_or(""))}
+        })
+    })
+}
+
+fn count_images(b: &Value) -> usize {
+    match b["type"].as_str() {
+        Some("image") => 1,
+        Some("tool_result") => b["content"].as_array().map(|a| a.iter().filter(|i| i["type"] == "image").count()).unwrap_or(0),
+        _ => 0,
+    }
+}
+
+/// The gateway's error message, or a fallback.
+fn gateway_error(status: u16, body: &str) -> LumoError {
+    let v: Value = serde_json::from_str(body).unwrap_or_default();
+    let msg = v["error"].as_str().map(String::from).unwrap_or_else(|| format!("Lumo's model service answered with HTTP {status}."));
+    match (status, v["code"].as_str()) {
+        (_, Some("plan_limit")) | (402, _) => LumoError::PlanLimit(msg),
+        (_, Some("license_invalid")) | (401 | 403, _) => LumoError::Denied(msg),
+        (_, Some("invalid")) | (400 | 413, _) => LumoError::Invalid(msg),
+        _ => LumoError::Unavailable(msg),
+    }
+}
+
 fn text_of(blocks: &[Value]) -> String {
     blocks.iter().filter(|b| b["type"] == "text").filter_map(|b| b["text"].as_str()).collect::<Vec<_>>().join("\n")
 }
 
 #[async_trait]
-impl ModelProvider for OpenAiCompatible {
+impl ModelProvider for LumoCloud {
     fn name(&self) -> &'static str {
-        "openai_compatible"
+        "lumo"
     }
 
     async fn complete(&self, req: &ModelRequest, sink: EventSink<'_>, cancel: &CancellationToken) -> Result<ModelResponse> {
@@ -92,10 +145,9 @@ impl ModelProvider for OpenAiCompatible {
             .map(|t| json!({"type": "function", "function": {"name": t.name, "description": t.description, "parameters": t.input_schema}}))
             .collect();
         let mut body = json!({
-            "model": self.model,
+            "model": req.model,
             "stream": true,
-            "stream_options": {"include_usage": true},
-            "max_tokens": req.max_tokens.min(16384),
+            "max_tokens": req.max_tokens.min(8192),
             "messages": to_chat_messages(&req.system, &req.messages),
         });
         if !tools.is_empty() {
@@ -104,8 +156,8 @@ impl ModelProvider for OpenAiCompatible {
 
         let mut attempt = 0;
         let resp = loop {
-            let mut rb = self.http.post(format!("{}/chat/completions", self.base_url)).json(&body);
-            if let Some(k) = &self.api_key {
+            let mut rb = self.http.post(format!("{}/api/chat", self.base_url)).header("X-Lumo-Install", &self.install_id).json(&body);
+            if let Some(k) = &self.license_key {
                 rb = rb.bearer_auth(k);
             }
             let r = tokio::select! {
@@ -114,24 +166,26 @@ impl ModelProvider for OpenAiCompatible {
             };
             match r {
                 Ok(r) if r.status().is_success() => break r,
-                Ok(r) if retryable_status(r.status().as_u16()) && attempt < 3 => {
-                    attempt += 1;
-                    let ra = r.headers().get("retry-after").and_then(|v| v.to_str().ok()).map(String::from);
-                    tokio::time::sleep(retry_delay(attempt, ra.as_deref())).await;
-                }
                 Ok(r) => {
-                    let status = r.status();
+                    let status = r.status().as_u16();
+                    let ra = r.headers().get("retry-after").and_then(|v| v.to_str().ok()).map(String::from);
                     let text = r.text().await.unwrap_or_default();
-                    return Err(LumoError::Provider(format!("The model endpoint returned {status}: {}", crate::util::preview(&text, 300))));
+                    let err = gateway_error(status, &text);
+                    // Busy models and short outages are retried; plan limits and bad requests are not.
+                    if matches!(err, LumoError::Unavailable(_)) && matches!(status, 429 | 500 | 502 | 503 | 504) && attempt < 3 {
+                        attempt += 1;
+                        tokio::time::sleep(retry_delay(attempt, ra.as_deref())).await;
+                        continue;
+                    }
+                    return Err(err);
                 }
                 Err(e) if attempt < 3 && (e.is_connect() || e.is_timeout()) => {
                     attempt += 1;
                     tokio::time::sleep(retry_delay(attempt, None)).await;
                 }
                 Err(e) => {
-                    return Err(LumoError::Provider(format!(
-                        "Could not reach the model endpoint at {} ({e}). Is the local model server running?",
-                        self.base_url
+                    return Err(LumoError::Unavailable(format!(
+                        "Could not reach Lumo's model service. Check your internet connection. ({e})"
                     )))
                 }
             }
@@ -141,6 +195,7 @@ impl ModelProvider for OpenAiCompatible {
         let mut calls: Vec<(String, String, String)> = Vec::new(); // id, name, arguments
         let mut finish = String::from("stop");
         let mut usage = Usage::default();
+        let mut served: Option<String> = None;
         let mut events = Box::pin(super::sse::events(resp.bytes_stream()));
         loop {
             let next = tokio::select! {
@@ -153,6 +208,15 @@ impl ModelProvider for OpenAiCompatible {
                 break;
             }
             let Ok(d) = serde_json::from_str::<Value>(&ev.data) else { continue };
+            if let Some(e) = d.get("error").filter(|e| e.is_object()) {
+                return Err(LumoError::Provider(format!(
+                    "The model stopped with an error: {}",
+                    e["message"].as_str().unwrap_or("unknown error")
+                )));
+            }
+            if served.is_none() {
+                served = d["model"].as_str().map(String::from);
+            }
             if let Some(u) = d.get("usage").filter(|u| u.is_object()) {
                 usage.input_tokens = u["prompt_tokens"].as_u64().unwrap_or(0);
                 usage.output_tokens = u["completion_tokens"].as_u64().unwrap_or(0);
@@ -211,15 +275,15 @@ impl ModelProvider for OpenAiCompatible {
             _ => "end_turn",
         }
         .to_string();
-        Ok(ModelResponse { content, stop_reason, stop_details: None, usage, model: self.model.clone() })
+        Ok(ModelResponse { content, stop_reason, stop_details: None, usage, model: served.unwrap_or_else(|| req.model.clone()) })
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::model::{ServerTools, ToolDef};
-    use wiremock::matchers::{method, path};
+    use crate::model::ToolDef;
+    use wiremock::matchers::{body_partial_json, header, method, path};
     use wiremock::{Mock, MockServer, ResponseTemplate};
 
     #[test]
@@ -240,35 +304,83 @@ mod tests {
         assert_eq!(out[3], json!({"role": "tool", "tool_call_id": "t1", "content": "a.txt"}));
     }
 
+    #[test]
+    fn sends_only_the_latest_images_and_screenshots_from_tools() {
+        let img = |d: &str| json!({"type": "image", "source": {"type": "base64", "media_type": "image/png", "data": d}});
+        let msgs = vec![
+            Message::user(vec![json!({"type": "text", "text": "look"}), img("A"), img("B")]),
+            Message::assistant(vec![json!({"type": "tool_use", "id": "s1", "name": "take_screenshot", "input": {}})]),
+            Message::user(vec![
+                json!({"type": "tool_result", "tool_use_id": "s1", "content": [{"type": "text", "text": "Screen"}, img("C")]}),
+            ]),
+            Message::assistant(vec![json!({"type": "tool_use", "id": "s2", "name": "take_screenshot", "input": {}})]),
+            Message::user(vec![json!({"type": "tool_result", "tool_use_id": "s2", "content": [img("D")]})]),
+        ];
+        let out = to_chat_messages("sys", &msgs);
+        let urls: Vec<String> = out
+            .iter()
+            .filter_map(|m| m["content"].as_array())
+            .flatten()
+            .filter_map(|p| p["image_url"]["url"].as_str().map(String::from))
+            .collect();
+        assert_eq!(urls, ["data:image/png;base64,B", "data:image/png;base64,C", "data:image/png;base64,D"]);
+        assert_eq!(out[1]["content"][1]["text"], "[An earlier image, no longer shown.]");
+        // The screenshot follows its tool message.
+        assert_eq!(out[3], json!({"role": "tool", "tool_call_id": "s1", "content": "Screen"}));
+        assert_eq!(out[4]["role"], "user");
+    }
+
+    fn request() -> ModelRequest {
+        ModelRequest {
+            model: "auto".into(),
+            system: "s".into(),
+            tools: vec![ToolDef { name: "list_directory".into(), description: "d".into(), input_schema: json!({"type": "object"}) }],
+            messages: vec![Message::user(vec![json!({"type": "text", "text": "ls"})])],
+            max_tokens: 32000,
+        }
+    }
+
     #[tokio::test]
-    async fn streams_text_and_tool_calls() {
+    async fn streams_text_and_tool_calls_through_the_gateway() {
         let server = MockServer::start().await;
         let chunks = [
-            json!({"choices": [{"delta": {"content": "Sure. "}}]}),
+            json!({"model": "anthropic/claude-haiku-5.5", "choices": [{"delta": {"content": "Sure. "}}]}),
             json!({"choices": [{"delta": {"tool_calls": [{"index": 0, "id": "c1", "function": {"name": "list_directory", "arguments": "{\"pa"}}]}}]}),
             json!({"choices": [{"delta": {"tool_calls": [{"index": 0, "function": {"arguments": "th\":\"/tmp\"}"}}]}, "finish_reason": "tool_calls"}]}),
             json!({"choices": [], "usage": {"prompt_tokens": 10, "completion_tokens": 7}}),
         ];
         let body: String = chunks.iter().map(|c| format!("data: {c}\n\n")).collect::<String>() + "data: [DONE]\n\n";
         Mock::given(method("POST"))
-            .and(path("/v1/chat/completions"))
+            .and(path("/api/chat"))
+            .and(header("x-lumo-install", "0123456789abcdef0123456789abcdef"))
+            .and(header("authorization", "Bearer mem_ABC123"))
+            .and(body_partial_json(json!({"model": "auto", "max_tokens": 8192})))
             .respond_with(ResponseTemplate::new(200).set_body_raw(body, "text/event-stream"))
             .mount(&server)
             .await;
-        let p = OpenAiCompatible::new(reqwest::Client::new(), &format!("{}/v1", server.uri()), None, "llama".into());
-        let req = ModelRequest {
-            model: "x".into(),
-            system: "s".into(),
-            tools: vec![ToolDef { name: "list_directory".into(), description: "d".into(), input_schema: json!({"type": "object"}) }],
-            server_tools: ServerTools::default(),
-            messages: vec![Message::user(vec![json!({"type": "text", "text": "ls"})])],
-            max_tokens: 1000,
-            effort: "low".into(),
-        };
-        let r = p.complete(&req, &|_| {}, &CancellationToken::new()).await.unwrap();
+        let p = LumoCloud::new(reqwest::Client::new(), &server.uri(), "0123456789abcdef0123456789abcdef".into(), Some("mem_ABC123".into()));
+        let r = p.complete(&request(), &|_| {}, &CancellationToken::new()).await.unwrap();
         assert_eq!(r.stop_reason, "tool_use");
         assert_eq!(r.content[0]["text"], "Sure. ");
         assert_eq!(r.content[1]["input"], json!({"path": "/tmp"}));
         assert_eq!(r.usage.output_tokens, 7);
+        assert_eq!(r.model, "anthropic/claude-haiku-5.5");
+    }
+
+    #[tokio::test]
+    async fn gateway_refusals_become_plan_limits_and_clear_messages() {
+        let server = MockServer::start().await;
+        Mock::given(method("POST"))
+            .respond_with(ResponseTemplate::new(402).set_body_json(
+                json!({"code": "plan_limit", "error": "You've used all of this month's Lite usage. It resets on November 1."}),
+            ))
+            .mount(&server)
+            .await;
+        let p = LumoCloud::new(reqwest::Client::new(), &server.uri(), "0".repeat(32), None);
+        let err = p.complete(&request(), &|_| {}, &CancellationToken::new()).await.unwrap_err();
+        assert_eq!(err.code(), "plan_limit");
+        assert_eq!(err.to_string(), "You've used all of this month's Lite usage. It resets on November 1.");
+        assert_eq!(gateway_error(403, r#"{"code":"license_invalid","error":"Lapsed."}"#).code(), "denied");
+        assert_eq!(gateway_error(502, "<html>").to_string(), "Lumo's model service answered with HTTP 502.");
     }
 }

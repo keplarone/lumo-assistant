@@ -3,10 +3,9 @@ import { FileText, RefreshCw } from 'lucide-react';
 import { useCallback, useEffect, useState } from 'react';
 import { dateTime } from '../../lib/format';
 import { api, errorMessage, type AuditEntry, type IntegrationStatus } from '../../lib/ipc';
-import { navigate, routeHref } from '../../lib/router';
+import { routeHref } from '../../lib/router';
 import { useApp } from '../../state/app';
 import appIcon from '../../assets/app-icon-512.png';
-import { ExternalAnchor, useLocalStatus } from '../../components/LocalModels';
 import { OPEN_SOURCE } from './Info';
 import { SectionHeader } from './parts';
 
@@ -22,8 +21,6 @@ const STATUS: Record<string, { label: string; tone: 'success' | 'neutral' | 'acc
 
 /** Integrations the user connects here with a token, then Lumo verifies it. */
 const VERIFIABLE = new Set(['github', 'netlify', 'brave']);
-/** Model keys live in the Model section. */
-const MODEL_IDS = new Set(['anthropic', 'openai_compatible']);
 
 export function IntegrationsSection() {
   const app = useApp();
@@ -122,15 +119,6 @@ function IntegrationRow({ item, onChanged }: { item: IntegrationStatus; onChange
         )}
       </div>
       <p className="lm-integration-detail">{item.detail}</p>
-      {MODEL_IDS.has(item.id) && (
-        <a
-          className="lm-link"
-          href={routeHref({ name: 'settings', section: 'model' })}
-          onClick={() => navigate({ name: 'settings', section: 'model' })}
-        >
-          Set up in Model settings
-        </a>
-      )}
       {verifiable && item.status !== 'connected' && (
         <form
           className="lm-secret-form"
@@ -373,9 +361,6 @@ export function AboutSection() {
 }
 
 function Licenses() {
-  const local = useLocalStatus().status;
-  // One row per distinct base model; the catalog comes from the Rust core.
-  const models = local ? [...new Map(local.models.map((m) => [m.baseModel, m])).values()] : [];
   return (
     <>
       <h3 className="lm-section-title lm-about-subtitle">Open-source software</h3>
@@ -392,23 +377,6 @@ function Licenses() {
           <dd>MIT or Apache-2.0, listed with each release</dd>
         </div>
       </dl>
-      <h3 className="lm-section-title lm-about-subtitle">On-device models</h3>
-      {models.length > 0 ? (
-        <dl className="lm-about lm-licenses">
-          {models.map((m) => (
-            <div key={m.baseModel}>
-              <dt>{m.baseModel}</dt>
-              <dd>
-                <ExternalAnchor href={m.licenseUrl}>{m.license}</ExternalAnchor>
-              </dd>
-            </div>
-          ))}
-        </dl>
-      ) : (
-        <p className="lm-page-sub">
-          The on-device models Lumo offers are open models released under the Apache-2.0 license.
-        </p>
-      )}
     </>
   );
 }

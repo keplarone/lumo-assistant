@@ -1,4 +1,4 @@
-//! Publishing tools: web search for local models, GitHub repositories and Netlify deploys.
+//! Publishing tools: web search through Brave, GitHub repositories and Netlify deploys.
 
 use super::{object_schema, ToolCtx, ToolOutput, TypedTool};
 use crate::agent::events::ActionPreview;
