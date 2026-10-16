@@ -29,8 +29,8 @@ pub struct ModelFile {
 
 /// The files Lumo downloads, pinned by size and SHA-256 (checked in CI by check_model_pins.py).
 pub const FILES: &[ModelFile] = &[
-    ModelFile { name: "config.json", size_bytes: 1_983, sha256: "0000000000000000000000000000000000000000000000000000000000000000" },
-    ModelFile { name: "tokenizer.json", size_bytes: 2_480_466, sha256: "0000000000000000000000000000000000000000000000000000000000000000" },
+    ModelFile { name: "config.json", size_bytes: 1_983, sha256: "a153c53883a6799b6f056b4a8d1a515c9926d03994682ba88a7616618d7da0c1" },
+    ModelFile { name: "tokenizer.json", size_bytes: 2_480_466, sha256: "27fc476bfe7f17299480be2273fc0608e4d5a99aba2ab5dec5374b4482d1a566" },
     ModelFile {
         name: "model.safetensors",
         size_bytes: 290_403_936,
