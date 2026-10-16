@@ -11,6 +11,7 @@ pub mod error;
 pub mod integrations;
 pub mod license;
 pub mod local_models;
+pub mod location;
 pub mod model;
 pub mod plans;
 pub mod policy;
@@ -192,6 +193,7 @@ pub fn run() {
             commands::disconnect_integration,
             commands::transcribe_audio,
             commands::open_external_url,
+            commands::detect_location,
             commands::license_status,
             commands::activate_license,
             commands::remove_license,

@@ -10,6 +10,7 @@ pub mod clipboard;
 pub mod computer;
 pub mod files;
 pub mod journal;
+pub mod location;
 pub mod memory;
 pub mod ordering;
 pub mod places;
@@ -184,6 +185,7 @@ impl Registry {
             Arc::new(Typed(web::FetchUrl)),
             Arc::new(Typed(web::OpenUrl)),
             Arc::new(Typed(places::FindPlaces)),
+            Arc::new(Typed(location::GetCurrentLocation)),
             Arc::new(Typed(places::PrepareCheckoutHandoff)),
             Arc::new(Typed(ordering::StartOrder)),
             Arc::new(Typed(ordering::CartReady)),
