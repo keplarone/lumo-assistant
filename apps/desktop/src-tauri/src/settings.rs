@@ -14,16 +14,9 @@ pub struct Settings {
     pub user_name: Option<String>,
     /// "system", "dark" or "light".
     pub theme: String,
-    /// "anthropic", "openai_compatible" or "local" (on-device models run by Lumo's built-in engine).
-    pub provider: String,
+    /// The OpenRouter model new conversations use, from the plan's list (models.rs), or "auto" for the
+    /// plan's default. Lumo's model gateway refuses models the plan doesn't include.
     pub model: String,
-    /// "low", "medium", "high" or "xhigh".
-    pub effort: String,
-    pub anthropic_base_url: String,
-    pub openai_base_url: String,
-    pub openai_model: String,
-    /// Catalog id of the chosen on-device model; empty until one is downloaded and chosen.
-    pub local_model: String,
     /// Long-term memory is off until the user turns it on.
     pub memory_enabled: bool,
     pub web_search_enabled: bool,
@@ -53,7 +46,7 @@ pub struct Settings {
     pub wake_word_enabled: bool,
     /// How spoken replies sound: "lumo" (the mascot's cute voice) or "system" (the plain system voice).
     pub voice_style: String,
-    /// "free", "lite", "pro" or "unlimited". Only the license check changes it; saving settings from the UI keeps it.
+    /// "free", "lite" or "pro". Only the license check changes it; saving settings from the UI keeps it.
     pub plan: String,
     pub plan_checked_at: Option<String>,
 }
@@ -73,13 +66,7 @@ impl Default for Settings {
             onboarded: false,
             user_name: None,
             theme: "system".into(),
-            provider: "local".into(),
-            model: "claude-opus-5-5".into(),
-            effort: "medium".into(),
-            anthropic_base_url: "https://api.anthropic.com".into(),
-            openai_base_url: "http://localhost:11434/v1".into(),
-            openai_model: "llama3.1".into(),
-            local_model: String::new(),
+            model: "auto".into(),
             memory_enabled: false,
             web_search_enabled: true,
             global_shortcut: "Alt+Space".into(),
@@ -106,27 +93,17 @@ impl Default for Settings {
     }
 }
 
-pub const MODELS: &[(&str, &str)] =
-    &[("claude-opus-5-5", "Claude Opus 5.5"), ("claude-sonnet-5-5", "Claude Sonnet 5.5"), ("claude-haiku-5-5", "Claude Haiku 5.5")];
-
 impl Settings {
     pub fn validate(&self) -> Result<()> {
         if !["system", "dark", "light"].contains(&self.theme.as_str()) {
             return Err(invalid("theme must be system, dark or light"));
         }
-        if !["anthropic", "openai_compatible", "local"].contains(&self.provider.as_str()) {
-            return Err(invalid("unknown provider"));
-        }
-        if !["low", "medium", "high", "xhigh"].contains(&self.effort.as_str()) {
-            return Err(invalid("effort must be low, medium, high or xhigh"));
-        }
-        check_endpoint(&self.anthropic_base_url, false)?;
-        check_endpoint(&self.openai_base_url, true)?;
         check_endpoint(&self.stt_base_url, true)?;
-        if self.model.trim().is_empty() || self.model.len() > 100 {
-            return Err(invalid("model name is required"));
+        if self.model.is_empty() || self.model.len() > 100 || !self.model.chars().all(|c| c.is_ascii_alphanumeric() || "/._:-".contains(c))
+        {
+            return Err(invalid("choose a model from the list"));
         }
-        if !["free", "lite", "pro", "unlimited"].contains(&self.plan.as_str()) {
+        if !["free", "lite", "pro"].contains(&self.plan.as_str()) {
             return Err(invalid("unknown plan"));
         }
         if !(1..=200).contains(&self.max_tool_calls_per_run) {
@@ -151,18 +128,7 @@ impl Settings {
     }
 }
 
-impl Settings {
-    /// The model a new conversation uses, for the active provider.
-    pub fn chat_model(&self) -> String {
-        match self.provider.as_str() {
-            "local" => self.local_model.clone(),
-            "openai_compatible" => self.openai_model.clone(),
-            _ => self.model.clone(),
-        }
-    }
-}
-
-/// Endpoints must be HTTPS, except plain HTTP on the local machine (for local models).
+/// Endpoints must be HTTPS, except plain HTTP on the local machine (a speech-to-text server the user runs).
 fn check_endpoint(raw: &str, allow_local_http: bool) -> Result<()> {
     let u = url::Url::parse(raw).map_err(|_| invalid(format!("'{raw}' is not a valid URL")))?;
     let local = matches!(u.host_str(), Some("localhost") | Some("127.0.0.1") | Some("[::1]"));
@@ -174,12 +140,8 @@ fn check_endpoint(raw: &str, allow_local_http: bool) -> Result<()> {
 }
 
 /// Settings that say where a saved key is sent: (secret name, what the address is for, the address).
-fn key_destinations(s: &Settings) -> [(&'static str, &'static str, &str); 3] {
-    [
-        ("anthropic_api_key", "Anthropic API address", s.anthropic_base_url.as_str()),
-        ("openai_compatible_api_key", "OpenAI-compatible model address", s.openai_base_url.as_str()),
-        ("stt_api_key", "Speech-to-text address", s.stt_base_url.as_str()),
-    ]
+fn key_destinations(s: &Settings) -> [(&'static str, &'static str, &str); 1] {
+    [("stt_api_key", "Speech-to-text address", s.stt_base_url.as_str())]
 }
 
 fn origin_of(raw: &str) -> String {
@@ -223,10 +185,19 @@ pub async fn confirm_key_destinations(core: &Core, old: &Settings, new: &Setting
 
 pub fn load(db: &Db) -> Result<Settings> {
     let raw: Option<String> = db.conn().query_row("SELECT value FROM settings WHERE key = 'app'", [], |r| r.get(0)).ok();
-    Ok(match raw {
+    let mut s: Settings = match raw {
         Some(s) => serde_json::from_str(&s).unwrap_or_default(),
         None => Settings::default(),
-    })
+    };
+    // Settings saved before Lumo moved to OpenRouter: on-device and Claude model names, and the
+    // retired Unlimited plan (its license no longer validates, so it is Free until a new one is added).
+    if !["free", "lite", "pro"].contains(&s.plan.as_str()) {
+        s.plan = "free".into();
+    }
+    if !s.model.contains('/') && s.model != "auto" {
+        s.model = "auto".into();
+    }
+    Ok(s)
 }
 
 pub fn save(db: &Db, s: &Settings) -> Result<()> {
@@ -258,15 +229,15 @@ mod tests {
         let platform = std::sync::Arc::new(FakePlatform::default());
         let (core, _d) = core_with(platform.clone());
         let old = Settings::default();
-        let evil = Settings { anthropic_base_url: "https://collector.example.com".into(), ..old.clone() };
+        let evil = Settings { stt_base_url: "https://collector.example.com/v1".into(), ..old.clone() };
 
         // No key saved yet: nothing to leak, no dialog.
         confirm_key_destinations(&core, &old, &evil).await.unwrap();
         assert!(platform.confirms.lock().is_empty());
 
-        core.secrets.set("anthropic_api_key", "sk-ant-test").unwrap();
+        core.secrets.set("stt_api_key", "sk-stt").unwrap();
         // Same origin (only the path changed, or nothing changed): no dialog.
-        let same = Settings { anthropic_base_url: "https://api.anthropic.com/".into(), ..old.clone() };
+        let same = Settings { stt_base_url: "https://api.openai.com/v1/".into(), ..old.clone() };
         confirm_key_destinations(&core, &old, &same).await.unwrap();
         assert!(platform.confirms.lock().is_empty());
 
@@ -274,32 +245,46 @@ mod tests {
         *platform.confirm.lock() = false;
         assert!(confirm_key_destinations(&core, &old, &evil).await.is_err());
         let shown = platform.confirms.lock().last().cloned().unwrap();
-        assert!(shown.details.iter().any(|(_, v)| v == "https://collector.example.com"), "{shown:?}");
+        assert!(shown.details.iter().any(|(_, v)| v == "https://collector.example.com/v1"), "{shown:?}");
 
         // Confirmed: allowed.
         *platform.confirm.lock() = true;
         confirm_key_destinations(&core, &old, &evil).await.unwrap();
-
-        // The other keyed endpoints are covered too.
-        core.secrets.set("stt_api_key", "sk-stt").unwrap();
-        let stt = Settings { stt_base_url: "https://other.example.com/v1".into(), ..old.clone() };
-        assert_eq!(new_key_destinations(&old, &stt, core.secrets.as_ref()).len(), 1);
     }
 
     #[test]
     fn rejects_insecure_remote_endpoints() {
-        let mut s = Settings { anthropic_base_url: "http://evil.example.com".into(), ..Default::default() };
+        let mut s = Settings { stt_base_url: "http://evil.example.com".into(), ..Default::default() };
         assert!(s.validate().is_err());
-        s.anthropic_base_url = "https://gateway.example.com".into();
-        s.openai_base_url = "http://localhost:1234/v1".into();
+        s.stt_base_url = "http://localhost:1234/v1".into();
         assert!(s.validate().is_ok());
     }
 
     #[test]
     fn accepts_every_plan_and_nothing_else() {
-        for plan in ["free", "lite", "pro", "unlimited"] {
+        for plan in ["free", "lite", "pro"] {
             assert!(Settings { plan: plan.into(), ..Default::default() }.validate().is_ok(), "{plan}");
         }
-        assert!(Settings { plan: "platinum".into(), ..Default::default() }.validate().is_err());
+        for plan in ["unlimited", "platinum"] {
+            assert!(Settings { plan: plan.into(), ..Default::default() }.validate().is_err(), "{plan}");
+        }
+        for model in ["auto", "anthropic/claude-haiku-5.5", "nvidia/nemotron-3.5-super-vl:free"] {
+            assert!(Settings { model: model.into(), ..Default::default() }.validate().is_ok(), "{model}");
+        }
+        assert!(Settings { model: "a b".into(), ..Default::default() }.validate().is_err());
+    }
+
+    #[test]
+    fn settings_from_before_openrouter_load_cleanly() {
+        let db = Db::memory().unwrap();
+        db.conn()
+            .execute(
+                "INSERT INTO settings(key, value) VALUES ('app', ?1)",
+                [r#"{"provider":"local","localModel":"qwen3:8b","model":"claude-opus-5-5","effort":"high","plan":"unlimited","memoryEnabled":true}"#],
+            )
+            .unwrap();
+        let s = load(&db).unwrap();
+        assert_eq!((s.model.as_str(), s.plan.as_str(), s.memory_enabled), ("auto", "free", true));
+        save(&db, &s).unwrap();
     }
 }

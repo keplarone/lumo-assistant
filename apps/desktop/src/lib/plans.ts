@@ -1,24 +1,23 @@
 /**
- * How the Plans screen and chat describe plans. Every limit comes from Rust's plans table through
- * plan_usage; only prices and wording live here. Rust enforces the limits, this only displays them.
+ * How the Plans screen and chat describe plans. Every limit and price comes from Rust's plans table
+ * and the model gateway's catalog through plan_usage; only wording lives here. The gateway and Rust
+ * enforce the limits, this only displays them.
  */
-import type { LicenseStatus, PlanId, PlanInfo } from './ipc';
+import type { CatalogModel, LicenseStatus, PlanId, PlanInfo } from './ipc';
 
-export const PLAN_ORDER: PlanId[] = ['free', 'lite', 'pro', 'unlimited'];
-
-export const PLAN_PRICES: Record<PlanId, { price: string; period?: string }> = {
-  free: { price: '$0' },
-  lite: { price: '$19.99', period: '/month' },
-  pro: { price: '$49.99', period: '/month' },
-  unlimited: { price: '$124.99', period: '/month' },
-};
+export const PLAN_ORDER: PlanId[] = ['free', 'lite', 'pro'];
 
 const NAMES: Record<PlanId, string> = {
   free: 'Free',
   lite: 'Lumo Lite',
   pro: 'Lumo Pro',
-  unlimited: 'Lumo Unlimited',
 };
+
+/** "$0", or "$19.99" with "/month". */
+export function planPrice(p: PlanInfo): { price: string; period?: string } {
+  if (p.priceUsd <= 0) return { price: '$0' };
+  return { price: `$${p.priceUsd.toFixed(2)}`, period: '/month' };
+}
 
 export function asPlanId(p: string | null | undefined): PlanId {
   return PLAN_ORDER.includes(p as PlanId) ? (p as PlanId) : 'free';
@@ -47,15 +46,14 @@ export function checkoutUrl(lic: LicenseStatus | null, p: PlanId): string | null
   if (!lic) return null;
   if (p === 'lite') return lic.checkoutLite;
   if (p === 'pro') return lic.checkoutPro;
-  if (p === 'unlimited') return lic.checkoutUnlimited;
   return null;
 }
 
 /** "November 1", in the user's locale. */
-export function resetDate(iso: string): string {
-  const d = new Date(iso);
+export function resetDate(iso: string | null): string {
+  const d = new Date(iso ?? '');
   if (Number.isNaN(d.getTime())) return 'the 1st of next month';
-  return d.toLocaleDateString([], { month: 'long', day: 'numeric' });
+  return d.toLocaleDateString([], { month: 'long', day: 'numeric', timeZone: 'UTC' });
 }
 
 function list(items: string[]): string {
@@ -63,24 +61,20 @@ function list(items: string[]): string {
   return `${items.slice(0, -1).join(', ')} and ${items[items.length - 1]}`;
 }
 
-/** "30× more usage than Free", "Unlimited usage". */
-export function usageLine(plan: PlanInfo, plans: PlanInfo[]): string {
-  if (plan.monthlyTokens === null) return 'Unlimited usage';
-  const free = plans.find((p) => p.id === 'free')?.monthlyTokens;
-  if (plan.id === 'free' || !free) return 'A monthly usage allowance, renewed on the 1st';
-  return `${Math.round(plan.monthlyTokens / free)}× more usage than Free`;
-}
+const USAGE: Record<PlanId, string> = {
+  free: 'Free AI models, with a monthly allowance',
+  lite: 'Faster, smarter models and a much bigger monthly allowance',
+  pro: 'The strongest models and about three times Lite’s allowance',
+};
 
 /** What a plan adds over the one before it (or everything, for the first). */
 export function planFeatures(plans: PlanInfo[], index: number): string[] {
   const p = plans[index]!;
   const prev = index > 0 ? plans[index - 1] : undefined;
-  const out = [usageLine(p, plans)];
-  if (!prev || prev.localModels.join() !== p.localModels.join())
-    out.push(
-      prev ? `All on-device models: ${list(p.localModels)}` : `On-device models: ${list(p.localModels)}`,
-    );
-  if (p.cloudModels && !prev?.cloudModels) out.push('Cloud models: Anthropic or any compatible server');
+  const out = [USAGE[p.id]];
+  const before = new Set(prev?.models.map((m) => m.id) ?? []);
+  const added = p.models.filter((m) => !before.has(m.id)).map((m) => m.name);
+  if (added.length) out.push(`${prev ? 'Adds' : 'Models:'} ${list(added)}`);
   if (!prev || prev.automations !== p.automations)
     out.push(
       p.automations === null
@@ -97,4 +91,19 @@ export function planFeatures(plans: PlanInfo[], index: number): string[] {
       'The Lumo owl',
     );
   return out;
+}
+
+/** The model "Auto" would use, and the plan's models, for the model picker. */
+export function planModels(
+  plans: PlanInfo[],
+  plan: PlanId,
+): { auto: CatalogModel | null; models: CatalogModel[] } {
+  const p = plans.find((x) => x.id === plan);
+  const models = p?.models ?? [];
+  return { auto: models.find((m) => m.id === p?.defaultModel) ?? models[0] ?? null, models };
+}
+
+/** A model's display name from any plan, or its id. */
+export function modelName(plans: PlanInfo[], id: string): string {
+  return plans.flatMap((p) => p.models).find((m) => m.id === id)?.name ?? id;
 }

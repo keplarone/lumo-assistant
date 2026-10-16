@@ -1,15 +1,17 @@
 //! On-device speech-to-text: OpenAI's Whisper (base, multilingual, MIT licensed) run by Lumo itself,
 //! so voice input is free and the recording never leaves the computer. The weights are downloaded
-//! once from Hugging Face, pinned to a revision and checked against their SHA-256, like the chat
-//! models in `local_models`. The webview decodes the recording to 16 kHz PCM, which works the same
-//! on every platform Lumo runs on.
+//! once from Hugging Face, pinned to a revision and checked against their SHA-256. The webview
+//! decodes the recording to 16 kHz PCM, which works the same on every platform Lumo runs on.
 
+mod download;
 pub mod whisper;
+
+pub use download::DOWNLOAD_HOST;
 
 use crate::core::Core;
 use crate::error::{invalid, LumoError, Result};
-use crate::local_models::{download_host, download_pinned, PinnedFile};
 use base64::Engine as _;
+use download::{download_host, download_pinned, PinnedFile};
 use parking_lot::Mutex;
 use serde::Serialize;
 use serde_json::json;
@@ -27,7 +29,7 @@ pub struct ModelFile {
     pub sha256: &'static str,
 }
 
-/// The files Lumo downloads, pinned by size and SHA-256 (checked in CI by check_model_pins.py).
+/// The files Lumo downloads, pinned by size and SHA-256 (checked in CI by check_speech_pins.py).
 pub const FILES: &[ModelFile] = &[
     ModelFile { name: "config.json", size_bytes: 1_983, sha256: "a153c53883a6799b6f056b4a8d1a515c9926d03994682ba88a7616618d7da0c1" },
     ModelFile { name: "tokenizer.json", size_bytes: 2_480_466, sha256: "27fc476bfe7f17299480be2273fc0608e4d5a99aba2ab5dec5374b4482d1a566" },
@@ -42,7 +44,7 @@ pub const FILES: &[ModelFile] = &[
 const IDLE_UNLOAD: Duration = Duration::from_secs(10 * 60);
 
 pub fn dir(core: &Core) -> PathBuf {
-    crate::local_models::models_dir(core).join("whisper-base")
+    download::models_dir(core).join("whisper-base")
 }
 
 pub fn total_bytes() -> u64 {

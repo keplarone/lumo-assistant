@@ -1494,10 +1494,6 @@ a.lm-row-main:hover .lm-row-title {
   width: 220px;
   height: 180px;
 }
-.lm-onboarding-card:has(.lm-local) .lm-onboarding-mascot {
-  width: 150px;
-  height: 120px;
-}
 .lm-steps {
   display: flex;
   gap: var(--lu-space-1-5);
@@ -2182,93 +2178,6 @@ a.lm-row-main:hover .lm-row-title {
   .lm-question[data-state='pending'] {
     border-color: Highlight;
   }
-}
-
-/* ── On-device models ─────────────────────────────────────────────────────────────────────────── */
-
-.lm-local-block {
-  justify-items: stretch;
-}
-.lm-local {
-  display: grid;
-  gap: var(--lu-space-3);
-  width: 100%;
-}
-.lm-local-intro {
-  color: var(--lu-text-secondary);
-  font-size: var(--lu-text-sm);
-  line-height: var(--lu-leading-relaxed);
-}
-.lm-local[data-variant='onboarding'] .lm-local-intro {
-  text-align: center;
-}
-.lm-local-runtime {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: var(--lu-space-2);
-}
-.lm-local-list {
-  display: grid;
-  gap: var(--lu-space-2);
-  margin: 0;
-  padding: 0;
-  list-style: none;
-}
-.lm-local[data-variant='onboarding'] .lm-local-list {
-  max-height: 18rem;
-  overflow-y: auto;
-}
-.lm-local-model {
-  display: flex;
-  align-items: flex-start;
-  gap: var(--lu-space-3);
-  padding: var(--lu-space-3) var(--lu-space-4);
-  border: 1px solid transparent;
-}
-.lm-local-model[data-selected] {
-  border-color: var(--lu-accent);
-}
-.lm-local-model-main {
-  display: grid;
-  flex: 1;
-  gap: var(--lu-space-1);
-  min-width: 0;
-}
-.lm-local-model-head {
-  display: flex;
-  align-items: center;
-  gap: var(--lu-space-2);
-}
-.lm-local-model-name {
-  font-weight: var(--lu-weight-semibold);
-}
-.lm-local-model-attr {
-  font-size: var(--lu-text-xs);
-  color: var(--lu-text-tertiary);
-}
-.lm-local-license {
-  font-size: inherit;
-}
-.lm-local-model-summary {
-  font-size: var(--lu-text-sm);
-  color: var(--lu-text-secondary);
-}
-.lm-local-model-warn {
-  font-size: var(--lu-text-xs);
-  color: var(--lu-warning);
-}
-.lm-local-progress {
-  display: grid;
-  gap: var(--lu-space-1);
-  margin-top: var(--lu-space-1);
-}
-.lm-local-model-actions {
-  display: flex;
-  flex: none;
-  flex-wrap: wrap;
-  justify-content: flex-end;
-  gap: var(--lu-space-1);
 }
 
 /* ── Plans, help, privacy, about ──────────────────────────────────────────────────────────────── */

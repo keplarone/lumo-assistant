@@ -7,16 +7,15 @@ import {
   errorMessage,
   isApiError,
   on,
-  type Effort,
-  type Provider,
   type SpeechModelProgress,
   type SpeechModelStatus,
 } from '../../lib/ipc';
-import { LocalModels } from '../../components/LocalModels';
+import { asPlanId, planModels, planRank, planShortName } from '../../lib/plans';
 import { routeHref } from '../../lib/router';
 import { speech } from '../../lib/speech';
 import { useApp } from '../../state/app';
 import { captureWakeSample } from '../../state/useWakeWord';
+import { UsageMeter } from './Info';
 import { SecretField, SectionHeader, SettingRow, useSave } from './parts';
 
 function TextSetting({
@@ -64,6 +63,12 @@ export function ModelSection() {
   const app = useApp();
   const save = useSave();
   const s = app.settings;
+  const usage = app.planUsage;
+  const plan = asPlanId(usage?.plan ?? s.plan);
+  const plans = usage?.plans ?? [];
+  const { auto, models } = planModels(plans, plan);
+  const higher = plans.filter((p) => planRank(p.id) > planRank(plan));
+  const included = new Set(models.map((m) => m.id));
   const [testing, setTesting] = useState(false);
   const [result, setResult] = useState<{ ok: boolean; text: string } | null>(null);
 
@@ -79,133 +84,63 @@ export function ModelSection() {
     }
   };
 
+  // The plan's models, then (disabled) the ones a higher plan adds, so people can see what they'd get.
+  const options: { value: string; label: string; disabled?: boolean }[] = [
+    { value: 'auto', label: auto ? `Auto (${auto.name})` : 'Auto' },
+    ...models.map((m) => ({ value: m.id, label: m.name })),
+    ...higher.flatMap((p) =>
+      p.models
+        .filter((m) => !included.has(m.id) && (included.add(m.id), true))
+        .map((m) => ({ value: m.id, label: `${m.name} · ${planShortName(p.id)}`, disabled: true })),
+    ),
+  ];
+  const chosen = models.find((m) => m.id === s.model) ?? (s.model === 'auto' ? auto : null);
+
   return (
     <>
       <SectionHeader
         title="Model"
-        description="The model Lumo plans and acts with. Changes apply to new conversations; existing ones keep the model they started with."
+        description="The AI model Lumo plans and acts with. Changes apply to new conversations."
       />
-      {app.info.keychain && (
-        <Callout tone="danger" title="Keys can’t be saved on this computer">
-          {app.info.keychain}
-        </Callout>
-      )}
-      <SettingRow label="Provider">
-        <SegmentedControl<Provider>
-          label="Provider"
-          value={s.provider}
+      {usage && <UsageMeter usage={usage} />}
+      <SettingRow
+        label="Model"
+        description={chosen?.blurb || 'Auto picks a good model from your plan for you.'}
+      >
+        <Select
+          aria-label="Model"
+          value={options.some((o) => o.value === s.model && !o.disabled) ? s.model : 'auto'}
           onValueChange={(v) => {
             setResult(null);
-            void save({ provider: v });
+            void save({ model: v });
           }}
-          options={[
-            { value: 'local', label: 'On this computer' },
-            { value: 'anthropic', label: 'Anthropic' },
-            { value: 'openai_compatible', label: 'Local or compatible' },
-          ]}
+          options={options}
         />
       </SettingRow>
-      {app.planUsage && !app.planUsage.cloudModels && s.provider !== 'local' && (
-        <Callout tone="warning" title="Your plan uses on-device models">
-          Anthropic and compatible servers are included with Lumo Lite and above, so tasks won’t start with
-          this provider on your plan. Choose “On this computer”, or{' '}
-          <a className="lm-link" href={routeHref({ name: 'settings', section: 'plans' })}>
-            see plans
-          </a>
-          .
+      {chosen && !chosen.vision && (
+        <Callout tone="neutral" title="This model can’t see images">
+          Lumo won’t take screenshots or use your screen with it. Pick another model for tasks on your screen.
         </Callout>
       )}
-      {s.provider === 'local' ? (
-        <div className="lm-setting-block lm-local-block">
-          <LocalModels onSelected={() => setResult(null)} />
-        </div>
-      ) : s.provider === 'anthropic' ? (
-        <>
-          <SettingRow label="Model">
-            <Select
-              aria-label="Model"
-              value={s.model}
-              onValueChange={(v) => void save({ model: v })}
-              options={app.info.models.map(([id, label]) => ({ value: id, label }))}
-            />
-          </SettingRow>
-          <SettingRow
-            label="Effort"
-            description="How much the model thinks before acting. Higher is slower and costs more, and helps with complex tasks."
-          >
-            <SegmentedControl<Effort>
-              label="Effort"
-              value={s.effort}
-              onValueChange={(v) => void save({ effort: v })}
-              options={[
-                { value: 'low', label: 'Low' },
-                { value: 'medium', label: 'Medium' },
-                { value: 'high', label: 'High' },
-                { value: 'xhigh', label: 'Max' },
-              ]}
-            />
-          </SettingRow>
-          <SettingRow
-            label="Web search"
-            description="Let the model search the web and read pages (Anthropic’s built-in tools)."
-          >
-            <Switch
-              checked={s.webSearchEnabled}
-              onCheckedChange={(v) => void save({ webSearchEnabled: v })}
-              aria-label="Web search"
-            />
-          </SettingRow>
-          <SecretField
-            name="anthropic_api_key"
-            label="Anthropic API key"
-            description="Stored in your system keychain. It is never shown again, and only Lumo’s core uses it to call Anthropic."
-            onChanged={() => setResult(null)}
-          />
-          <SettingRow
-            label="API address"
-            description="Change only if you use a gateway. Must be https."
-            htmlFor="anthropic-url"
-          >
-            <TextSetting
-              id="anthropic-url"
-              value={s.anthropicBaseUrl}
-              inputMode="url"
-              onSave={(v) => save({ anthropicBaseUrl: v }, 'Couldn’t save the address')}
-            />
-          </SettingRow>
-        </>
-      ) : (
-        <>
-          <SettingRow
-            label="Server address"
-            description="A model server you run yourself, for example http://localhost:1234/v1 (LM Studio) or http://localhost:11434/v1 (Ollama). Remote servers must use https."
-            htmlFor="openai-url"
-          >
-            <TextSetting
-              id="openai-url"
-              value={s.openaiBaseUrl}
-              inputMode="url"
-              onSave={(v) => save({ openaiBaseUrl: v }, 'Couldn’t save the address')}
-            />
-          </SettingRow>
-          <SettingRow
-            label="Model name"
-            description="As your server lists it. Pick a model that supports tool use."
-            htmlFor="openai-model"
-          >
-            <TextSetting
-              id="openai-model"
-              value={s.openaiModel}
-              onSave={(v) => save({ openaiModel: v }, 'Couldn’t save the model')}
-            />
-          </SettingRow>
-          <SecretField
-            name="openai_compatible_api_key"
-            label="API key (optional)"
-            description="Only if your server needs one. Stored in your system keychain and never shown again."
-          />
-        </>
+      {plan === 'free' && (
+        <Callout tone="neutral" title="Free models are shared">
+          Everyone on Free shares them, so they can be slow or busy at peak times. Lumo Lite and Lumo Pro use
+          faster, smarter models.{' '}
+          <a className="lm-link" href={routeHref({ name: 'settings', section: 'plans' })}>
+            See plans
+          </a>
+        </Callout>
       )}
+      <SettingRow
+        label="Web search"
+        description="Let Lumo search the web. Needs a Brave Search key, added under Integrations."
+      >
+        <Switch
+          checked={s.webSearchEnabled}
+          onCheckedChange={(v) => void save({ webSearchEnabled: v })}
+          aria-label="Web search"
+        />
+      </SettingRow>
       <SettingRow
         label="Most actions per task"
         description="Lumo stops and reports progress when a task reaches this many tool calls (1 to 200)."
@@ -238,11 +173,7 @@ export function ModelSection() {
             tone={result.ok ? 'success' : 'danger'}
             title={result.ok ? 'Connected' : 'Couldn’t connect'}
           >
-            {result.ok
-              ? s.provider === 'local'
-                ? result.text
-                : `Lumo reached ${s.provider === 'anthropic' ? 'Anthropic' : s.openaiBaseUrl}.`
-              : result.text}
+            {result.text}
           </Callout>
         )}
       </div>

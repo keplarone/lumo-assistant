@@ -4,5 +4,9 @@
 <dict>
   <key>NSMicrophoneUsageDescription</key>
   <string>Lumo listens only while you use voice input, to turn your speech into a request.</string>
+  <key>NSLocationUsageDescription</key>
+  <string>Lumo checks your location only when you ask, to find places near you. It is rounded to about 100 m.</string>
+  <key>NSLocationWhenInUseUsageDescription</key>
+  <string>Lumo checks your location only when you ask, to find places near you. It is rounded to about 100 m.</string>
 </dict>
 </plist>

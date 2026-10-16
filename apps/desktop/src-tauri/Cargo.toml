@@ -1,6 +1,6 @@
 [package]
 name = "lumo"
-version = "0.1.0"
+version = "0.2.0"
 description = "Lumo Assistant"
 authors = ["Keplar"]
 license = "UNLICENSED"
@@ -61,30 +61,30 @@ xcap = { version = "0.7", default-features = false }
 zip = { version = "2", default-features = false, features = ["deflate"] }
 enigo = "0.6"
 sysinfo = { version = "0.36.1", default-features = false, features = ["system"] }
-# The built-in on-device engine (llama.cpp, MIT). Pinned: the bindings track llama.cpp closely.
-llama-cpp-2 = { version = "=0.1.158", default-features = false }
-# Not used directly: keeps the llama.cpp sources the bindings were generated for.
-llama-cpp-sys-2 = "=0.1.158"
-# On-device speech-to-text: Whisper on candle (pure Rust, MIT/Apache-2.0), so it can't clash with the
-# ggml that llama.cpp links. Pinned together; tokenizers is what candle itself uses.
+# On-device speech-to-text: Whisper on candle (pure Rust, MIT/Apache-2.0). Pinned together;
+# tokenizers is what candle itself uses.
 candle-core = "=0.11.0"
 candle-nn = "=0.11.0"
 candle-transformers = "=0.11.0"
 tokenizers = { version = "0.22", default-features = false, features = ["onig"] }
 
-# Apple GPUs through Metal on every Mac build.
 [target.'cfg(target_os = "macos")'.dependencies]
-llama-cpp-2 = { version = "=0.1.158", default-features = false, features = ["metal"] }
+# Current location (src/location/macos.rs): CoreLocation.
+objc2 = "0.6"
+objc2-foundation = { version = "0.3", default-features = false, features = ["std", "NSArray", "NSDate", "NSError", "NSObjCRuntime", "NSObject", "NSRunLoop", "NSString"] }
+objc2-core-location = { version = "0.3", default-features = false, features = ["std", "CLError", "CLLocation", "CLLocationManager", "CLLocationManagerDelegate"] }
+
+# Current location (src/location/windows.rs): Windows.Devices.Geolocation. Same version Tauri uses.
+[target.'cfg(windows)'.dependencies]
+windows = { version = "0.62", features = ["Devices_Geolocation", "Foundation"] }
+
+# Current location (src/location/linux.rs): GeoClue2 over D-Bus. Already used by Tauri's plugins.
+[target.'cfg(target_os = "linux")'.dependencies]
+zbus = "5"
 
 [dev-dependencies]
 tempfile = "3"
 wiremock = "0.6"
-
-[features]
-default = []
-# GPU acceleration for on-device models on Windows and Linux. Needs the Vulkan SDK (headers, loader
-# and glslc) on the build machine, and links the Vulkan loader, so it is opt-in: see docs/release.md.
-vulkan = ["llama-cpp-2/vulkan"]
 
 # Whisper's math is far too slow unoptimized (tests) or size-optimized (release).
 [profile.dev.package.candle-core]

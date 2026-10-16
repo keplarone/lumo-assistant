@@ -1,0 +1,20 @@
+name: OpenRouter models
+
+# OpenRouter renames, reprices and retires models, and its free models rotate. This checks the plan
+# catalog (services/license/catalog.js) against the live list whenever it changes and every Monday.
+on:
+  pull_request:
+    paths: [services/license/**]
+  schedule:
+    - cron: '0 9 * * 1'
+  workflow_dispatch:
+
+jobs:
+  check:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: node services/license/scripts/check-models.mjs

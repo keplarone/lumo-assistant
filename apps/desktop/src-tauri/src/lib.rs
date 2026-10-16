@@ -11,8 +11,9 @@ pub mod error;
 pub mod everyday;
 pub mod integrations;
 pub mod license;
-pub mod local_models;
+pub mod location;
 pub mod model;
+pub mod models;
 pub mod plans;
 pub mod policy;
 pub mod secrets;
@@ -193,15 +194,12 @@ pub fn run() {
             commands::cancel_speech_model_download,
             commands::delete_speech_model,
             commands::open_external_url,
+            commands::detect_location,
             commands::license_status,
             commands::activate_license,
             commands::remove_license,
             commands::plan_usage,
-            commands::local_models_status,
-            commands::download_local_model,
-            commands::cancel_local_download,
-            commands::delete_local_model,
-            commands::select_local_model,
+            commands::model_catalog,
             commands::everyday_overview,
             commands::add_reminder,
             commands::delete_reminder,

@@ -50,8 +50,6 @@ export function hasBridge(): boolean {
 // ---- Settings and app ---------------------------------------------------------------------------
 
 export type ThemeSetting = 'system' | 'dark' | 'light';
-export type Provider = 'anthropic' | 'openai_compatible' | 'local';
-export type Effort = 'low' | 'medium' | 'high' | 'xhigh';
 
 export interface Location {
   label: string;
@@ -64,14 +62,8 @@ export interface Settings {
   onboarded: boolean;
   userName: string | null;
   theme: ThemeSetting;
-  provider: Provider;
+  /** An OpenRouter model id from the plan's list, or "auto" for the plan's default. */
   model: string;
-  effort: Effort;
-  anthropicBaseUrl: string;
-  openaiBaseUrl: string;
-  openaiModel: string;
-  /** Catalog id of the chosen on-device model; empty until one is chosen. */
-  localModel: string;
   memoryEnabled: boolean;
   webSearchEnabled: boolean;
   globalShortcut: string;
@@ -96,7 +88,7 @@ export interface Settings {
   wakeWordEnabled: boolean;
   /** "lumo": the mascot's cute voice; "system": the plain system voice. */
   voiceStyle: 'lumo' | 'system';
-  /** "free", "lite", "pro" or "unlimited". Set only by Rust's license check; saving settings keeps it. */
+  /** "free", "lite" or "pro". Set only by Rust's license check; saving settings keeps it. */
   plan: string;
   planCheckedAt: string | null;
 }
@@ -108,8 +100,6 @@ export interface AppInfo {
   keychain: string | null;
   dataDir: string;
   logDir: string;
-  /** [id, label] */
-  models: [string, string][];
   updaterConfigured: boolean;
 }
 
@@ -120,8 +110,6 @@ export interface SecretStatus {
 }
 
 export type SecretName =
-  | 'anthropic_api_key'
-  | 'openai_compatible_api_key'
   | 'brave_search_api_key'
   | 'github_token'
   | 'netlify_token'
@@ -457,42 +445,46 @@ export interface LicenseStatus {
   licensingConfigured: boolean;
   checkoutLite: string | null;
   checkoutPro: string | null;
-  checkoutUnlimited: string | null;
   checkedAt: string | null;
 }
 
-export type PlanId = 'free' | 'lite' | 'pro' | 'unlimited';
+export type PlanId = 'free' | 'lite' | 'pro';
 
-/** plans.rs PlanInfo: one row of the plans table. */
+/** models.rs CatalogModel: one OpenRouter model a plan offers. */
+export interface CatalogModel {
+  /** OpenRouter's id, e.g. "anthropic/claude-haiku-5.5". */
+  id: string;
+  name: string;
+  blurb: string;
+  /** Can see images, so it can look at and use the screen. */
+  vision: boolean;
+}
+
+/** plans.rs PlanInfo: one plan, from Rust's table and the model gateway's catalog. */
 export interface PlanInfo {
   id: PlanId;
   name: string;
-  /** Model tokens per calendar month; null means unlimited. */
-  monthlyTokens: number | null;
-  /** Display names of the on-device models the plan includes. */
-  localModels: string[];
-  cloudModels: boolean;
+  priceUsd: number;
   /** Active automations; null means no limit. */
   automations: number | null;
   computerControl: boolean;
   /** Product pages watched for price drops; null means no limit. */
   priceWatches: number | null;
+  /** The model "Auto" uses on this plan, when known. */
+  defaultModel: string | null;
+  /** Empty until the catalog has been fetched once. */
+  models: CatalogModel[];
 }
 
-/** plans.rs PlanUsage. Display only: Rust enforces every limit. */
+/** plans.rs PlanUsage. Display only: the model gateway and Rust enforce every limit. */
 export interface PlanUsage {
   plan: PlanId;
-  /** Input + output model tokens this calendar month. */
-  tokensUsed: number;
-  /** null on a plan with unlimited usage. */
-  tokensLimit: number | null;
-  /** 0 to 100; null on a plan with unlimited usage. */
+  /** 0 to 100; null when Lumo's model service couldn't be reached. */
   percentUsed: number | null;
-  /** Local midnight on the 1st of next month. */
-  resetsAt: string;
-  /** Runtime tags of the catalog's on-device models this plan may use. */
-  allowedModels: string[];
-  cloudModels: boolean;
+  /** Midnight UTC on the 1st of next month, when known. */
+  resetsAt: string | null;
+  /** Why usage couldn't be read, if it couldn't. */
+  usageError: string | null;
   automationsAllowed: number | null;
   computerControl: boolean;
   priceWatchesAllowed: number | null;
@@ -613,51 +605,6 @@ export interface SpeechModelProgress {
   done: boolean;
 }
 
-// ---- On-device models (local_models.rs) -----------------------------------------------------------
-
-export interface LocalModel {
-  /** Catalog id, e.g. "qwen3:8b". */
-  id: string;
-  tier: string;
-  /** The underlying open model; always shown for attribution. */
-  baseModel: string;
-  license: string;
-  licenseUrl: string;
-  /** The Hugging Face repository the weights come from. */
-  sourceRepo: string;
-  downloadGb: number;
-  minMemoryGb: number;
-  summary: string;
-  displayName: string;
-  installed: boolean;
-  /** Bytes of an unfinished download that continues next time (0 if none). */
-  partialBytes: number;
-  fits: boolean;
-  selected: boolean;
-  /** The cheapest plan that includes this model when the current plan doesn't, else null. */
-  requiredPlan: PlanId | null;
-}
-
-export interface LocalStatus {
-  /** Product name for on-device models; never hardcode it. */
-  brand: string;
-  /** The engine built into Lumo ("llama.cpp"); always available, nothing to install. */
-  engine: string;
-  /** What runs the models: "Metal", "Vulkan" or "CPU". */
-  accelerator: string;
-  /** Total memory in GB; 0 when unknown. */
-  memoryGb: number;
-  models: LocalModel[];
-}
-
-export interface LocalModelProgress {
-  model: string;
-  status: string;
-  completed: number;
-  total: number;
-  done: boolean;
-}
-
 const call = <T>(cmd: string, args?: Record<string, unknown>) => invoke<T>(cmd, args);
 
 export const api = {
@@ -763,12 +710,11 @@ export const api = {
   removeLicense: () => call<LicenseStatus>('remove_license'),
   planUsage: () => call<PlanUsage>('plan_usage'),
 
-  // On-device models. download resolves when finished; progress arrives as 'local-model-progress'.
-  localModelsStatus: () => call<LocalStatus>('local_models_status'),
-  downloadLocalModel: (id: string) => call<void>('download_local_model', { id }),
-  cancelLocalDownload: () => call<void>('cancel_local_download'),
-  deleteLocalModel: (id: string) => call<void>('delete_local_model', { id }),
-  selectLocalModel: (id: string) => call<void>('select_local_model', { id }),
+  /**
+   * Find the device's location (native confirmation first), round it to ~100 m, name it with
+   * OpenStreetMap and save it as the default location. Errors say how to allow location access.
+   */
+  detectLocation: () => call<Location>('detect_location'),
 
   // Everyday helpers. Reminders, renewals and price checks fire from Rust as notifications.
   everydayOverview: () => call<EverydayOverview>('everyday_overview'),
@@ -817,10 +763,8 @@ export interface AppEvents {
   privacy: { kind: string; detail: string };
   /** Lumo is (or stopped) controlling the mouse and keyboard. */
   'input-control': { active: boolean; stopShortcut: string };
-  /** This month's model usage changed (after every model call). */
+  /** This month's model usage changed (after every task). */
   'plan-usage-changed': PlanUsage;
-  /** Download progress for an on-device model. */
-  'local-model-progress': LocalModelProgress;
   /** Download progress for the on-device speech model. */
   'speech-model-progress': SpeechModelProgress;
   /** A reminder, renewal warning, price drop or morning brief (also shown as a notification). */

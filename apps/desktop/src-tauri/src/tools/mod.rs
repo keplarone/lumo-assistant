@@ -11,6 +11,7 @@ pub mod computer;
 pub mod everyday;
 pub mod files;
 pub mod journal;
+pub mod location;
 pub mod memory;
 pub mod places;
 pub mod projects;
@@ -179,6 +180,7 @@ impl Registry {
             Arc::new(Typed(web::FetchUrl)),
             Arc::new(Typed(web::OpenUrl)),
             Arc::new(Typed(places::FindPlaces)),
+            Arc::new(Typed(location::GetCurrentLocation)),
             Arc::new(Typed(places::PrepareCheckoutHandoff)),
             Arc::new(Typed(clipboard::ReadClipboard)),
             Arc::new(Typed(clipboard::WriteClipboard)),
