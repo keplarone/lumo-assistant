@@ -11,6 +11,7 @@ use crate::tools::computer::InputAction;
 use async_trait::async_trait;
 use parking_lot::Mutex;
 use std::path::PathBuf;
+#[cfg(desktop)]
 use std::sync::Arc;
 #[cfg(desktop)]
 use tauri::menu::{CheckMenuItem, Menu, MenuItem, PredefinedMenuItem};
@@ -276,6 +277,7 @@ pub fn remember_front_window(platform: &TauriPlatform) {
 
 pub fn show_main(app: &AppHandle) {
     if let Some(w) = app.get_webview_window("main") {
+        #[cfg(desktop)]
         let _ = w.unminimize();
         let _ = w.show();
         let _ = w.set_focus();
