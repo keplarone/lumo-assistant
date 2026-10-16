@@ -54,7 +54,6 @@ pub struct AppInfo {
     keychain: Option<String>,
     data_dir: String,
     log_dir: String,
-    models: Vec<(String, String)>,
     updater_configured: bool,
 }
 
@@ -66,7 +65,6 @@ pub fn app_info(state: S) -> AppInfo {
         keychain: secrets::OsKeychain::available().err(),
         data_dir: state.core.paths.data_dir.display().to_string(),
         log_dir: state.core.paths.log_dir.display().to_string(),
-        models: settings::MODELS.iter().map(|(a, b)| (a.to_string(), b.to_string())).collect(),
         updater_configured: crate::updater_configured(),
     }
 }
@@ -84,8 +82,6 @@ pub async fn save_settings(app: AppHandle, state: S<'_>, mut settings: Settings)
     settings.plan_checked_at = old.plan_checked_at.clone();
     settings.account = old.account.clone();
     settings.validate()?;
-    // Switching to a provider or model the plan doesn't include is refused here, in Rust.
-    crate::plans::check_settings_change(&old, &mut settings)?;
     // A saved key is only sent to a new server after the user confirms it natively.
     settings::confirm_key_destinations(&state.core, &old, &settings).await?;
     settings::save(&state.core.db, &settings)?;
@@ -151,47 +147,17 @@ pub fn delete_secret(state: S, name: String) -> ApiResult<()> {
     Ok(())
 }
 
-/// Check that the configured model provider accepts the key, without spending tokens.
+/// Check that Lumo's model service answers for this install and plan, without spending usage.
 #[tauri::command]
 pub async fn test_model_connection(state: S<'_>) -> ApiResult<String> {
-    let s = state.core.settings();
-    let http = &state.core.http;
-    if s.provider == "local" {
-        let st = crate::local_models::status(&state.core).await;
-        if !st.runtime_running {
-            return Err(LumoError::Unavailable(format!(
-                "The on-device runtime is not running. Install it from {}.",
-                st.runtime_download_url
-            ))
-            .into());
-        }
-        return match st.models.iter().find(|m| m.selected && m.installed) {
-            Some(m) => Ok(format!("{} is ready on this computer.", m.display_name)),
-            None => Err(LumoError::Unavailable("Download and choose an on-device model first.".into()).into()),
-        };
-    }
-    let resp = if s.provider == "anthropic" {
-        let key =
-            state.core.secrets.get("anthropic_api_key")?.ok_or_else(|| LumoError::Unavailable("No Anthropic API key is saved.".into()))?;
-        http.get(format!("{}/v1/models?limit=1", s.anthropic_base_url.trim_end_matches('/')))
-            .header("x-api-key", key)
-            .header("anthropic-version", "2023-06-01")
-            .timeout(std::time::Duration::from_secs(15))
-            .send()
-            .await
-    } else {
-        let mut r = http.get(format!("{}/models", s.openai_base_url.trim_end_matches('/'))).timeout(std::time::Duration::from_secs(15));
-        if let Some(k) = state.core.secrets.get("openai_compatible_api_key")? {
-            r = r.bearer_auth(k);
-        }
-        r.send().await
-    }
-    .map_err(|e| LumoError::Unavailable(format!("Could not reach the model provider: {e}")))?;
-    match resp.status().as_u16() {
-        200..=299 => Ok("Connected.".into()),
-        401 | 403 => Err(LumoError::Denied("The provider rejected the API key.".into()).into()),
-        c => Err(LumoError::Unavailable(format!("The provider answered with HTTP {c}.")).into()),
-    }
+    let u = crate::models::usage(&state.core).await?;
+    Ok(format!("Connected. {}% of this month's usage is used.", u.percent_used))
+}
+
+/// Every plan's models, from Lumo's model gateway (cached when offline).
+#[tauri::command]
+pub async fn model_catalog(state: S<'_>) -> ApiResult<crate::models::Catalog> {
+    Ok(crate::models::catalog(&state.core).await?)
 }
 
 // ---- Conversations and runs -----------------------------------------------------------------
@@ -589,7 +555,8 @@ pub fn save_agent(state: S, agent: AgentDef) -> ApiResult<String> {
         return Err(invalid(format!("unknown tool {t}")).into());
     }
     if let Some(m) = &agent.model {
-        if !settings::MODELS.iter().any(|(id, _)| id == m) {
+        // An OpenRouter model id; the gateway refuses models the plan doesn't include.
+        if m.len() > 100 || !m.contains('/') || !m.chars().all(|c| c.is_ascii_alphanumeric() || "/._:-".contains(c)) {
             return Err(invalid("unknown model").into());
         }
     }
@@ -795,49 +762,6 @@ pub async fn transcribe_audio(app: AppHandle, state: S<'_>, audio_base64: String
     Ok(crate::voice::transcribe(&state.core, &audio_base64, &mime_type).await?)
 }
 
-// ---- On-device models -----------------------------------------------------------------------
-
-static LOCAL_DOWNLOADS: parking_lot::Mutex<Option<(String, tokio_util::sync::CancellationToken)>> = parking_lot::Mutex::new(None);
-
-#[tauri::command]
-pub async fn local_models_status(state: S<'_>) -> ApiResult<crate::local_models::LocalStatus> {
-    Ok(crate::local_models::status(&state.core).await)
-}
-
-/// Download one of Lumo's on-device models. Progress arrives as `local-model-progress` events.
-#[tauri::command]
-pub async fn download_local_model(state: S<'_>, id: String) -> ApiResult<()> {
-    crate::local_models::catalog_entry(&id)?;
-    let token = tokio_util::sync::CancellationToken::new();
-    {
-        let mut slot = LOCAL_DOWNLOADS.lock();
-        if let Some((current, _)) = slot.as_ref() {
-            return Err(invalid(format!("{current} is already downloading")).into());
-        }
-        *slot = Some((id.clone(), token.clone()));
-    }
-    let res = crate::local_models::pull(&state.core, &id, token).await;
-    *LOCAL_DOWNLOADS.lock() = None;
-    Ok(res?)
-}
-
-#[tauri::command]
-pub fn cancel_local_download() {
-    if let Some((_, token)) = LOCAL_DOWNLOADS.lock().as_ref() {
-        token.cancel();
-    }
-}
-
-#[tauri::command]
-pub async fn delete_local_model(state: S<'_>, id: String) -> ApiResult<()> {
-    Ok(crate::local_models::delete(&state.core, &id).await?)
-}
-
-#[tauri::command]
-pub async fn select_local_model(state: S<'_>, id: String) -> ApiResult<()> {
-    Ok(crate::local_models::select(&state.core, &id).await?)
-}
-
 // ---- Account ----------------------------------------------------------------------------------
 
 #[tauri::command]
@@ -917,11 +841,37 @@ pub async fn remove_license(state: S<'_>) -> ApiResult<crate::license::LicenseSt
     Ok(crate::license::remove(&state.core).await?)
 }
 
-/// This month's model usage and what the current plan includes. Display only: every limit is
-/// enforced in the core (see plans.rs).
+/// This month's model usage and what every plan includes. Display only: model use is enforced by
+/// Lumo's model gateway, everything else in the core (see plans.rs).
 #[tauri::command]
-pub fn plan_usage(state: S) -> crate::plans::PlanUsage {
-    crate::plans::usage(&state.core)
+pub async fn plan_usage(state: S<'_>) -> ApiResult<crate::plans::PlanUsage> {
+    Ok(crate::plans::usage(&state.core).await)
+}
+
+// ---- Location -------------------------------------------------------------------------------
+
+/// "Use my current location" in Settings: confirm natively, ask the operating system for one fix,
+/// round it, name it with OpenStreetMap and save it as the default location.
+#[tauri::command]
+pub async fn detect_location(app: AppHandle, state: S<'_>) -> ApiResult<settings::Location> {
+    // The webview is untrusted, so the request is confirmed outside it, as the agent tool is.
+    if !state.core.platform.native_confirm(&crate::location::confirm_preview()).await {
+        return Err(LumoError::Denied("Location not shared.".into()).into());
+    }
+    let _ = app.emit("privacy", json!({"kind": "location", "detail": "Lumo checked your location"}));
+    let loc = match crate::location::detect(&state.core).await {
+        Ok(l) => l,
+        Err(e) => {
+            crate::audit::record(&state.core.db, "user", "detect_location", None, None, "error");
+            return Err(e.into());
+        }
+    };
+    let mut s = state.core.settings();
+    s.location = Some(loc.clone());
+    settings::save(&state.core.db, &s)?;
+    crate::audit::record(&state.core.db, "user", "detect_location", Some(&loc.label), None, "ok");
+    let _ = app.emit("settings-changed", ());
+    Ok(loc)
 }
 
 /// Open a link in the default browser. Only https links are allowed, so the webview cannot launch

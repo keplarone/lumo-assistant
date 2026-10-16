@@ -60,38 +60,13 @@ pub fn record(core: &Core, id: &str, status: &str, account: Option<&str>, meta: 
 
 pub fn status(core: &Core) -> Vec<IntegrationStatus> {
     let has = |k: &str| core.secrets.get(k).ok().flatten().is_some();
-    let s = core.settings();
     let out = vec![
-        IntegrationStatus {
-            id: "anthropic".into(),
-            name: "Anthropic (Claude)".into(),
-            status: if has("anthropic_api_key") { "connected" } else { "not_connected" }.into(),
-            account: None,
-            detail: "The model that plans and acts. Includes web search and web page reading.".into(),
-            secret: Some("anthropic_api_key".into()),
-        },
-        IntegrationStatus {
-            id: "local".into(),
-            name: "On-device models (Orbit, Nebula, Solar, Nova)".into(),
-            status: if s.provider == "local" && !s.local_model.is_empty() { "connected" } else { "not_connected" }.into(),
-            account: if s.local_model.is_empty() { None } else { Some(s.local_model.clone()) },
-            detail: "Open models that run on this computer through Ollama. Free to use, and nothing leaves your machine.".into(),
-            secret: None,
-        },
-        IntegrationStatus {
-            id: "openai_compatible".into(),
-            name: "Local or OpenAI-compatible model".into(),
-            status: if s.provider == "openai_compatible" { "connected" } else { "not_connected" }.into(),
-            account: Some(s.openai_base_url.clone()),
-            detail: "Ollama, LM Studio, llama.cpp or another compatible server. Tool use depends on the model.".into(),
-            secret: Some("openai_compatible_api_key".into()),
-        },
         IntegrationStatus {
             id: "brave".into(),
             name: "Brave Search".into(),
             status: if has("brave_search_api_key") { "connected" } else { "not_connected" }.into(),
             account: None,
-            detail: "Web search for local models. Not needed with Anthropic, which has its own.".into(),
+            detail: "Lets Lumo search the web. Add a Brave Search API key to turn it on.".into(),
             secret: Some("brave_search_api_key".into()),
         },
         IntegrationStatus {

@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { emptyForm, validateForm } from '../src/lib/automationForm';
-import { memoryWarning, progressFraction, progressText } from '../src/lib/localModels';
+import type { PlanInfo } from '../src/lib/ipc';
+import { asPlanId, modelName, nextPlan, planFeatures, planModels, planPrice } from '../src/lib/plans';
 import { isWindowsPlatform, previewUrl } from '../src/lib/preview';
 import { stripMarkdown } from '../src/lib/speech';
 import { applyTheme, resolveTheme } from '../src/lib/theme';
@@ -96,28 +97,49 @@ describe('voice', () => {
   });
 });
 
-describe('on-device model helpers', () => {
-  it('reports real progress only when a size is known', () => {
-    expect(progressFraction({ completed: 5, total: 10 })).toBe(0.5);
-    expect(progressFraction({ completed: 0, total: 0 })).toBeUndefined();
-    expect(
-      progressText({ model: 'm', status: 'pulling manifest', completed: 0, total: 0, done: false }),
-    ).toBe('Pulling manifest');
-    expect(
-      progressText({
-        model: 'm',
-        status: 'downloading',
-        completed: 1024 * 1024 * 1024,
-        total: 2 * 1024 * 1024 * 1024,
-        done: false,
-      }),
-    ).toBe('1.0 GB of 2.0 GB');
-  });
-  it('warns when a model may not fit', () => {
-    expect(memoryWarning({ fits: true, minMemoryGb: 16 }, 32)).toBeNull();
-    expect(memoryWarning({ fits: false, minMemoryGb: 32 }, 16)).toBe(
-      'Needs 32 GB of memory; this computer has 16 GB.',
-    );
+describe('plan helpers', () => {
+  const plans = [
+    {
+      id: 'free',
+      name: 'Free',
+      priceUsd: 0,
+      automations: 1,
+      computerControl: false,
+      defaultModel: 'f/free:free',
+      models: [{ id: 'f/free:free', name: 'Free One', blurb: '', vision: false }],
+    },
+    {
+      id: 'lite',
+      name: 'Lumo Lite',
+      priceUsd: 19.99,
+      automations: 10,
+      computerControl: true,
+      defaultModel: 'a/haiku',
+      models: [{ id: 'a/haiku', name: 'Haiku', blurb: '', vision: true }],
+    },
+    {
+      id: 'pro',
+      name: 'Lumo Pro',
+      priceUsd: 49.99,
+      automations: null,
+      computerControl: true,
+      defaultModel: 'a/sonnet',
+      models: [
+        { id: 'a/sonnet', name: 'Sonnet', blurb: '', vision: true },
+        { id: 'a/haiku', name: 'Haiku', blurb: '', vision: true },
+      ],
+    },
+  ] as PlanInfo[];
+  it('prices, model lists and names come from the catalog', () => {
+    expect(planPrice(plans[0]!)).toEqual({ price: '$0' });
+    expect(planPrice(plans[1]!)).toEqual({ price: '$19.99', period: '/month' });
+    expect(planModels(plans, 'pro').auto?.name).toBe('Sonnet');
+    expect(planModels(plans, 'lite').models.map((m) => m.id)).toEqual(['a/haiku']);
+    expect(modelName(plans, 'a/sonnet')).toBe('Sonnet');
+    expect(modelName(plans, 'gone/model')).toBe('gone/model');
+    expect(planFeatures(plans, 2)).toContain('Adds Sonnet');
+    expect(nextPlan('pro')).toBeNull();
+    expect(asPlanId('unlimited')).toBe('free');
   });
 });
 

@@ -1,6 +1,6 @@
 [package]
 name = "lumo"
-version = "0.1.0"
+version = "0.2.0"
 description = "Lumo Assistant"
 authors = ["Keplar"]
 license = "UNLICENSED"
@@ -60,12 +60,23 @@ zip = { version = "2", default-features = false, features = ["deflate"] }
 enigo = "0.6"
 sysinfo = { version = "0.36.1", default-features = false, features = ["system"] }
 
+[target.'cfg(target_os = "macos")'.dependencies]
+# Current location (src/location/macos.rs): CoreLocation.
+objc2 = "0.6"
+objc2-foundation = { version = "0.3", default-features = false, features = ["std", "NSArray", "NSDate", "NSError", "NSObjCRuntime", "NSObject", "NSRunLoop", "NSString"] }
+objc2-core-location = { version = "0.3", default-features = false, features = ["std", "CLError", "CLLocation", "CLLocationManager", "CLLocationManagerDelegate"] }
+
+# Current location (src/location/windows.rs): Windows.Devices.Geolocation. Same version Tauri uses.
+[target.'cfg(windows)'.dependencies]
+windows = { version = "0.62", features = ["Devices_Geolocation", "Foundation"] }
+
+# Current location (src/location/linux.rs): GeoClue2 over D-Bus. Already used by Tauri's plugins.
+[target.'cfg(target_os = "linux")'.dependencies]
+zbus = "5"
+
 [dev-dependencies]
 tempfile = "3"
 wiremock = "0.6"
-
-[features]
-default = []
 
 [profile.release]
 codegen-units = 1

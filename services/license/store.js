@@ -1,63 +1,66 @@
-// Where account links live: which Whop membership belongs to which Lumo account, and two-step setups that
-// are not confirmed yet. On Vercel this is a private Blob store (BLOB_READ_WRITE_TOKEN, or the project's
-// OIDC token when the store is connected). Membership ids are license keys, so they are only ever stored
-// in the private store and the index file names use their SHA-256, never the key itself.
+// Counters for usage metering, in Redis (Upstash, added to the Vercel project from the Marketplace).
+// Every write is an atomic INCRBY, so parallel calls from one user can't lose an update. Configuration:
+//   KV_REST_API_URL / KV_REST_API_TOKEN               set by Vercel's Upstash integration
+//   UPSTASH_REDIS_REST_URL / UPSTASH_REDIS_REST_TOKEN  the same, under Upstash's own names
 
-import { createHash } from 'node:crypto';
+/**
+ * @typedef {{
+ *   incr(key: string, by: number, ttlSeconds: number): Promise<number>,
+ *   get(key: string): Promise<string | null>,
+ *   set(key: string, value: string, ttlSeconds: number): Promise<void>,
+ * }} Store
+ */
 
-export const membershipKey = (membershipId) =>
-  `links/membership/${createHash('sha256').update(membershipId).digest('hex')}.json`;
-export const userKey = (userId) => `links/user/${userId}.json`;
-export const pendingKey = (userId) => `two-step/${userId}.json`;
-
-/** @typedef {{ read(k: string): Promise<any>, write(k: string, v: any, opts?: { create?: boolean }): Promise<boolean>, remove(k: string): Promise<void> }} Store */
-
-/** In-memory store for tests and local runs. `create` writes only if the key is new and says if it did. */
-export function memoryStore() {
-  const m = new Map();
+/** @returns {Store | null} null when no Redis is configured. */
+export function redisStore(env, fetchImpl = fetch) {
+  const url = (env.KV_REST_API_URL || env.UPSTASH_REDIS_REST_URL || '').replace(/\/$/, '');
+  const token = env.KV_REST_API_TOKEN || env.UPSTASH_REDIS_REST_TOKEN;
+  if (!url.startsWith('https://') || !token) return null;
+  const pipeline = async (commands) => {
+    const res = await fetchImpl(`${url}/pipeline`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify(commands),
+    });
+    if (!res.ok) throw new Error(`Redis answered with HTTP ${res.status}`);
+    const out = await res.json();
+    const failed = out.find((r) => r.error);
+    if (failed) throw new Error(`Redis: ${failed.error}`);
+    return out.map((r) => r.result);
+  };
   return {
-    data: m,
-    async read(k) {
-      return m.has(k) ? structuredClone(m.get(k)) : null;
+    async incr(key, by, ttlSeconds) {
+      const [n] = await pipeline([
+        ['INCRBY', key, String(Math.round(by))],
+        ['EXPIRE', key, String(ttlSeconds)],
+      ]);
+      return Number(n);
     },
-    async write(k, v, opts = {}) {
-      if (opts.create && m.has(k)) return false;
-      m.set(k, structuredClone(v));
-      return true;
+    async get(key) {
+      const [v] = await pipeline([['GET', key]]);
+      return v ?? null;
     },
-    async remove(k) {
-      m.delete(k);
+    async set(key, value, ttlSeconds) {
+      await pipeline([['SET', key, value, 'EX', String(ttlSeconds)]]);
     },
   };
 }
 
-/** @returns {Promise<Store>} */
-export async function blobStore() {
-  const { get, put, del, head } = await import('@vercel/blob');
+/** An in-memory store for tests. */
+export function memoryStore() {
+  const data = new Map();
   return {
-    async read(k) {
-      const r = await get(k, { access: 'private', useCache: false });
-      if (!r || r.statusCode !== 200) return null;
-      return JSON.parse(await new Response(r.stream).text());
+    data,
+    async incr(key, by) {
+      const n = Number(data.get(key) ?? 0) + Math.round(by);
+      data.set(key, String(n));
+      return n;
     },
-    async write(k, v, opts = {}) {
-      try {
-        await put(k, JSON.stringify(v), {
-          access: 'private',
-          addRandomSuffix: false,
-          allowOverwrite: !opts.create,
-          contentType: 'application/json',
-          cacheControlMaxAge: 60,
-        });
-        return true;
-      } catch (e) {
-        // A create that lost to an existing blob is an answer, not a failure.
-        if (opts.create && (await head(k).catch(() => null))) return false;
-        throw e;
-      }
+    async get(key) {
+      return data.get(key) ?? null;
     },
-    async remove(k) {
-      await del(k).catch(() => {});
+    async set(key, value) {
+      data.set(key, value);
     },
   };
 }

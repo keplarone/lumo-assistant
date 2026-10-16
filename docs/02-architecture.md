@@ -10,7 +10,7 @@ Date: 2026-10-16. Status: accepted; decisions are revisited only through a new e
 │  Webviews (untrusted renderers)            Rust core (trusted)                               │
 │  ┌──────────────┐ ┌──────────────┐        ┌───────────────────────────────────────────────┐ │
 │  │ Main window  │ │ Compact      │  IPC   │ Commands  ─► Agent runtime (tokio)            │ │
-│  │ React + R3F  │ │ floating     │◄──────►│              ├─ Model gateway (Anthropic,     │ │
+│  │ React + R3F  │ │ floating     │◄──────►│              ├─ Model gateway (OpenRouter,     │ │
 │  │ mascot, chat │ │ assistant    │ typed  │              │   OpenAI-compatible)           │ │
 │  │ workspace    │ │              │ events │              ├─ Tool registry + validators    │ │
 │  └──────────────┘ └──────────────┘        │              ├─ Policy: grants, tiers, rate   │ │
@@ -104,19 +104,31 @@ interrupted is marked `interrupted` on next start, never `succeeded`).
 `trait ModelProvider { async fn complete(&self, req, sink, cancel) -> Result<ModelResponse> }` streams
 deltas to a sink and returns the complete, replayable content blocks. Implementations:
 
-- **Anthropic** (native Messages API over HTTPS, SSE streaming). Default model `claude-opus-5-5`; users can
-  pick `claude-sonnet-5-5` or `claude-haiku-5-5`. Adaptive thinking with `output_config.effort`; progress
-  updates via `thinking.display: "updates"`; server tools `web_search_20260209` and `web_fetch_20260209`;
-  client tools with `eager_input_streaming` and validation in Rust (a truncated or invalid tool input is
-  flagged and answered with an error result, never executed); vision and PDF input; `refusal`, `pause_turn`
-  and `max_tokens` stop reasons handled; server-side fallbacks on models that support them; retries with
-  `retry-after` for 429/5xx before any output; optional beta features are dropped automatically if the API
-  rejects them. Mouse and keyboard control is Lumo's own typed `control_computer` tool (see Computer use below), not
-  the Anthropic computer-use beta toolset.
-- **OpenAI-compatible** (`/v1/chat/completions` streaming with function tools) for local models (Ollama,
-  LM Studio) and other vendors. Server tools are unavailable there, so web search uses the `search_web` tool
-  (Brave Search, when the user adds a key) and the local `fetch_url` tool. Thinking blocks are dropped when
-  converting history for these endpoints.
+- **Lumo's models** (`model/cloud.rs`, `models.rs`). The only provider. The core sends OpenAI-style
+  `chat/completions` requests (streaming, function tools) to Lumo's model gateway, `POST /api/chat` on the
+  license server (`services/license/gateway.js`), with `X-Lumo-Install` (a random id made on first run)
+  and, on paid plans, the Whop license key as a bearer token. The gateway holds the OpenRouter key,
+  re-checks the license (cached for 10 minutes), applies the plan's model list and per-minute and daily
+  limits, refuses calls once the monthly allowance is used (402 → `plan_limit`), forwards the request to
+  OpenRouter and streams the answer back while reading OpenRouter's reported cost to settle the charge.
+  Paid plans have a monthly budget in dollars of OpenRouter cost (each call reserves its maximum cost
+  first, then settles on the real one); Free has a token allowance on OpenRouter's free models, which all
+  Free users share under one account-wide rate limit. The app shows either as "X% used this month"
+  (`GET /api/usage`). The catalog of each plan's models (`GET /api/models`, `services/license/catalog.js`)
+  is fetched and cached by the app, so models can change without a release; the free roster is filtered
+  live against OpenRouter's list. Images are sent only to models that accept them (the gateway replaces
+  them with a note otherwise), only the latest three images in a conversation are sent, and screenshot
+  and screen-control tools are only offered to vision models. Web search uses the `search_web` tool
+  (Brave Search, when the user adds a key) and the local `fetch_url` tool.
+
+### 4.1.1 Plans and the gateway's storage
+
+Metering lives in Redis (Upstash, from the Vercel Marketplace) with atomic `INCRBY`: per user and month
+(`spend:`, `tok:`), per minute (`rpm:`) and per day for Free (`rpd:`), plus cached license checks
+(`lic:<sha256 of the key>`). Nothing a user sends is stored. Without Redis or the OpenRouter key the gateway
+refuses chat rather than serve it unmetered. `pnpm --filter @lumo/license check-models` (and the weekly
+"OpenRouter models" workflow) compares the catalog with OpenRouter's live list and prints each plan's
+worst-case cost against its price.
 
 ### 4.2 Conversation history is append-only
 
@@ -154,7 +166,8 @@ previous one and that system prompt and tools never change within a conversation
 | `fetch_url`                                                               | read                                       | Public addresses only; content untrusted.                                                                                                                                                              |
 | `web_search`, `web_fetch` (Anthropic server tools) / `search_web` (Brave) | read                                       | Server tools on Anthropic; Brave for local models when a key is added.                                                                                                                                 |
 | `open_url`                                                                | write / sensitive for checkout and sign-in | Handoff to the user's browser.                                                                                                                                                                         |
-| `find_places`                                                             | read                                       | OpenStreetMap (Nominatim + Overpass); no menus, prices or ratings.                                                                                                                                     |
+| `find_places`                                                             | read                                       | OpenStreetMap (Nominatim + Overpass); no menus, prices or ratings. Without `near`: the detected location, else the saved one.                                                                          |
+| `get_current_location`                                                    | sensitive                                  | Native "Let Lumo use your current location?" dialog each time; OS location service, rounded to ~100 m, named via Nominatim. The model sees only the label. Saved as default if none.                   |
 | `prepare_checkout_handoff`                                                | sensitive                                  | Shows merchant, items, quantities, address and total (or "unknown until checkout"); copies the list and opens the merchant's site. Never places an order.                                              |
 | `read_clipboard` / `write_clipboard`                                      | read after grant, else write / write       |                                                                                                                                                                                                        |
 | `notify`                                                                  | UI                                         | Desktop notification.                                                                                                                                                                                  |
@@ -191,6 +204,8 @@ compact windows both follow a run.
 - Projects: `list_projects`, `create_project`, `project_files`, `read_project_file`, `write_project_file`,
   `project_history`, `save_project_version`, `restore_project_version`, `reveal_project`.
 - Integrations: `integrations_status`, `verify_integration`, `disconnect_integration`.
+- Location: `detect_location` (native confirmation, then the OS location service; rounds to ~100 m, names it
+  with Nominatim, saves it as `settings.location`, records it in the audit log).
 - Windows: `show_main_window`, `toggle_compact_window`.
 
 `AgentEvent` (serde tag `type`): `run_started`, `phase` (`understanding | planning | executing | verifying |
@@ -200,6 +215,14 @@ reporting`), `text_delta`, `progress_note`, `plan`, `tool_started`, `tool_finish
 App events: `files-dropped` (attachment tokens from drag and drop), `runs-changed`, `settings-changed`,
 `automations-changed`, `projects-changed`, `input-control` (`{active, stopShortcut}` while Lumo is driving
 the mouse and keyboard).
+
+Location (`src-tauri/src/location/`): only on request, through the `Platform::current_position` trait method.
+Windows uses `Windows.Devices.Geolocation.Geolocator`; macOS uses CoreLocation (when-in-use authorization;
+`NSLocationUsageDescription` in `Info.plist`, `com.apple.security.personal-information.location` in
+`Entitlements.plist` for the hardened runtime); Linux uses GeoClue2 over the system D-Bus and reports
+"location services aren't available" without it. Coordinates are rounded to 3 decimals before use; the only
+network request is the reverse geocode to Nominatim (one per second, Lumo's User-Agent), plus the place
+searches that already go to OpenStreetMap. A per-conversation detected location lives in memory only.
 
 Voice: `transcribe_audio` sends recorded audio to the configured speech-to-text endpoint
 (`{stt_base_url}/audio/transcriptions`, OpenAI-compatible; a key is required unless the endpoint is local).

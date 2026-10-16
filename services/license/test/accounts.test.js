@@ -2,7 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { SignJWT, exportJWK, generateKeyPair, createLocalJWKSet } from 'jose';
 import { callbackRedirect, handle } from '../accounts.js';
-import { memoryStore, membershipKey, pendingKey, userKey } from '../store.js';
+import { memoryLinkStore as memoryStore, membershipKey, pendingKey, userKey } from '../links.js';
 
 const { privateKey, publicKey } = await generateKeyPair('RS256');
 const jwk = { ...(await exportJWK(publicKey)), kid: 'k1', alg: 'RS256' };

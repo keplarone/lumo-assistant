@@ -25,9 +25,11 @@ GitHub release (`tauri.conf.json` → `plugins.updater.endpoints`).
 
 ## Plans and licensing (Whop)
 
-Lite (`plan_0KzI2YIP7k6Pp`, $19.99/month), Pro (`plan_1ucbcMEoxhW3g`, $49.99/month) and Unlimited (`plan_PRiCMfcmM4uul`, $124.99/month) are sold on Whop. The app opens
-`https://whop.com/checkout/<plan id>` (override with the `LUMO_WHOP_CHECKOUT_LITE` / `LUMO_WHOP_CHECKOUT_PRO` / `LUMO_WHOP_CHECKOUT_UNLIMITED`
-build variables if your store uses the `whop.com/<store>/checkout/<plan id>` form).
+Lite (`plan_0KzI2YIP7k6Pp`, $19.99/month) and Pro (`plan_1ucbcMEoxhW3g`, $49.99/month) are sold on Whop. The app opens
+`https://whop.com/checkout/<plan id>` (override with the `LUMO_WHOP_CHECKOUT_LITE` / `LUMO_WHOP_CHECKOUT_PRO`
+build variables if your store uses the `whop.com/<store>/checkout/<plan id>` form). The old Unlimited plan
+(`plan_PRiCMfcmM4uul`) no longer grants anything; to keep honoring members who bought it, add its id to
+`WHOP_PLANS_PRO` on the server.
 
 License keys are checked by `services/license`, a small serverless function, because the Whop API key must
 never ship inside the app. To turn it on:
@@ -36,7 +38,28 @@ never ship inside the app. To turn it on:
 2. Set the server secret `WHOP_API_KEY` there. Use a fresh key with `member:basic:read` and `member:email:read` (the membership lookup requires both); rotate any key that
    was ever pasted into a chat, ticket or file.
 3. Release builds use `https://lumo-license.vercel.app/api/validate` (the deployed `lumo-license` Vercel project). To point them elsewhere, set the repository variable `LUMO_LICENSE_SERVER` to the function URL (for example
-   `https://license.lumo.keplar.one/api/validate`) so release builds compile it in.
+   `https://license.lumo.keplar.one/api/validate`) so release builds compile it in. The model gateway is
+   the same server's origin unless `LUMO_API_BASE` is set.
+
+## Lumo's models (OpenRouter)
+
+The same server runs Lumo's model gateway (`api/chat.js`, `api/usage.js`, `api/models.js`). It needs:
+
+1. `OPENROUTER_API_KEY`: an OpenRouter API key, set as a sensitive production variable on `lumo-license`.
+   Give the key a credit limit in OpenRouter as a backstop.
+2. Redis for metering: add **Upstash for Redis** to `lumo-license` from the Vercel Marketplace (the free
+   tier is enough to start); it sets `KV_REST_API_URL` and `KV_REST_API_TOKEN`.
+3. In OpenRouter's privacy settings, allow the free models' data policy, or free models return "no
+   endpoints found". Buy at least $10 of credits once: OpenRouter raises the free-model limit for the
+   whole account from 50 to 1,000 requests a day.
+4. Turn on **auto top-up** in OpenRouter (Settings → Credits): when the balance drops below a threshold,
+   OpenRouter charges the saved card and adds credits, so Lumo never stops for everyone at once. Size it
+   to about a week of usage (for example: below $50, add $100) and keep the key's credit limit above
+   it. If credits do run out, OpenRouter answers 402 and the gateway logs
+   `OpenRouter is out of credits` and tells users the models are paused.
+
+Plan models, budgets and limits are in `services/license/catalog.js`; run
+`pnpm --filter @lumo/license check-models` after changing them.
 
 ## Accounts (WorkOS AuthKit)
 
@@ -53,6 +76,9 @@ each Whop membership to one account, so a plan follows the person to any compute
    **private** Blob store (it holds the account-to-membership links; `BLOB_READ_WRITE_TOKEN` is added for you).
 4. Set the repository variable `LUMO_WORKOS_CLIENT_ID` so release builds compile it in. Builds without it don't ask
    anyone to sign in (development builds). `LUMO_ACCOUNT_SERVER` defaults to the license server's origin.
+5. The model gateway (`gateway.js`) counts usage per account and uses the account's linked plan when the app
+   sends an access token. Once every supported build requires sign-in, set `LUMO_REQUIRE_ACCOUNT=1` on the server
+   so callers that aren't signed in are refused (a fresh install id per reinstall then earns nothing).
 
 Passkeys are bound to the sign-in page's domain. Adding an AuthKit custom domain later means people set up their
 passkeys again; their passwords, Google sign-in and two-step keep working.
@@ -63,8 +89,8 @@ passkeys again; their passwords, Google sign-in and two-step keep working.
 2. Version numbers match in `apps/desktop/src-tauri/tauri.conf.json`, `apps/desktop/src-tauri/Cargo.toml`
    and `apps/desktop/package.json`.
 3. Install each installer on a clean machine and walk the first-run journey: sign in (Google, and a new email
-   account), onboarding, add a model key,
-   send a message, grant a folder, organize files and undo, approve and deny a sensitive action, stop a run.
+   account), onboarding, send a message on
+   Free, grant a folder, organize files and undo, approve and deny a sensitive action, stop a run.
 4. macOS: confirm the Screen Recording, Accessibility and Microphone prompts appear when the matching feature
    is first used, and that denying them gives a clear message rather than a crash.
 5. Computer use: start a task that uses the mouse, press Alt+Shift+Escape and confirm control stops at once.

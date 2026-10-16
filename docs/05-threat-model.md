@@ -8,16 +8,18 @@ Paths are relative to `apps/desktop/src-tauri/src` unless they say otherwise.
 
 ## 1. Assets
 
-| Asset                                                                                           | Where it lives                                                   | Why it matters                                                          |
-| ----------------------------------------------------------------------------------------------- | ---------------------------------------------------------------- | ----------------------------------------------------------------------- |
-| Provider keys and tokens (Anthropic, OpenAI-compatible, speech-to-text, Brave, GitHub, Netlify) | OS keychain, `secrets.rs`                                        | Can be used to spend money or to act as the user on GitHub or Netlify.  |
-| Whop license key                                                                                | OS keychain (`whop_license_key`, `license.rs`)                   | Unlocks a paid plan.                                                    |
-| Database key                                                                                    | OS keychain (`database_key`, `db.rs`)                            | Decrypts every conversation, memory and audit entry.                    |
-| Conversations, memories, audit log, file journal                                                | SQLCipher database in the app data folder (`db.rs`)              | Personal data.                                                          |
-| The user's files                                                                                | Folders the user granted (`policy.rs`)                           | Can be read, changed, moved to the Trash, or uploaded.                  |
-| The user's session (screen, mouse and keyboard, clipboard)                                      | `tools/system.rs`, `tools/computer.rs`, `tools/clipboard.rs`     | Full control of the desktop while computer control is on.               |
-| Ability to run programs                                                                         | `tools/shell.rs`                                                 | Allowlisted programs run with the user's own permissions.               |
-| Whop API key                                                                                    | License server environment only (`services/license/validate.js`) | Can read Whop memberships and member emails. It never ships in the app. |
+| Asset                                                      | Where it lives                                                   | Why it matters                                                          |
+| ---------------------------------------------------------- | ---------------------------------------------------------------- | ----------------------------------------------------------------------- |
+| Keys and tokens (speech-to-text, Brave, GitHub, Netlify)   | OS keychain, `secrets.rs`                                        | Can be used to spend money or to act as the user on GitHub or Netlify.  |
+| Whop license key                                           | OS keychain (`whop_license_key`, `license.rs`)                   | Unlocks a paid plan and spends its monthly model budget.                |
+| Database key                                               | OS keychain (`database_key`, `db.rs`)                            | Decrypts every conversation, memory and audit entry.                    |
+| Conversations, memories, audit log, file journal           | SQLCipher database in the app data folder (`db.rs`)              | Personal data.                                                          |
+| The user's files                                           | Folders the user granted (`policy.rs`)                           | Can be read, changed, moved to the Trash, or uploaded.                  |
+| The user's session (screen, mouse and keyboard, clipboard) | `tools/system.rs`, `tools/computer.rs`, `tools/clipboard.rs`     | Full control of the desktop while computer control is on.               |
+| The user's location                                        | `settings.location` (~100 m); a per-conversation copy in memory  | Reveals where the user is.                                              |
+| Ability to run programs                                    | `tools/shell.rs`                                                 | Allowlisted programs run with the user's own permissions.               |
+| Whop API key                                               | License server environment only (`services/license/validate.js`) | Can read Whop memberships and member emails. It never ships in the app. |
+| OpenRouter API key                                         | License server environment only (`services/license/gateway.js`)  | Spends Keplar's money on any model. It never ships in the app.          |
 
 ## 2. Trust boundaries
 
@@ -27,8 +29,10 @@ Paths are relative to `apps/desktop/src-tauri/src` unless they say otherwise.
 2. **Model output ↔ tool execution.** A tool call from the model is a request. `tools::execute`
    (`tools/mod.rs`) parses it into a typed struct (`deny_unknown_fields`), runs `authorize`, and only then
    runs the tool.
-3. **External content ↔ model context.** Web pages, files, clipboard text, command output, place listings
-   and attachments are wrapped by `tools::wrap_untrusted` before they reach the model.
+3. **External content ↔ model context.** Web pages, files, clipboard text, command output, place listings,
+   location names from OpenStreetMap and attachments are wrapped by `tools::wrap_untrusted` before they
+   reach the model. A detected location's name is also cut to 80 characters of plain text
+   (`location::label_from_address`), because the saved label appears in each turn's context.
 4. **Project preview ↔ app.** Project files are served by the `preview:` protocol (`desktop.rs`
    `preview_response`) into a sandboxed iframe.
 5. **App ↔ network.** Model providers, integrations, OpenStreetMap and `fetch_url`. Keys are attached in
@@ -96,6 +100,9 @@ escapes its sandbox.
   new origin (`settings.rs` `confirm_key_destinations`). The webview can also no longer use the Tauri
   core defaults for trays, menus, image reads or window listing (`capabilities/default.json`).
 - Sensitive actions still need the native dialog.
+- Detecting the location (`detect_location`, the Settings button) asks in a native dialog first, as the
+  `get_current_location` tool does, so the webview cannot read the user's position silently. It shows the
+  privacy indicator and is recorded in the audit log.
 
 What a compromised webview **can** still do (by design, or not yet addressed): answer write-tier approval
 cards; request the `screen`, `clipboard_read` and `active_window` capabilities (`grant_capability`, which now
@@ -117,7 +124,7 @@ debugger, send synthetic input, or replace the app binary. What Lumo does provid
 ### 3.5 A network attacker
 
 - All provider and integration traffic uses HTTPS (rustls). `settings::check_endpoint` refuses plain HTTP
-  except to localhost. The on-device runtime must be local.
+  except to localhost.
 - `fetch_url` refuses non-public addresses on every redirect hop (`tools/web.rs`). Since this review,
   it connects only to the addresses it checked (no second DNS lookup) and also refuses IPv6 forms that
   carry an internal IPv4 address (see section 4).
@@ -128,7 +135,21 @@ debugger, send synthetic input, or replace the app binary. What Lumo does provid
 
 The license server checks that the key maps to an active Whop membership on a Lumo plan
 (`services/license/validate.js`). The app stores the key in the keychain and the resulting plan in the
-encrypted settings.
+encrypted settings. The model gateway re-checks the key at most every 10 minutes, so a cancelled
+membership stops working soon after. A shared key shares one monthly budget, so it costs Keplar no more
+than one subscriber at full use.
+
+### 3.7 Someone using Lumo's model gateway directly
+
+Lumo pays for every model call, so the gateway (`services/license/gateway.js`) is the boundary that
+protects that money, not the app. It holds the OpenRouter key; it forwards only messages, tools,
+`tool_choice` and temperature (never the client's `provider`, `plugins` or `models`), chooses the model
+itself from the plan's list, caps output at 8,192 tokens, limits requests per minute (and per day on
+Free), and refuses calls once the month's allowance is used. Each call reserves its maximum cost before it
+runs and settles on OpenRouter's reported cost, and a call stopped before the cost arrives keeps the
+reservation, so going over budget needs many parallel calls and is bounded by them. Free installs are
+identified only by a random id, so someone who makes new ids gets new Free allowances: that costs nothing
+(free models) but uses up the shared free-model rate limit; tying Free to accounts closes it.
 
 In builds with accounts, a key is linked to exactly one Lumo account on the server (`services/license/accounts.js`),
 so a shared key can't be used by a second account. The link index is named by the key's SHA-256 and kept in a
@@ -147,6 +168,8 @@ private Blob store; keys never appear in file names or responses.
   15 minutes, so an abandoned setup can't lock anyone out. Turning it off needs a current code, so a stolen access
   token alone can't remove it. Account deletion needs a native confirmation dialog.
 - Signing in is enforced in the core (`agent::prepare`), not only by the sign-in screen.
+- The model gateway trusts only a verified access token for who is asking; a license key linked to an account is
+  refused on its own, and usage counts per account rather than per install.
 - Residual: passkeys and two-step are optional. Passkeys are bound to the AuthKit domain; moving to a custom domain
   later means re-enrolling them.
 
@@ -154,7 +177,7 @@ private Blob store; keys never appear in file names or responses.
 
 | Issue                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       | Severity                  | Fix                                                                                                                                                                                                      | Regression test                                                                   |
 | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------- |
-| A compromised webview could point `anthropic_base_url`, `openai_base_url` or `stt_base_url` at any https host. The saved key would then be sent there on the next request or connection test.                                                                                                                                                                                                                                                                                                               | High                      | `save_settings` validates first. It then asks for native confirmation when an endpoint's origin changes and its key is stored (`settings.rs` `confirm_key_destinations`, `commands.rs` `save_settings`). | `settings::tests::sending_a_saved_key_to_a_new_address_needs_native_confirmation` |
+| A compromised webview could point a keyed endpoint (now `stt_base_url`) at any https host. The saved key would then be sent there on the next request or connection test.                                                                                                                                                                                                                                                                                                                                   | High                      | `save_settings` validates first. It then asks for native confirmation when an endpoint's origin changes and its key is stored (`settings.rs` `confirm_key_destinations`, `commands.rs` `save_settings`). | `settings::tests::sending_a_saved_key_to_a_new_address_needs_native_confirmation` |
 | Writing to files that run automatically (`~/.zshrc`, `.bashrc`, `.profile`, `.git/hooks/*`, `~/.config/autostart`, systemd user units, `~/Library/LaunchAgents`, the Windows Startup folder) needed only a write-tier approval, or none after "allow for this conversation". That turns a file write into code execution without the native dialog that `run_command` needs. Credential files (`.netrc`, `.git-credentials`, `.npmrc`, `.pypirc`, `.gitconfig`) were readable inside a granted home folder. | High                      | `policy::runs_automatically` refuses them inside any grant, comparing path components and ignoring case.                                                                                                 | `policy::tests::startup_scripts_hooks_and_credentials_are_refused_inside_a_grant` |
 | DNS rebinding in `fetch_url`: the host was resolved for the check, then resolved again by reqwest to connect.                                                                                                                                                                                                                                                                                                                                                                                               | Medium                    | `web::resolve_public` returns the checked addresses, and each hop pins them with `resolve_to_addrs`.                                                                                                     | `tools::web::tests::resolved_addresses_are_returned_for_pinning`                  |
 | `is_public` accepted NAT64 (`64:ff9b::/96`), 6to4 (`2002::/16`) and IPv4-compatible IPv6 forms of internal addresses, plus site-local, documentation and `192.0.0.0/24` addresses.                                                                                                                                                                                                                                                                                                                          | Medium                    | Embedded IPv4 addresses are checked, and the extra ranges are refused.                                                                                                                                   | `tools::web::tests::ipv6_forms_of_internal_ipv4_addresses_are_not_public`         |
@@ -165,8 +188,7 @@ private Blob store; keys never appear in file names or responses.
 
 Stated plainly, highest first.
 
-1. **Read-tier exfiltration.** `fetch_url` (and the Anthropic `web_fetch` and `web_search` server tools)
-   runs without approval. An injected instruction can make the model put file contents or memories into a
+1. **Read-tier exfiltration.** `fetch_url` runs without approval. An injected instruction can make the model put file contents or memories into a
    URL query string and send it to an attacker's server. Defenses today are the untrusted wrapping and the
    model following the system prompt. Options: approve `fetch_url` when the URL did not come from the user
    or a search result, cap query-string length, or ask before the first fetch to a new domain in a run
@@ -229,5 +251,5 @@ Stated plainly, highest first.
 - CI runs `cargo audit` and a gitleaks secret scan (`.github/workflows/ci.yml`). A manual scan of the
   working tree and the full git history on 2026-10-16 found no committed keys or tokens.
 - Logs: `log::` calls record error messages and counts, never keys or message content
-  (`error.rs`, `model/anthropic.rs`, `automations.rs`). The `Anthropic` struct holding the key does not
-  derive `Debug`.
+  (`error.rs`, `model/cloud.rs`, `automations.rs`). The `LumoCloud` struct holding the license key does
+  not derive `Debug`. The gateway logs only failures to record usage, never request content.

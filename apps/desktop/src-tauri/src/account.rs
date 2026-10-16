@@ -402,6 +402,16 @@ async fn access_token(core: &Core, force: bool) -> Result<String> {
     Ok(t.access)
 }
 
+/// The model gateway knows people by their account in builds with accounts, once they are signed in.
+pub fn uses_account(core: &Core) -> bool {
+    config(core).is_some() && core.settings().account.is_some()
+}
+
+/// An access token for Lumo's model gateway. `fresh` forces a refresh (after the gateway refused one).
+pub async fn gateway_token(core: &Core, fresh: bool) -> Result<String> {
+    access_token(core, fresh).await
+}
+
 /// Call the account server as the signed-in person.
 async fn call(core: &Core, action: &str, extra: Value) -> Result<Value> {
     let cfg = config(core).ok_or_else(|| LumoError::Unavailable("Accounts aren't available in this build.".into()))?;
@@ -451,7 +461,7 @@ fn apply(core: &Core, v: &Value) -> Result<AccountStatus> {
     acc.license_linked = v["licenseLinked"] == true;
     acc.checked_at = Some(crate::util::now());
     // null means Whop couldn't be asked: keep the plan Lumo already knew.
-    if let Some(p @ ("free" | "lite" | "pro" | "unlimited")) = v["plan"].as_str() {
+    if let Some(p @ ("free" | "lite" | "pro")) = v["plan"].as_str() {
         if s.plan != p {
             crate::audit::record(&core.db, "system", "plan_changed", Some(p), None, "ok");
         }
@@ -703,6 +713,29 @@ mod tests {
         assert_eq!(core.settings().plan, "free");
         assert_eq!(core.secrets.get(REFRESH_SECRET).unwrap(), None);
         assert!(require_signed_in(&core).is_err());
+    }
+
+    #[tokio::test]
+    async fn the_model_gateway_is_told_who_is_signed_in() {
+        let server = MockServer::start().await;
+        let (core, platform, _dir) = setup(&server);
+        let access = jwt(chrono::Utc::now().timestamp() + 3600);
+        mock_tokens(&server, &access).await;
+        mock_account(&server, "status", account_body("pro", false)).await;
+        Mock::given(method("GET"))
+            .and(path("/api/usage"))
+            .and(header("authorization", format!("Bearer {access}").as_str()))
+            .respond_with(
+                ResponseTemplate::new(200).set_body_json(json!({ "plan": "pro", "percentUsed": 5, "resetsAt": "2026-11-01T00:00:00Z" })),
+            )
+            .mount(&server)
+            .await;
+        core.endpoints.lock().lumo_api = Some(server.uri());
+        assert!(!uses_account(&core));
+        browser_sign_in(&core, &platform, "google").await.unwrap();
+        assert!(uses_account(&core));
+        assert_eq!(crate::models::usage(&core).await.unwrap().percent_used, 5);
+        assert_eq!(core.provider().unwrap().name(), "lumo");
     }
 
     #[tokio::test]

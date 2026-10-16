@@ -36,6 +36,9 @@ pub trait Platform: Send + Sync {
     fn active_window(&self) -> Result<(String, String)>;
     /// Tell every window about something (privacy indicators, list changes).
     fn broadcast(&self, event: &str, payload: serde_json::Value);
+    /// One position fix from the operating system's location service (may show the OS permission
+    /// prompt). Callers confirm with the user first; see `crate::location`.
+    async fn current_position(&self) -> Result<crate::location::Fix>;
 }
 
 /// A screen capture and where it sits on the desktop, so model coordinates map back to the screen.
@@ -67,11 +70,17 @@ pub struct Paths {
 pub struct Endpoints {
     pub nominatim: String,
     pub overpass: String,
+    /// Lumo's model gateway (see models.rs). None in builds without one.
+    pub lumo_api: Option<String>,
 }
 
 impl Default for Endpoints {
     fn default() -> Self {
-        Endpoints { nominatim: "https://nominatim.openstreetmap.org".into(), overpass: "https://overpass-api.de/api/interpreter".into() }
+        Endpoints {
+            nominatim: "https://nominatim.openstreetmap.org".into(),
+            overpass: "https://overpass-api.de/api/interpreter".into(),
+            lumo_api: crate::models::api_base(),
+        }
     }
 }
 
@@ -90,6 +99,9 @@ pub struct Pending {
     pub input_sessions: Mutex<std::collections::HashSet<String>>,
     /// Geometry of the last screenshot, per run.
     pub screens: Mutex<HashMap<String, Screenshot>>,
+    /// Where the user is, per conversation, after they let Lumo detect it. Memory only; `find_places`
+    /// searches around it when no place is named.
+    pub current_locations: Mutex<HashMap<String, crate::settings::Location>>,
 }
 
 #[derive(Clone)]
@@ -116,6 +128,8 @@ pub struct Core {
     pub api_bases: Mutex<crate::integrations::ApiBases>,
     /// The Lumo account configuration and its in-memory access token (see account.rs).
     pub account: Mutex<crate::account::AccountState>,
+    /// The core itself, for model calls that fetch a fresh account token each time.
+    this: std::sync::Weak<Core>,
 }
 
 impl Core {
@@ -125,7 +139,8 @@ impl Core {
             .connect_timeout(std::time::Duration::from_secs(15))
             .build()
             .expect("http client");
-        Arc::new(Core {
+        Arc::new_cyclic(|this| Core {
+            this: this.clone(),
             db,
             secrets,
             http,
@@ -144,44 +159,22 @@ impl Core {
         settings::load(&self.db).unwrap_or_default()
     }
 
-    /// The model provider for the current settings.
+    /// The model provider: Lumo's model gateway, signed in with this install and the plan's license.
     pub fn provider(&self) -> Result<Arc<dyn ModelProvider>> {
         if let Some(p) = self.provider_override.lock().clone() {
             return Ok(p);
         }
-        let s = self.settings();
-        // An old setting from a higher plan can't be used after a downgrade.
-        crate::plans::check_model(crate::plans::limits(&s.plan), &s.provider, &s.chat_model())?;
-        match s.provider.as_str() {
-            "local" => {
-                if s.local_model.is_empty() {
-                    return Err(crate::error::LumoError::Unavailable(
-                        "Download an on-device model (Orbit, Nebula, Solar or Nova) in Settings → Model to start.".into(),
-                    ));
-                }
-                Ok(Arc::new(crate::model::openai::OpenAiCompatible::new(
-                    self.http.clone(),
-                    &format!("{}/v1", s.local_base_url.trim_end_matches('/')),
-                    None,
-                    s.local_model.clone(),
-                )))
-            }
-            "openai_compatible" => {
-                let key = self.secrets.get("openai_compatible_api_key")?;
-                Ok(Arc::new(crate::model::openai::OpenAiCompatible::new(
-                    self.http.clone(),
-                    &s.openai_base_url,
-                    key,
-                    s.openai_model.clone(),
-                )))
-            }
-            _ => {
-                let key = self.secrets.get("anthropic_api_key")?.ok_or_else(|| {
-                    crate::error::LumoError::Unavailable("Add your Anthropic API key in Settings → Model to start.".into())
-                })?;
-                Ok(Arc::new(crate::model::anthropic::Anthropic::new(self.http.clone(), &s.anthropic_base_url, key)))
-            }
+        let base = self
+            .endpoints
+            .lock()
+            .lumo_api
+            .clone()
+            .ok_or_else(|| crate::error::LumoError::Unavailable("Lumo's models aren't available in this build.".into()))?;
+        let install = crate::models::install_id(self)?;
+        if crate::account::uses_account(self) {
+            return Ok(Arc::new(crate::model::cloud::LumoCloud::for_account(self.http.clone(), &base, install, self.this.clone())));
         }
+        Ok(Arc::new(crate::model::cloud::LumoCloud::new(self.http.clone(), &base, install, crate::models::license_key(self))))
     }
 }
 
@@ -203,6 +196,9 @@ pub mod testing {
         pub control_active: Mutex<Vec<bool>>,
         pub screen: Mutex<Option<Screenshot>>,
         pub broadcasts: Mutex<Vec<(String, serde_json::Value)>>,
+        /// What `current_position` returns; None means no location service.
+        pub position: Mutex<Option<std::result::Result<crate::location::Fix, crate::location::FixError>>>,
+        pub position_requests: Mutex<usize>,
     }
 
     #[async_trait]
@@ -244,6 +240,11 @@ pub mod testing {
         }
         fn broadcast(&self, event: &str, payload: serde_json::Value) {
             self.broadcasts.lock().push((event.to_string(), payload));
+        }
+        async fn current_position(&self) -> Result<crate::location::Fix> {
+            *self.position_requests.lock() += 1;
+            let r = self.position.lock().clone().unwrap_or(Err(crate::location::FixError::NotSupported));
+            r.map_err(|e| e.into_error(std::env::consts::OS))
         }
     }
 

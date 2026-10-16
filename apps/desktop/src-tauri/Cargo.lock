@@ -3067,7 +3067,7 @@ checksum = "4050469837a6ff301cd14c1f8f24f88549e6d548f24f64e2148eb0f72cebc51f"
 
 [[package]]
 name = "lumo"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -3084,6 +3084,9 @@ dependencies = [
  "keyring",
  "log",
  "mime_guess",
+ "objc2",
+ "objc2-core-location",
+ "objc2-foundation",
  "parking_lot",
  "rand 0.9.5",
  "regex",
@@ -3112,8 +3115,10 @@ dependencies = [
  "url",
  "uuid",
  "walkdir",
+ "windows 0.62.2",
  "wiremock",
  "xcap",
+ "zbus",
  "zip 2.4.2",
 ]
 

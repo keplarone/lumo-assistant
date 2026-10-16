@@ -86,7 +86,6 @@ jobs:
           LUMO_ACCOUNT_SERVER: ${{ vars.LUMO_ACCOUNT_SERVER }}
           LUMO_WHOP_CHECKOUT_LITE: ${{ vars.LUMO_WHOP_CHECKOUT_LITE }}
           LUMO_WHOP_CHECKOUT_PRO: ${{ vars.LUMO_WHOP_CHECKOUT_PRO }}
-          LUMO_WHOP_CHECKOUT_UNLIMITED: ${{ vars.LUMO_WHOP_CHECKOUT_UNLIMITED }}
           # Signing secrets (updater, Apple) arrive through GITHUB_ENV from the step above when configured.
         with:
           projectPath: apps/desktop

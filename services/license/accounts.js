@@ -8,10 +8,27 @@
 // abandoned setup can never lock anyone out). Turning it off needs a current code too.
 
 import { AuthError, verifyAccessToken, workosApi } from './workos.js';
-import { membershipKey, pendingKey, userKey } from './store.js';
+import { membershipKey, pendingKey, userKey } from './links.js';
 import { validate } from './validate.js';
 
 const PENDING_MS = 15 * 60 * 1000;
+/** How long the model gateway trusts an account's plan before asking Whop again (see gateway.js). */
+export const ACCOUNT_PLAN_TTL = 600;
+export const accountPlanKey = (userId) => `acct:${userId}`;
+
+/**
+ * The plan an account has right now: its linked Whop membership's tier, or "free". Null when Whop
+ * can't be asked, so callers keep what they knew rather than downgrading anyone.
+ * @param {string} userId
+ * @param {{ env: Record<string, string | undefined>, store: import('./links.js').LinkStore, fetch?: typeof fetch }} deps
+ */
+export async function accountTier(userId, deps) {
+  const rec = await deps.store.read(userKey(userId));
+  if (!rec?.membershipId) return 'free';
+  const r = await validate(rec.membershipId, deps.env, deps.fetch ?? fetch);
+  if (r.status >= 500) return null;
+  return r.body.valid ? r.body.tier : 'free';
+}
 const CODE = /^\d{6}$/;
 
 const ok = (body) => ({ status: 200, body });
@@ -20,10 +37,11 @@ const fail = (status, error) => ({ status, body: { error } });
 /**
  * @typedef {{
  *   env: Record<string, string | undefined>,
- *   store: import('./store.js').Store,
+ *   store: import('./links.js').LinkStore,
  *   fetch?: typeof fetch,
  *   key?: any,
  *   now?: () => number,
+ *   cache?: import('./store.js').Store | null,
  * }} Deps
  */
 
@@ -61,6 +79,7 @@ export async function handle(action, authorization, input, deps) {
         await unlink(ctx);
         await ctx.store.remove(pendingKey(ctx.who.userId));
         await ctx.workos.deleteUser(ctx.who.userId);
+        await ctx.cache?.set(accountPlanKey(ctx.who.userId), 'free', ACCOUNT_PLAN_TTL).catch(() => {});
         return ok({ deleted: true });
       default:
         return fail(404, 'Unknown account action.');
@@ -90,6 +109,8 @@ async function status(ctx) {
     // Whop being unreachable is not the person's fault: tell the app to keep what it had.
     if (r.status >= 500) return { ...base(user, factors, true), plan: null, planError, membershipStatus };
   }
+  // Tell the model gateway at once, so a new or removed plan counts from the next message.
+  await ctx.cache?.set(accountPlanKey(userId), plan, ACCOUNT_PLAN_TTL).catch(() => {});
   return { ...base(user, factors, !!linkRec?.membershipId), plan, planError, membershipStatus };
 }
 
