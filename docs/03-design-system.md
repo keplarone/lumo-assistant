@@ -46,18 +46,18 @@ in script so each theme has a single definition. `prefers-contrast: more` streng
 
 ## Typography
 
-| Use                         | Family                       | Size / line height                  | Weight                    |
-| --------------------------- | ---------------------------- | ----------------------------------- | ------------------------- |
-| UI default                  | Inter Variable               | 13 / 1.5                            | 400, 510 for labels       |
-| Conversation text           | Inter Variable               | 14 / 1.62                           | 400                       |
-| Captions, mono labels       | IBM Plex Mono                | 11                                  | 400–500                   |
-| Section title               | Inter Variable               | 16 / 1.3                            | 600, tracking −0.012em    |
-| Page title                  | Inter Variable               | 20 / 1.3                            | 600                       |
-| Display (greeting, website) | Bricolage Grotesque Variable | 28 / 40 / 56 / 72, line height 1.15 | 600–700, tracking −0.03em |
-| Code                        | IBM Plex Mono                | 0.92em of context                   | 400                       |
+| Use                         | Family              | Size / line height                  | Weight                    |
+| --------------------------- | ------------------- | ----------------------------------- | ------------------------- |
+| UI default                  | Montserrat Variable | 13 / 1.5                            | 400, 510 for labels       |
+| Conversation text           | Montserrat Variable | 14 / 1.62                           | 400                       |
+| Captions, mono labels       | IBM Plex Mono       | 11                                  | 400–500                   |
+| Section title               | Montserrat Variable | 16 / 1.3                            | 600, tracking −0.012em    |
+| Page title                  | Montserrat Variable | 20 / 1.3                            | 600                       |
+| Display (greeting, website) | Montserrat Variable | 28 / 40 / 56 / 72, line height 1.15 | 600–700, tracking −0.03em |
+| Code                        | IBM Plex Mono       | 0.92em of context                   | 400                       |
 
-Bricolage Grotesque and IBM Plex Mono carry over from the mascot reference page, so the character and the
-product share a voice. All fonts are self-hosted (`@lumo/ui/fonts`), so the desktop app works offline.
+Montserrat (UI and display) and IBM Plex Mono (code and labels) are the only two families. All fonts are
+self-hosted (`@fontsource` packages imported at each app entry), so the desktop app works offline.
 
 ## Space, size, shape
 

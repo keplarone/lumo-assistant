@@ -369,5 +369,5 @@ export const OPEN_SOURCE: [string, string][] = [
   ['DOMPurify', 'MPL-2.0 or Apache-2.0'],
   ['Lucide icons', 'ISC'],
   ['clsx', 'MIT'],
-  ['Inter, Bricolage Grotesque and IBM Plex Mono fonts', 'SIL Open Font License 1.1'],
+  ['Montserrat and IBM Plex Mono fonts', 'SIL Open Font License 1.1'],
 ];

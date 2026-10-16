@@ -1,5 +1,4 @@
-import '@fontsource-variable/inter/wght.css';
-import '@fontsource-variable/bricolage-grotesque/wght.css';
+import '@fontsource-variable/montserrat/wght.css';
 import '@fontsource/ibm-plex-mono/400.css';
 import '@fontsource/ibm-plex-mono/500.css';
 import '@lumo/ui/styles.css';

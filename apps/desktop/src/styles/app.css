@@ -2380,7 +2380,7 @@ a.lm-row-main:hover .lm-row-title {
 }
 .lm-plan-period {
   margin-left: 2px;
-  font-family: var(--lu-font-sans);
+  font-family: var(--lu-font-ui);
   font-size: var(--lu-text-xs);
   font-weight: var(--lu-weight-regular);
   color: var(--lu-text-tertiary);
