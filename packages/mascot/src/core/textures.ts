@@ -86,7 +86,7 @@ export function makeTextures(): LumoTextures {
   });
   const letter = (ch: string, fill: string) =>
     canvasTexture(128, (g, s) => {
-      g.font = `800 ${s * 0.78}px ui-rounded, "SF Pro Rounded", "Nunito", "Bricolage Grotesque Variable", system-ui, sans-serif`;
+      g.font = `800 ${s * 0.78}px ui-rounded, "SF Pro Rounded", "Nunito", "Montserrat Variable", system-ui, sans-serif`;
       g.textAlign = 'center';
       g.textBaseline = 'middle';
       g.lineJoin = 'round';

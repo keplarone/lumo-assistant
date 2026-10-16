@@ -19,6 +19,7 @@
  */
 import * as THREE from 'three';
 import { BASE_POSE, moodOf, type Effect, type Mood, type Pose } from './moods';
+import { addFur, makeFurShared, type FurOptions } from './fur';
 import { makeTextures, type LumoTextures } from './textures';
 
 export const damp = (a: number, b: number, k: number, dt: number) => a + (b - a) * (1 - Math.exp(-k * dt));
@@ -61,6 +62,8 @@ export class Spring {
 
 export const PALETTE = {
   body: 0xfdfcfa,
+  furTip: 0xffffff,
+  furRoot: 0xdde4f0,
   sheen: 0xcfe0ff,
   earInner: 0xffc6d9,
   eye: 0x18213d,
@@ -84,6 +87,11 @@ export interface LumoOptions {
   pixelRatio: number;
   /** Reduced motion: damped amplitudes, no flips or spins. */
   calm: boolean;
+  /**
+   * Fur quality: shells on the body (other parts use about half). Defaults to follow the particle
+   * budget, so small surfaces that ask for fewer particles also draw lighter fur.
+   */
+  furShells?: number;
   /** Particle budget (exhaust and sparkles), for small surfaces. */
   particles: number;
   seed: number;
@@ -218,6 +226,9 @@ export class Lumo extends THREE.Group {
   private feet: THREE.Mesh[] = [];
   /** Shoulder pivots (left, right); each holds a wing and a tip marker for the trail. */
   private wings: { pivot: THREE.Group; tip: THREE.Object3D; side: number }[] = [];
+  private fur = makeFurShared();
+  private furX = new Spring(0);
+  private furY = new Spring(-0.3);
   private flapPhase = 0;
   private flapAmp = 0;
   private flapRate = 0;
@@ -365,6 +376,40 @@ export class Lumo extends THREE.Group {
     this.buildLimbs(bodyMat);
     this.buildWings();
     this.buildFx();
+    this.buildFur(body);
+  }
+
+  /** Real fur on everything soft: the body, ears, arms, feet and wings. */
+  private buildFur(body: THREE.Mesh) {
+    const P = PALETTE;
+    const full = this.opts.furShells ?? clamp(Math.round(this.opts.particles / 5.5), 8, 28);
+    const part = (mesh: THREE.Mesh, o: Partial<FurOptions>) => {
+      const { geometry, material } = addFur(
+        mesh,
+        { shells: Math.max(6, full * 0.5), length: 0.06, density: 90, tip: P.furTip, root: P.furRoot, ...o },
+        this.fur,
+      );
+      this.geos.push(geometry);
+      this.mats.push(material);
+    };
+    part(body, { shells: full, length: 0.13, density: 85, faceShort: 0.8, bend: 1.2 });
+    this.ears.forEach((e) => {
+      for (const seg of [e.seg1, e.seg2]) {
+        const outer = seg.children.find((c) => c instanceof THREE.Mesh && c.userData.earOuter) as THREE.Mesh;
+        if (outer) part(outer, { length: 0.05, density: 110, faceShort: 0.9, frontOnly: true });
+      }
+    });
+    for (const side of ['left', 'right'] as const) {
+      const arm = this.arms[side].children.find((c) => c instanceof THREE.Mesh) as THREE.Mesh;
+      if (arm) part(arm, { length: 0.07, density: 95 });
+    }
+    for (const f of this.feet) part(f, { length: 0.06, density: 95 });
+    for (const w of this.wings) {
+      w.pivot.traverse((c) => {
+        if (c instanceof THREE.Mesh && c.userData.wing)
+          part(c, { length: 0.045, density: 120, doubleSide: true, bend: 0.6 });
+      });
+    }
   }
 
   private buildFace() {
@@ -463,6 +508,7 @@ export class Lumo extends THREE.Group {
       root.position.set(sign * 0.34, 0.76, -0.04);
       const seg1 = new THREE.Group();
       const m1 = new THREE.Mesh(sphere, bodyMat);
+      m1.userData.earOuter = true;
       m1.scale.set(0.2, 0.4, 0.11);
       m1.position.y = 0.34;
       const n1 = new THREE.Mesh(sphere, inner);
@@ -472,6 +518,7 @@ export class Lumo extends THREE.Group {
       const seg2 = new THREE.Group();
       seg2.position.y = 0.6;
       const m2 = new THREE.Mesh(sphere, bodyMat);
+      m2.userData.earOuter = true;
       m2.scale.set(0.19, 0.34, 0.1);
       m2.position.y = 0.22;
       const n2 = new THREE.Mesh(sphere, inner);
@@ -595,47 +642,17 @@ export class Lumo extends THREE.Group {
       geo.translate(0, 0, -depth / 2);
       return this.g(geo);
     };
-    const wingGeo = extrude(1, 0.04);
-    const featherGeo = extrude(0.66, 0.03);
-    const wingMat = this.m(
-      new THREE.MeshPhysicalMaterial({
-        color: P.wing,
-        roughness: 0.45,
-        sheen: 1,
-        sheenColor: new THREE.Color(P.sheen),
-        clearcoat: 0.3,
-      }),
-    );
-    const featherMat = this.m(
-      new THREE.MeshPhysicalMaterial({
-        color: P.feather,
-        roughness: 0.35,
-        clearcoat: 0.6,
-        clearcoatRoughness: 0.2,
-      }),
-    );
-    const tipMat = this.m(new THREE.MeshStandardMaterial({ color: P.featherDeep, roughness: 0.4 }));
-    const dotGeo = this.g(new THREE.SphereGeometry(0.045, 12, 10));
+    const wingGeo = extrude(1, 0.07);
+    // The wing's own surface is hidden under its fur (see buildFur); this material only keeps boops.
+    const wingMat = this.m(new THREE.MeshStandardMaterial({ color: P.wing }));
     for (const side of [-1, 1]) {
       const pivot = new THREE.Group();
       pivot.position.set(side * 0.42, 0.2, -0.8);
       const wing = new THREE.Group();
       wing.scale.set(side * 1.45, 1.45, 1.45);
       const main = new THREE.Mesh(wingGeo, wingMat);
-      const feather = new THREE.Mesh(featherGeo, featherMat);
-      feather.position.set(0.04, 0.02, 0.045);
-      // Three little blue feather dots along the scallops.
-      [
-        [0.66, 0.0],
-        [0.45, -0.12],
-        [0.24, -0.17],
-      ].forEach(([x, y]) => {
-        const d = new THREE.Mesh(dotGeo, tipMat);
-        d.position.set(x!, y!, 0.05);
-        d.scale.set(1, 1, 0.5);
-        wing.add(d);
-      });
-      wing.add(main, feather);
+      main.userData.wing = true;
+      wing.add(main);
       pivot.add(wing);
       const tip = new THREE.Object3D();
       tip.position.set(side * 1.16, 0.4, 0);
@@ -1028,6 +1045,13 @@ export class Lumo extends THREE.Group {
     const ay = (vy - this.rigVy) / Math.max(dt, 1e-4);
     this.rigVy = vy;
     this.lastRigY = rigY;
+    // Fur: tips trail behind the motion (drag), sag a little (gravity) and overshoot on stops.
+    const dragX = clamp(-vx * 0.22, -0.9, 0.9);
+    const dragY = clamp(-vy * 0.12 - 0.3 - ay * 0.004, -1.2, 0.8);
+    this.furX.step(dragX, 60, 7, dt);
+    this.furY.step(dragY, 60, 7, dt);
+    this.fur.force.value.set(this.furX.x, this.furY.x, 0);
+    this.fur.time.value = t;
 
     // Gaze: mood lock > explicit target > glances.
     if (!this.gazeTarget && !calm && t > this.nextGlance) {

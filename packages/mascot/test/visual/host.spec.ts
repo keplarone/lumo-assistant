@@ -126,6 +126,8 @@ test('stops rendering while scrolled off-screen, resumes when back', async ({ pa
     timeout: 30_000,
   });
   await page.evaluate(() => window.scrollTo(0, 2000));
+  // Software GL frames are slow here, so wait for the driver to see the scroll before measuring.
+  await expect.poll(() => host(page, (h) => h.stats().rate), { timeout: 5000 }).toBe(0);
   await page.waitForTimeout(300);
   expect(await framesOver(page, 1000), 'frames while off-screen').toBe(0);
   await page.evaluate(() => window.scrollTo(0, 0));

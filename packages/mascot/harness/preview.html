@@ -1,9 +1,15 @@
 <!doctype html>
-<html lang="en">
+<html lang="en" data-theme="light">
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>Meet Lumo</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700;800&display=swap"
+      rel="stylesheet"
+    />
     <style>
       :root {
         color-scheme: light dark;
@@ -38,7 +44,7 @@
         margin: 0;
         height: 100%;
         background: var(--page);
-        font-family: ui-rounded, 'SF Pro Rounded', system-ui, sans-serif;
+        font-family: Montserrat, system-ui, sans-serif;
         color: var(--ink);
         overflow: hidden;
       }
@@ -51,9 +57,82 @@
         inset: 0;
         cursor: pointer;
       }
+      .bar {
+        position: fixed;
+        top: 14px;
+        left: 16px;
+        right: 16px;
+        z-index: 2;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+      }
+      .brand {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        font-weight: 700;
+        font-size: 17px;
+      }
+      .brand img {
+        width: 34px;
+        height: 34px;
+        border-radius: 9px;
+        box-shadow: 0 4px 12px -4px rgba(47, 107, 255, 0.45);
+      }
+      .mode {
+        position: relative;
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        padding: 3px;
+        border-radius: 999px;
+        background: rgba(255, 255, 255, 0.75);
+        box-shadow:
+          inset 0 1px 3px rgba(20, 40, 110, 0.14),
+          0 0 0 1px var(--chip-line);
+        backdrop-filter: blur(8px);
+      }
+      .mode .thumb {
+        position: absolute;
+        top: 3px;
+        bottom: 3px;
+        left: 3px;
+        width: calc(50% - 3px);
+        border-radius: 999px;
+        background: linear-gradient(#4f86ff, #2f6bff);
+        box-shadow:
+          inset 0 1px 0 rgba(255, 255, 255, 0.35),
+          0 2px 0 #1d4fd1,
+          0 6px 14px -6px rgba(47, 107, 255, 0.6);
+        transition: transform 0.45s cubic-bezier(0.3, 1.6, 0.5, 1);
+      }
+      .mode[data-mode='linx'] .thumb {
+        transform: translateX(100%);
+      }
+      .mode button {
+        position: relative;
+        z-index: 1;
+        min-height: 36px;
+        padding: 0 16px;
+        border: 0;
+        background: none;
+        box-shadow: none;
+        font-weight: 600;
+        font-size: 13px;
+        white-space: nowrap;
+      }
+      .mode button:hover,
+      .mode button:active {
+        transform: none;
+        box-shadow: none;
+      }
+      .mode button[aria-checked='true'] {
+        color: #fff;
+      }
       header {
         position: fixed;
-        top: 20px;
+        top: 68px;
         left: 0;
         right: 0;
         text-align: center;
@@ -79,6 +158,9 @@
         justify-content: center;
         gap: 8px;
         width: min(760px, calc(100% - 32px));
+      }
+      nav button {
+        min-height: 40px;
       }
       button {
         font: 600 13px/1 inherit;
@@ -121,9 +203,17 @@
   <body>
     <div id="bg"></div>
     <div id="stage"></div>
+    <div class="bar">
+      <div class="brand"><img src="./knot.png" alt="" /> <span id="brand-name">Lumo</span></div>
+      <div class="mode" id="mode" role="radiogroup" aria-label="Mode" data-mode="lumo">
+        <span class="thumb" aria-hidden="true"></span>
+        <button role="radio" aria-checked="true" data-mode="lumo">Lumo</button>
+        <button role="radio" aria-checked="false" data-mode="linx">Linx Code</button>
+      </div>
+    </div>
     <header>
       <h1>Meet the new Lumo</h1>
-      <p>Click him for a boop. He tours his moods on his own, or pick one below.</p>
+      <p id="sub">Your personal AI assistant. Tap him for a boop, or pick a mood below.</p>
     </header>
     <nav id="moods"></nav>
     <script type="module" src="./preview.ts"></script>

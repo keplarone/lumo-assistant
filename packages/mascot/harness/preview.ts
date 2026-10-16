@@ -100,3 +100,21 @@ renderer.setAnimationLoop(() => {
 });
 (window as unknown as { __lumo: Lumo; __stopTour: () => void }).__lumo = lumo;
 (window as unknown as { __stopTour: () => void }).__stopTour = () => (auto = false);
+
+// The Lumo / Linx Code switch, as in the app.
+const modeEl = document.getElementById('mode')!;
+const sub = document.getElementById('sub')!;
+const brand = document.getElementById('brand-name')!;
+modeEl.querySelectorAll<HTMLButtonElement>('button').forEach((b) =>
+  b.addEventListener('click', () => {
+    const m = b.dataset.mode!;
+    modeEl.dataset.mode = m;
+    modeEl.querySelectorAll('button').forEach((x) => x.setAttribute('aria-checked', String(x === b)));
+    brand.textContent = m === 'linx' ? 'Linx Code' : 'Lumo';
+    sub.textContent =
+      m === 'linx'
+        ? 'Linx Code: build, fix and automate your work.'
+        : 'Your personal AI assistant. Tap him for a boop, or pick a mood below.';
+    lumo.boop('jump');
+  }),
+);
