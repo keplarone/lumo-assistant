@@ -476,7 +476,7 @@ mod tests {
         let call = json!({"type": "tool_use", "id": "c1", "name": "control_computer", "input": {"reason": "fill the form", "actions": [{"type": "click", "x": 1, "y": 1}]}});
         let res = execute(&r, &ctx, &call, &names).await;
         assert!(!res.ok && !res.needs_attention);
-        assert!(res.block.to_string().contains("part of Lumo Lite, Lumo Pro and Lumo Unlimited"), "{}", res.block);
+        assert!(res.block.to_string().contains("part of Lumo Lite and Lumo Pro"), "{}", res.block);
         assert!(platform.confirms.lock().is_empty(), "no permission dialog for a tool the plan doesn't include");
         assert!(platform.inputs.lock().is_empty() && !session_active(&core, &ctx.run_id));
         assert!(events.0.lock().iter().any(|e| matches!(e, AgentEvent::ToolFinished { ok: false, .. })));

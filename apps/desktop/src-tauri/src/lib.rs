@@ -10,9 +10,9 @@ pub mod desktop;
 pub mod error;
 pub mod integrations;
 pub mod license;
-pub mod local_models;
 pub mod location;
 pub mod model;
+pub mod models;
 pub mod plans;
 pub mod policy;
 pub mod secrets;
@@ -198,11 +198,7 @@ pub fn run() {
             commands::activate_license,
             commands::remove_license,
             commands::plan_usage,
-            commands::local_models_status,
-            commands::download_local_model,
-            commands::cancel_local_download,
-            commands::delete_local_model,
-            commands::select_local_model,
+            commands::model_catalog,
         ])
         .run(tauri::generate_context!())
         .expect("error while running Lumo");

@@ -1,4 +1,3 @@
-import { Button, Callout } from '@lumo/ui';
 import {
   Coffee,
   FileText,
@@ -82,12 +81,6 @@ export function Home() {
     window.addEventListener('lumo:focus-composer', focus);
     return () => window.removeEventListener('lumo:focus-composer', focus);
   }, []);
-  const needsKey =
-    (app.settings.provider === 'anthropic' &&
-      app.secrets.length > 0 &&
-      !app.secrets.find((s) => s.name === 'anthropic_api_key')?.set) ||
-    (app.settings.provider === 'local' && !app.settings.localModel);
-
   const send = async (text: string, attachments: AttachmentInfo[], agentId: string | null) => {
     const started = await api.startRun({ text, attachments: attachments.map((a) => a.token), agentId });
     startedHere.add(started.runId);
@@ -102,18 +95,6 @@ export function Home() {
         <Mascot size="hero" className="lm-home-mascot" />
         <h1 className="lm-greeting">{greeting(app.settings.userName)}</h1>
         <p className="lm-home-sub">Tell Lumo what you want. Lumo figures out how to make it happen.</p>
-        {needsKey && (
-          <Callout tone="warning" title="Lumo needs a model to work" className="lm-home-callout">
-            Download a free on-device model or add an Anthropic API key in Settings.{' '}
-            <Button
-              size="sm"
-              variant="ghost"
-              onClick={() => navigate({ name: 'settings', section: 'model' })}
-            >
-              Open model settings
-            </Button>
-          </Callout>
-        )}
         <Composer ref={composer} onSend={send} running={false} agents={app.agents} acceptDrops autoFocus />
         <div className="lm-suggestions" role="list" aria-label="Suggestions">
           {SUGGESTIONS.map((s) => (

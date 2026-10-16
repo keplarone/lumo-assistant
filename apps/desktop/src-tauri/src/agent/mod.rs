@@ -10,16 +10,15 @@ pub mod store;
 
 use crate::core::{ActiveRun, Core};
 use crate::error::{invalid, LumoError, Result};
-use crate::model::{anthropic::clean_for_replay, ModelRequest, ServerTools, StreamEvent, Usage};
+use crate::model::{clean_for_replay, ModelRequest, StreamEvent, Usage};
 use crate::policy::Risk;
 use crate::tools::{self, Origin, Registry, ToolCtx};
 use crate::util::{new_id, now, preview};
 use base64::Engine;
 use events::{AgentEvent, EventSink, Phase};
-use parking_lot::Mutex;
 use serde::Deserialize;
 use serde_json::{json, Value};
-use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 use store::FrozenTools;
 use tokio_util::sync::CancellationToken;
@@ -58,6 +57,12 @@ pub struct RunOutcome {
 
 const MAX_MODEL_TURNS: usize = 60;
 
+/// What new conversations record as their provider: Lumo's model gateway (OpenRouter models).
+pub const LUMO_PROVIDER: &str = "lumo";
+
+/// Tools that send the screen to the model.
+const SCREEN_TOOLS: [&str; 2] = ["take_screenshot", "control_computer"];
+
 pub fn agent_definition(core: &Core, id: &str) -> Result<(String, Vec<String>, Option<String>)> {
     core.db
         .conn()
@@ -94,15 +99,8 @@ pub fn prepare(
         }
         None => None,
     };
-    // Plan limits, before anything is recorded: the model must be one the plan includes (both the
-    // current setting and the one this conversation started with), and the monthly allowance must
-    // not be used up.
-    let limits = crate::plans::limits(&settings.plan);
-    crate::plans::check_model(limits, &settings.provider, &settings.chat_model())?;
-    if let Some(c) = &existing {
-        crate::plans::check_model(limits, &c.provider, &c.model)?;
-    }
-    crate::plans::check_allowance(core)?;
+    // Which models the plan includes, and its monthly allowance, are enforced by Lumo's model gateway
+    // on every call (see models.rs).
     let conversation = match existing {
         Some(c) => c,
         None => {
@@ -122,24 +120,23 @@ pub fn prepare(
                     client.push(t.into());
                 }
             }
-            let anthropic = settings.provider == "anthropic";
-            // Anthropic models search with the built-in server tool; local models use Brave if connected.
+            // Web search needs a Brave Search key.
             let brave = core.secrets.get("brave_search_api_key").ok().flatten().is_some();
-            if anthropic || !brave {
+            if !brave || !settings.web_search_enabled {
                 client.retain(|t| t != "search_web");
             }
-            let tools = FrozenTools {
-                client,
-                web_search: anthropic && settings.web_search_enabled,
-                web_fetch: anthropic && settings.web_search_enabled,
-            };
-            let model =
-                if settings.provider == "anthropic" { agent_model.unwrap_or(settings.model.clone()) } else { settings.chat_model() };
+            // Agents saved with an on-device or Claude model name use the current choice instead.
+            let model = agent_model.filter(|m| m.contains('/')).unwrap_or(settings.model.clone());
+            // Screenshots and screen control only for models that can see images.
+            if !crate::models::model_sees_images(core, &settings.plan, &model) {
+                client.retain(|t| !SCREEN_TOOLS.contains(&t.as_str()));
+            }
+            let tools = FrozenTools { client };
             store::create_conversation(
                 core,
                 if text.is_empty() { "Attachment" } else { text },
                 req.agent_id.as_deref(),
-                &settings.provider,
+                LUMO_PROVIDER,
                 &model,
                 &prompt::system_prompt(&settings, instructions.as_deref()),
                 &tools,
@@ -154,7 +151,7 @@ pub fn prepare(
         content.push(json!({"type": "text", "text": text}));
     }
     for token in &req.attachments {
-        content.push(attachment_block(core, token, &conversation.provider)?);
+        content.push(attachment_block(core, token)?);
     }
     let run_id = new_id();
     store::create_run(core, &run_id, &conversation.id, origin.as_str())?;
@@ -174,7 +171,7 @@ pub fn prepare(
     Ok(RunSpec { run_id, conversation_id: conversation.id, origin, cancel, automation_allowed })
 }
 
-fn attachment_block(core: &Core, token: &str, provider: &str) -> Result<Value> {
+fn attachment_block(core: &Core, token: &str) -> Result<Value> {
     let path = core
         .pending
         .attachments
@@ -192,14 +189,6 @@ fn attachment_block(core: &Core, token: &str, provider: &str) -> Result<Value> {
                 return Err(invalid(format!("{name} is larger than 5 MB")));
             }
             Ok(json!({"type": "image", "source": {"type": "base64", "media_type": mime.essence_str(), "data": b64(std::fs::read(&path)?)}}))
-        }
-        "application/pdf" if provider == "anthropic" => {
-            if meta.len() > 20 * 1024 * 1024 {
-                return Err(invalid(format!("{name} is larger than 20 MB")));
-            }
-            Ok(
-                json!({"type": "document", "title": name, "source": {"type": "base64", "media_type": "application/pdf", "data": b64(std::fs::read(&path)?)}}),
-            )
         }
         _ => {
             if meta.len() > 2 * 1024 * 1024 {
@@ -238,6 +227,7 @@ pub async fn drive(core: Arc<Core>, registry: Arc<Registry>, spec: RunSpec, sink
         Err(e) => RunOutcome { status: "failed".into(), summary: None, error: Some(e.to_string()), needs_attention: false },
     };
     tools::computer::end_session(&core, &spec.run_id);
+    crate::plans::refresh_in_background(core.clone());
     core.pending.screens.lock().remove(&spec.run_id);
     core.pending.orders.lock().remove(&spec.run_id);
     let _ = store::finish_run(&core, &spec.run_id, &outcome.status, outcome.summary.as_deref(), outcome.error.as_deref(), &usage);
@@ -256,16 +246,6 @@ struct Progress {
     wrote: AtomicBool,
     reporting: AtomicBool,
     planned: AtomicBool,
-    server_calls: AtomicUsize,
-    server_open: Mutex<Vec<(String, String)>>,
-}
-
-fn server_label(name: &str) -> &'static str {
-    match name {
-        "web_search" => "Searching the web",
-        "web_fetch" => "Reading a web page",
-        _ => "Working",
-    }
 }
 
 async fn drive_inner(
@@ -278,6 +258,8 @@ async fn drive_inner(
     let conv = store::get_conversation(core, &spec.conversation_id)?;
     let provider = core.provider()?;
     let settings = core.settings();
+    // Conversations from before Lumo moved to OpenRouter continue on the current model choice.
+    let model = if conv.provider == LUMO_PROVIDER { conv.model.clone() } else { settings.model.clone() };
     let max_calls = settings.max_tool_calls_per_run as usize;
     let tool_defs = registry.defs(Some(&conv.tools.client));
     let progress = Arc::new(Progress {
@@ -285,8 +267,6 @@ async fn drive_inner(
         wrote: AtomicBool::new(false),
         reporting: AtomicBool::new(false),
         planned: AtomicBool::new(false),
-        server_calls: AtomicUsize::new(0),
-        server_open: Mutex::new(Vec::new()),
     });
     let mut calls_made = 0usize;
     let mut pauses = 0usize;
@@ -299,16 +279,12 @@ async fn drive_inner(
         }
         let messages = store::history(core, &spec.conversation_id)?;
         let req = ModelRequest {
-            model: conv.model.clone(),
+            model: model.clone(),
             system: conv.system_prompt.clone(),
             tools: tool_defs.clone(),
-            server_tools: ServerTools { web_search: conv.tools.web_search, web_fetch: conv.tools.web_fetch, computer: false },
             messages,
             max_tokens: 32_000,
-            effort: settings.effort.clone(),
         };
-        // Checked before every model call. A call that is already streaming is never cut off.
-        crate::plans::check_allowance(core)?;
         let s2 = sink.clone();
         let p2 = progress.clone();
         let on_stream = move |ev: StreamEvent| match ev {
@@ -320,38 +296,9 @@ async fn drive_inner(
             }
             StreamEvent::ProgressNote(t) => s2.emit(AgentEvent::ProgressNote { text: t }),
             StreamEvent::ToolUseStarted { .. } => {}
-            StreamEvent::ServerToolStarted { name } => {
-                let id = format!("server_{}", p2.server_calls.fetch_add(1, Ordering::Relaxed));
-                p2.server_open.lock().push((name.clone(), id.clone()));
-                p2.tools_used.store(true, Ordering::Relaxed);
-                s2.emit(AgentEvent::Phase { phase: Phase::Executing });
-                s2.emit(AgentEvent::ToolStarted {
-                    call_id: id,
-                    name: name.clone(),
-                    label: server_label(&name).into(),
-                    risk: "read".into(),
-                    input: Value::Null,
-                });
-            }
-            StreamEvent::ServerToolFinished { name, summary } => {
-                let id = {
-                    let mut open = p2.server_open.lock();
-                    let pos = open.iter().position(|(n, _)| *n == name);
-                    pos.map(|i| open.remove(i).1)
-                };
-                if let Some(id) = id {
-                    s2.emit(AgentEvent::ToolFinished { call_id: id, name, ok: true, summary, data: None });
-                }
-            }
         };
-        let call_started = chrono::Local::now();
         let resp = provider.complete(&req, &on_stream, &spec.cancel).await?;
-        crate::plans::record_call(core, &req, &resp, call_started);
         usage.add(&resp.usage);
-        // Server tool calls that never reported a result are closed so the timeline doesn't spin.
-        for (name, id) in progress.server_open.lock().drain(..) {
-            sink.emit(AgentEvent::ToolFinished { call_id: id, name, ok: true, summary: "Done".into(), data: None });
-        }
         let stored = clean_for_replay(&resp.content);
         let message_id = store::append(core, &spec.conversation_id, "assistant", &stored, Some(&spec.run_id))?;
         let text: String =

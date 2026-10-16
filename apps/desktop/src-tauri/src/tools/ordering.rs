@@ -75,10 +75,10 @@ fn can_control(ctx: &ToolCtx) -> bool {
     crate::plans::current(&ctx.core).computer_control && model_sees_images(&ctx.core)
 }
 
-/// Whether the selected model can read screenshots. The on-device models are text-only.
-/// When models gain a vision flag, check that here.
+/// Whether the selected model can read screenshots.
 pub fn model_sees_images(core: &Core) -> bool {
-    core.settings().provider != "local"
+    let s = core.settings();
+    crate::models::model_sees_images(core, &s.plan, &s.model)
 }
 
 #[async_trait]
@@ -292,9 +292,6 @@ mod tests {
         *platform.confirm.lock() = true;
         let (core, _d) = core_with(platform.clone());
         set_plan(&core, "pro");
-        let mut s = core.settings();
-        s.provider = "anthropic".into();
-        crate::settings::save(&core.db, &s).unwrap();
         let (ctx, _) = ctx(core.clone(), Origin::User);
         let r = Registry::standard();
         let names: Vec<String> = r.names().into_iter().map(String::from).collect();
@@ -346,14 +343,15 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn on_device_models_get_the_list_and_the_app() {
+    async fn models_that_cannot_see_get_the_list_and_the_app() {
         let platform = Arc::new(FakePlatform::default());
         *platform.confirm.lock() = true;
         let (core, _d) = core_with(platform.clone());
         set_plan(&core, "pro");
-        let mut s = core.settings();
-        s.provider = "local".into();
-        crate::settings::save(&core.db, &s).unwrap();
+        let catalog = json!({"plans": [{"id": "pro", "name": "Lumo Pro", "priceUsd": 49.99, "defaultModel": "text/only",
+            "models": [{"id": "text/only", "name": "Text only", "vision": false}]}]});
+        core.db.conn().execute("INSERT OR REPLACE INTO settings(key, value) VALUES ('model_catalog', ?1)", [catalog.to_string()]).unwrap();
+        assert!(!super::model_sees_images(&core));
         let (ctx, _) = ctx(core.clone(), Origin::User);
         let r = Registry::standard();
         let names: Vec<String> = r.names().into_iter().map(String::from).collect();

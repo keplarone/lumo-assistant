@@ -1,12 +1,10 @@
-//! Provider-agnostic model gateway.
+//! The model interface the agent loop talks to.
 //!
-//! Conversation content is stored in the Anthropic Messages content-block shape (the richest format:
-//! text, thinking with signatures, tool_use, tool_result, server tool blocks). The Anthropic adapter
-//! sends it verbatim, which keeps history append-only. Other adapters convert it.
+//! Conversation content is stored in the Anthropic Messages content-block shape (text, tool_use,
+//! tool_result, images), which is what older conversations already hold. `cloud` converts it for
+//! Lumo's model gateway, which runs OpenRouter models for the user's plan.
 
-pub mod anthropic;
-pub mod local;
-pub mod openai;
+pub mod cloud;
 pub mod sse;
 
 use crate::error::Result;
@@ -41,23 +39,13 @@ pub struct ToolDef {
     pub input_schema: Value,
 }
 
-#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
-pub struct ServerTools {
-    pub web_search: bool,
-    pub web_fetch: bool,
-    /// The computer-use toolset (screenshots + input). Its calls are executed locally.
-    pub computer: bool,
-}
-
 #[derive(Debug, Clone)]
 pub struct ModelRequest {
     pub model: String,
     pub system: String,
     pub tools: Vec<ToolDef>,
-    pub server_tools: ServerTools,
     pub messages: Vec<Message>,
     pub max_tokens: u32,
-    pub effort: String,
 }
 
 /// Incremental events while a response streams, for live UI.
@@ -69,13 +57,6 @@ pub enum StreamEvent {
     ToolUseStarted {
         id: String,
         name: String,
-    },
-    ServerToolStarted {
-        name: String,
-    },
-    ServerToolFinished {
-        name: String,
-        summary: String,
     },
 }
 
@@ -113,6 +94,20 @@ pub type EventSink<'a> = &'a (dyn Fn(StreamEvent) + Send + Sync);
 pub trait ModelProvider: Send + Sync {
     fn name(&self) -> &'static str;
     async fn complete(&self, req: &ModelRequest, sink: EventSink<'_>, cancel: &CancellationToken) -> Result<ModelResponse>;
+}
+
+/// Content blocks as they are stored in history, without Lumo's internal markers.
+pub fn clean_for_replay(content: &[Value]) -> Vec<Value> {
+    content
+        .iter()
+        .map(|b| {
+            let mut b = b.clone();
+            if let Some(o) = b.as_object_mut() {
+                o.remove("__lumo_invalid_input");
+            }
+            b
+        })
+        .collect()
 }
 
 /// Statuses worth retrying before any output has reached the user.

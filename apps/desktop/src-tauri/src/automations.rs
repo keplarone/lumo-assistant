@@ -430,11 +430,10 @@ mod tests {
             },
         )
         .unwrap();
-        crate::plans::record_tokens_at(&core, 30_000_000, Local::now()).unwrap();
+        *scripted.plan_limit.lock() = Some("You've used all of this month's Lite usage. It resets on November 1.".into());
         let r = run_now(core.clone(), Arc::new(Registry::standard()), &a.id).await.unwrap();
         assert_eq!(r.status, "limit_reached");
-        assert!(r.run_id.is_none(), "no run was started");
-        assert!(scripted.requests.lock().is_empty(), "the model was never called");
+        assert!(scripted.responses.lock().len() == 1, "nothing was answered");
         let note = platform.notifications.lock().last().cloned().unwrap();
         assert!(note.1.starts_with("You've used all of this month's Lite usage."), "{note:?}");
     }
