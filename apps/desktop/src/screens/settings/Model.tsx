@@ -166,7 +166,7 @@ export function ModelSection() {
         <>
           <SettingRow
             label="Server address"
-            description="For example http://localhost:11434/v1 (Ollama) or http://localhost:1234/v1 (LM Studio). Remote servers must use https."
+            description="A model server you run yourself, for example http://localhost:1234/v1 (LM Studio) or http://localhost:11434/v1 (Ollama). Remote servers must use https."
             htmlFor="openai-url"
           >
             <TextSetting

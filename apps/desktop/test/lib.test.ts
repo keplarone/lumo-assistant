@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { emptyForm, validateForm } from '../src/lib/automationForm';
-import { memoryWarning, progressFraction, progressText } from '../src/lib/localModels';
+import { acceleratorText, memoryWarning, progressFraction, progressText } from '../src/lib/localModels';
 import { isWindowsPlatform, previewUrl } from '../src/lib/preview';
 import { stripMarkdown } from '../src/lib/speech';
 import { applyTheme, resolveTheme } from '../src/lib/theme';
@@ -100,9 +100,12 @@ describe('on-device model helpers', () => {
   it('reports real progress only when a size is known', () => {
     expect(progressFraction({ completed: 5, total: 10 })).toBe(0.5);
     expect(progressFraction({ completed: 0, total: 0 })).toBeUndefined();
-    expect(
-      progressText({ model: 'm', status: 'pulling manifest', completed: 0, total: 0, done: false }),
-    ).toBe('Pulling manifest');
+    expect(progressText({ model: 'm', status: 'checking', completed: 0, total: 0, done: false })).toBe(
+      'Continuing an earlier download…',
+    );
+    expect(progressText({ model: 'm', status: 'verifying', completed: 9, total: 9, done: false })).toBe(
+      'Checking the download…',
+    );
     expect(
       progressText({
         model: 'm',
@@ -112,6 +115,10 @@ describe('on-device model helpers', () => {
         done: false,
       }),
     ).toBe('1.0 GB of 2.0 GB');
+  });
+  it('says what runs the models', () => {
+    expect(acceleratorText('Metal')).toBe('uses the graphics chip (Metal)');
+    expect(acceleratorText('CPU')).toBe('runs on the processor');
   });
   it('warns when a model may not fit', () => {
     expect(memoryWarning({ fits: true, minMemoryGb: 16 }, 32)).toBeNull();

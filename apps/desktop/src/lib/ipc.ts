@@ -70,9 +70,7 @@ export interface Settings {
   anthropicBaseUrl: string;
   openaiBaseUrl: string;
   openaiModel: string;
-  /** The on-device runtime (Ollama); must be on this machine. */
-  localBaseUrl: string;
-  /** Runtime tag of the chosen on-device model; empty until one is chosen. */
+  /** Catalog id of the chosen on-device model; empty until one is chosen. */
   localModel: string;
   memoryEnabled: boolean;
   webSearchEnabled: boolean;
@@ -513,18 +511,22 @@ export interface PlanUsage {
 // ---- On-device models (local_models.rs) -----------------------------------------------------------
 
 export interface LocalModel {
-  /** Runtime tag, e.g. "qwen3:8b". */
+  /** Catalog id, e.g. "qwen3:8b". */
   id: string;
   tier: string;
   /** The underlying open model; always shown for attribution. */
   baseModel: string;
   license: string;
   licenseUrl: string;
+  /** The Hugging Face repository the weights come from. */
+  sourceRepo: string;
   downloadGb: number;
   minMemoryGb: number;
   summary: string;
   displayName: string;
   installed: boolean;
+  /** Bytes of an unfinished download that continues next time (0 if none). */
+  partialBytes: number;
   fits: boolean;
   selected: boolean;
   /** The cheapest plan that includes this model when the current plan doesn't, else null. */
@@ -534,13 +536,13 @@ export interface LocalModel {
 export interface LocalStatus {
   /** Product name for on-device models; never hardcode it. */
   brand: string;
-  runtimeRunning: boolean;
-  runtimeVersion: string | null;
-  runtimeDownloadUrl: string;
+  /** The engine built into Lumo ("llama.cpp"); always available, nothing to install. */
+  engine: string;
+  /** What runs the models: "Metal", "Vulkan" or "CPU". */
+  accelerator: string;
   /** Total memory in GB; 0 when unknown. */
   memoryGb: number;
   models: LocalModel[];
-  otherInstalled: string[];
 }
 
 export interface LocalModelProgress {

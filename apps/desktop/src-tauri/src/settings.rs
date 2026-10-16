@@ -14,7 +14,7 @@ pub struct Settings {
     pub user_name: Option<String>,
     /// "system", "dark" or "light".
     pub theme: String,
-    /// "anthropic", "openai_compatible" or "local" (on-device models through a local runtime).
+    /// "anthropic", "openai_compatible" or "local" (on-device models run by Lumo's built-in engine).
     pub provider: String,
     pub model: String,
     /// "low", "medium", "high" or "xhigh".
@@ -22,9 +22,7 @@ pub struct Settings {
     pub anthropic_base_url: String,
     pub openai_base_url: String,
     pub openai_model: String,
-    /// The on-device model runtime (Ollama). Must be on this machine.
-    pub local_base_url: String,
-    /// Runtime tag of the chosen on-device model; empty until one is downloaded and chosen.
+    /// Catalog id of the chosen on-device model; empty until one is downloaded and chosen.
     pub local_model: String,
     /// Long-term memory is off until the user turns it on.
     pub memory_enabled: bool,
@@ -67,7 +65,6 @@ impl Default for Settings {
             anthropic_base_url: "https://api.anthropic.com".into(),
             openai_base_url: "http://localhost:11434/v1".into(),
             openai_model: "llama3.1".into(),
-            local_base_url: "http://127.0.0.1:11434".into(),
             local_model: String::new(),
             memory_enabled: false,
             web_search_enabled: true,
@@ -105,10 +102,6 @@ impl Settings {
         check_endpoint(&self.anthropic_base_url, false)?;
         check_endpoint(&self.openai_base_url, true)?;
         check_endpoint(&self.stt_base_url, true)?;
-        check_endpoint(&self.local_base_url, true)?;
-        if !is_local(&self.local_base_url) {
-            return Err(invalid("the on-device model runtime must run on this computer"));
-        }
         if self.model.trim().is_empty() || self.model.len() > 100 {
             return Err(invalid("model name is required"));
         }
@@ -136,10 +129,6 @@ impl Settings {
             _ => self.model.clone(),
         }
     }
-}
-
-fn is_local(raw: &str) -> bool {
-    url::Url::parse(raw).map(|u| matches!(u.host_str(), Some("localhost") | Some("127.0.0.1") | Some("[::1]"))).unwrap_or(false)
 }
 
 /// Endpoints must be HTTPS, except plain HTTP on the local machine (for local models).

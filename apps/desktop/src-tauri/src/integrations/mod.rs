@@ -75,8 +75,8 @@ pub fn status(core: &Core) -> Vec<IntegrationStatus> {
             id: "local".into(),
             name: "On-device models (Orbit, Nebula, Solar, Nova)".into(),
             status: if s.provider == "local" && !s.local_model.is_empty() { "connected" } else { "not_connected" }.into(),
-            account: if s.local_model.is_empty() { None } else { Some(s.local_model.clone()) },
-            detail: "Open models that run on this computer through Ollama. Free to use, and nothing leaves your machine.".into(),
+            account: crate::local_models::catalog_entry(&s.local_model).ok().map(|e| e.tier.to_string()),
+            detail: "Open models that Lumo runs on this computer itself. Free to use, and nothing leaves your machine.".into(),
             secret: None,
         },
         IntegrationStatus {
