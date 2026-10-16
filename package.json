@@ -6,17 +6,25 @@
     "node": ">=22"
   },
   "scripts": {
-    "dev": "pnpm --filter @lumo/desktop dev",
+    "dev": "pnpm --filter @lumo/desktop tauri dev",
+    "dev:ui": "pnpm --filter @lumo/desktop dev",
+    "dev:web": "pnpm --filter @lumo/web dev",
     "build": "pnpm -r build",
     "typecheck": "pnpm -r typecheck",
     "lint": "eslint .",
     "test": "pnpm -r test",
-    "format": "prettier --write ."
+    "format": "prettier --write .",
+    "format:check": "prettier --check ."
   },
   "devDependencies": {
+    "@eslint/js": "^10.0.0",
+    "@types/node": "^22.20.5",
     "eslint": "^10.12.0",
+    "eslint-plugin-react-hooks": "^7.0.0",
+    "globals": "^17.0.0",
     "prettier": "^3.9.10",
     "typescript": "~5.9.3",
-    "vitest": "^3.2.7"
+    "typescript-eslint": "^8.71.2",
+    "vitest": "^5.0.5"
   }
 }
