@@ -2448,3 +2448,63 @@ a.lm-row-main:hover .lm-row-title {
 .lm-usage-label {
   font-weight: var(--lu-weight-medium);
 }
+
+/* My day (screens/Everyday.tsx) */
+.lm-brief {
+  display: grid;
+  gap: var(--lu-space-3);
+  padding: var(--lu-space-4) var(--lu-space-5);
+}
+.lm-brief p {
+  margin: 0;
+  line-height: 1.55;
+}
+.lm-brief-head {
+  display: flex;
+  align-items: center;
+  gap: var(--lu-space-2);
+}
+.lm-brief-head svg {
+  width: 16px;
+  height: 16px;
+  color: var(--lu-accent-text);
+}
+.lm-brief-head .lm-row-title {
+  flex: 1;
+}
+.lm-home-brief {
+  width: 100%;
+  margin-bottom: var(--lu-space-4);
+  text-align: left;
+}
+.lm-section-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--lu-space-3);
+  margin-bottom: var(--lu-space-3);
+}
+.lm-section-head .lm-section-title {
+  margin-bottom: 0;
+}
+.lm-everyday-form {
+  flex-wrap: wrap;
+  margin-bottom: var(--lu-space-3);
+}
+.lm-everyday-form .lu-input {
+  flex: 1 1 12rem;
+}
+.lm-everyday-form .lu-input.lm-time-input,
+.lm-everyday-form .lu-input.lm-date-input {
+  flex: 0 0 auto;
+  width: 9rem;
+}
+.lm-section > .lm-muted {
+  margin: 0 0 var(--lu-space-3);
+  font-size: var(--lu-text-sm);
+}
+.lm-everyday-form .lu-select-trigger,
+.lm-voice-select {
+  width: 10rem;
+  flex: none;
+}

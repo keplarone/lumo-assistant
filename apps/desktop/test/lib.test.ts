@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { emptyForm, validateForm } from '../src/lib/automationForm';
 import { acceleratorText, memoryWarning, progressFraction, progressText } from '../src/lib/localModels';
 import { isWindowsPlatform, previewUrl } from '../src/lib/preview';
-import { stripMarkdown } from '../src/lib/speech';
+import { chooseVoice, stripMarkdown } from '../src/lib/speech';
 import { applyTheme, resolveTheme } from '../src/lib/theme';
 import { DEFAULT_VAD, pickMimeType, vadStart, vadStep } from '../src/lib/voice';
 import { buildTree } from '../src/screens/Projects';
@@ -140,5 +140,32 @@ describe('project file tree', () => {
     expect(css?.kind).toBe('folder');
     expect(css?.children.map((c) => c.name)).toEqual(['site.css']);
     expect(tree.find((n) => n.name === 'js')?.children[0]?.name).toBe('deep');
+  });
+});
+
+describe('mascot voice', () => {
+  const v = (name: string, lang: string, localService = true, isDefault = false) =>
+    ({ name, lang, localService, default: isDefault, voiceURI: name }) as SpeechSynthesisVoice;
+  const voices = [
+    v('Daniel', 'en-GB', true, true),
+    v('Google US English', 'en-US', false),
+    v('Samantha', 'en-US'),
+    v('Amélie', 'fr-CA'),
+  ];
+
+  it('picks a light on-device voice, pitched up, for the Lumo style', () => {
+    const c = chooseVoice('lumo', voices, 'en-US');
+    expect(c.voice?.name).toBe('Samantha');
+    expect(c.pitch).toBeGreaterThan(1.3);
+  });
+
+  it('never picks a voice that runs online', () => {
+    const c = chooseVoice('lumo', [v('Google US English', 'en-US', false), v('Daniel', 'en-GB')], 'en');
+    expect(c.voice?.name).toBe('Daniel');
+  });
+
+  it('keeps the system default at normal pitch', () => {
+    expect(chooseVoice('system', voices, 'en')).toMatchObject({ pitch: 1, rate: 1 });
+    expect(chooseVoice('system', voices, 'en').voice?.name).toBe('Daniel');
   });
 });

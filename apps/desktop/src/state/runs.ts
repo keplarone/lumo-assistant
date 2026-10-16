@@ -61,3 +61,15 @@ export function useConversationRuns(conversationId: string | null | undefined): 
 
 /** Runs started from this window (used to decide which window reads a reply aloud). */
 export const startedHere = new Set<string>();
+
+/** Runs whose reply is read aloud even with "Read replies aloud" off: the user asked by voice. */
+export const speakReplies = new Set<string>();
+/** Set by the composer just before it sends a message the user spoke in voice mode. */
+export const voiceTurn = { pending: false };
+
+/** Record a run started from this window (and whether it came from voice mode). */
+export function markStartedHere(runId: string) {
+  startedHere.add(runId);
+  if (voiceTurn.pending) speakReplies.add(runId);
+  voiceTurn.pending = false;
+}

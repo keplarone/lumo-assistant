@@ -6,6 +6,7 @@ import { formatBytes } from '../lib/format';
 import { formatElapsed } from '../lib/voice';
 import { useApp } from '../state/app';
 import { mascotBus, useListening } from '../state/mascot';
+import { voiceTurn } from '../state/runs';
 import { useVoice } from '../state/useVoice';
 import { PlanLimitNotice, UsageNudge } from './PlanLimit';
 
@@ -57,7 +58,14 @@ export const Composer = forwardRef<ComposerHandle, ComposerProps>(function Compo
   const [focused, setFocused] = useState(false);
   const area = useRef<HTMLTextAreaElement>(null);
   const app = useApp();
+  /** Set when "Hey Lumo" started the recording: the words are sent as soon as they're transcribed. */
+  const autoSend = useRef(false);
   const voice = useVoice((t) => {
+    if (autoSend.current) {
+      autoSend.current = false;
+      void send(t);
+      return;
+    }
     setText((cur) => (cur.trim() ? `${cur.replace(/\s+$/, '')} ${t}` : t));
     requestAnimationFrame(() => area.current?.focus());
   });
@@ -101,6 +109,22 @@ export const Composer = forwardRef<ComposerHandle, ComposerProps>(function Compo
     };
   }, [voiceShortcut]);
 
+  // "Hey Lumo": the main window's wake listener asks the visible composer to start listening.
+  useEffect(() => {
+    if (!voiceShortcut) return;
+    const onWake = () => {
+      if (voiceRef.current.status !== 'idle' || running) return;
+      autoSend.current = true;
+      void voiceRef.current.start('handsfree');
+    };
+    window.addEventListener('lumo:wake', onWake);
+    return () => window.removeEventListener('lumo:wake', onWake);
+  }, [voiceShortcut, running]);
+  useEffect(() => {
+    // A cancelled, empty or failed recording doesn't leave the next one in send-right-away mode.
+    if (voice.status === 'idle') autoSend.current = false;
+  }, [voice.status]);
+
   const attach = async () => {
     setError(null);
     try {
@@ -141,13 +165,16 @@ export const Composer = forwardRef<ComposerHandle, ComposerProps>(function Compo
   const canSend =
     !running && !sending && !disabledReason && (text.trim().length > 0 || attachments.length > 0);
 
-  const send = async () => {
-    if (!canSend) return;
+  /** Send the draft, or `spoken` (words from voice mode, sent as they are with the draft's files). */
+  const send = async (spoken?: string) => {
+    const body = spoken ?? text.trim();
+    if (spoken === undefined ? !canSend : running || sending || !!disabledReason || !body) return;
     setSending(true);
     setError(null);
     setLimit(null);
     try {
-      await onSend(text.trim(), attachments, agentId || null);
+      voiceTurn.pending = spoken !== undefined;
+      await onSend(body, attachments, agentId || null);
       setText('');
       setAttachments([]);
     } catch (e) {
@@ -156,6 +183,7 @@ export const Composer = forwardRef<ComposerHandle, ComposerProps>(function Compo
         void app.reloadPlanUsage?.();
       } else setError(errorMessage(e));
     } finally {
+      voiceTurn.pending = false;
       setSending(false);
     }
   };

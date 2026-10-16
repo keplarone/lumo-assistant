@@ -43,7 +43,7 @@ import {
 } from '../lib/ipc';
 import { navigate, routeHref } from '../lib/router';
 import { useApp } from '../state/app';
-import { startedHere } from '../state/runs';
+import { markStartedHere } from '../state/runs';
 
 const CodeEditor = lazy(() => import('../components/CodeEditor'));
 
@@ -449,7 +449,7 @@ export function ProjectView({ id }: { id: string }) {
 
   const startConversation = async (text: string, attachments: AttachmentInfo[]) => {
     const started = await api.startRun({ text, attachments: attachments.map((a) => a.token), projectId: id });
-    startedHere.add(started.runId);
+    markStartedHere(started.runId);
     rememberPendingSend(started.conversationId, text, attachments);
     setConversationId(started.conversationId);
     void app.reloadConversations();

@@ -16,7 +16,10 @@ import { ProjectsList, ProjectView } from './screens/Projects';
 import { Settings } from './screens/Settings';
 import { Styleguide } from './screens/Styleguide';
 import { Tasks } from './screens/Tasks';
+import { Everyday } from './screens/Everyday';
 import { AppProvider, useApp, type Boot } from './state/app';
+import { mascotBus } from './state/mascot';
+import { chime, useWakeWord } from './state/useWakeWord';
 
 function windowLabel(): string {
   try {
@@ -139,6 +142,30 @@ function GlobalPrivacy() {
   );
 }
 
+/** "Hey Lumo": listens while the setting is on, then asks the composer to take the request. */
+function WakeListener({ route }: { route: Route }) {
+  const app = useApp();
+  const routeRef = useRef(route);
+  routeRef.current = route;
+  useWakeWord(app.settings.wakeWordEnabled, () => {
+    chime();
+    mascotBus.send([
+      { type: 'agent', phase: 'listening' },
+      { type: 'attend', target: 'composer', durationMs: 4000 },
+    ]);
+    app.announce('Lumo is listening.');
+    void api.showMainWindow().catch(() => {});
+    const r = routeRef.current.name;
+    if (r === 'home' || r === 'conversation' || r === 'project') {
+      window.dispatchEvent(new Event('lumo:wake'));
+    } else {
+      navigate({ name: 'home' });
+      setTimeout(() => window.dispatchEvent(new Event('lumo:wake')), 300);
+    }
+  });
+  return null;
+}
+
 function Shell({ route }: { route: Route }) {
   const search = useRef<HTMLInputElement>(null);
 
@@ -178,6 +205,7 @@ function Shell({ route }: { route: Route }) {
         <RouteView route={route} />
       </main>
       <GlobalPrivacy />
+      <WakeListener route={route} />
     </div>
   );
 }
@@ -194,6 +222,8 @@ function RouteView({ route }: { route: Route }) {
       return <ProjectView key={route.id} id={route.id} />;
     case 'automations':
       return <Automations />;
+    case 'everyday':
+      return <Everyday />;
     case 'tasks':
       return <Tasks />;
     case 'settings':

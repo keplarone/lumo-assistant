@@ -6,6 +6,7 @@ import {
   Plus,
   Search,
   Settings as SettingsIcon,
+  Sun,
   Timer,
 } from 'lucide-react';
 import { forwardRef, useEffect, useState } from 'react';
@@ -104,6 +105,12 @@ export const Sidebar = forwardRef<HTMLInputElement, { route: Route }>(function S
         )}
       </ul>
       <ul className="lm-nav">
+        <NavItem
+          href={routeHref({ name: 'everyday' })}
+          icon={<Sun />}
+          label="My day"
+          current={route.name === 'everyday'}
+        />
         <NavItem
           href={routeHref({ name: 'projects' })}
           icon={<FolderKanban />}

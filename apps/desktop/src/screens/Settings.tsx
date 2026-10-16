@@ -1,5 +1,6 @@
 import { routeHref } from '../lib/router';
 import { AgentsSection, MemorySection, PermissionsSection } from './settings/Data';
+import { EverydaySection } from './settings/Everyday';
 import { GeneralSection } from './settings/General';
 import { ModelSection, VoiceSection } from './settings/Model';
 import { HelpSection, PlansSection, PrivacySection } from './settings/Info';
@@ -8,6 +9,7 @@ import { AboutSection, ActivitySection, IntegrationsSection } from './settings/S
 const SECTIONS = [
   { id: 'general', label: 'General', render: () => <GeneralSection /> },
   { id: 'model', label: 'Model', render: () => <ModelSection /> },
+  { id: 'everyday', label: 'My day', render: () => <EverydaySection /> },
   { id: 'voice', label: 'Voice', render: () => <VoiceSection /> },
   { id: 'permissions', label: 'Permissions', render: () => <PermissionsSection /> },
   { id: 'memory', label: 'Memory', render: () => <MemorySection /> },

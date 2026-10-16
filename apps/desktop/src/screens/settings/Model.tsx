@@ -4,7 +4,9 @@ import { useEffect, useState } from 'react';
 import { api, errorMessage, type Effort, type Provider } from '../../lib/ipc';
 import { LocalModels } from '../../components/LocalModels';
 import { routeHref } from '../../lib/router';
+import { speech } from '../../lib/speech';
 import { useApp } from '../../state/app';
+import { captureWakeSample } from '../../state/useWakeWord';
 import { SecretField, SectionHeader, SettingRow, useSave } from './parts';
 
 function TextSetting({
@@ -293,6 +295,101 @@ export function VoiceSection() {
           aria-label="Read replies aloud"
         />
       </SettingRow>
+      <SettingRow
+        label="Lumo’s voice"
+        description="“Lumo” is a light, bouncy voice that fits the mascot. Both use voices already on your computer, so they’re free and private."
+      >
+        <div className="lm-row-actions">
+          <Select
+            aria-label="Lumo’s voice"
+            className="lm-voice-select"
+            value={s.voiceStyle}
+            onValueChange={(v) => void save({ voiceStyle: v as typeof s.voiceStyle })}
+            options={[
+              { value: 'lumo', label: 'Lumo' },
+              { value: 'system', label: 'System default' },
+            ]}
+          />
+          <Button
+            size="sm"
+            variant="ghost"
+            disabled={!speechAvailable}
+            onClick={() => speech.speak('Hi! I’m Lumo. What can I do for you today?')}
+          >
+            Try it
+          </Button>
+        </div>
+      </SettingRow>
+      <WakeWordSetting />
     </>
+  );
+}
+
+/** "Hey Lumo": the toggle plus recording the three samples the on-device matcher compares against. */
+function WakeWordSetting() {
+  const app = useApp();
+  const save = useSave();
+  const s = app.settings;
+  const [samples, setSamples] = useState<number[][][] | null>(null);
+  const [recording, setRecording] = useState<number | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    api.getWakeTemplates().then(setSamples, () => setSamples([]));
+  }, []);
+
+  const record = async () => {
+    setError(null);
+    const taken: number[][][] = [];
+    try {
+      for (let i = 0; i < 3; i++) {
+        setRecording(i + 1);
+        const sample = await captureWakeSample();
+        if (!sample || sample.length < 20) {
+          setError('I didn’t catch that. Say “Hey Lumo” clearly after pressing the button, then pause.');
+          return;
+        }
+        taken.push(sample);
+      }
+      await api.saveWakeTemplates(taken);
+      setSamples(taken);
+      window.dispatchEvent(new Event('lumo:wake-samples-changed'));
+      if (!s.wakeWordEnabled) await save({ wakeWordEnabled: true });
+      app.announce('“Hey Lumo” is set up.');
+    } catch (e) {
+      setError(errorMessage(e));
+    } finally {
+      setRecording(null);
+    }
+  };
+
+  const ready = (samples?.length ?? 0) >= 3;
+  return (
+    <SettingRow
+      label="“Hey Lumo”"
+      description={
+        <>
+          Say “Hey Lumo” and then your request, without touching anything. Lumo learns your voice from three
+          short recordings. Listening for the phrase happens only on this computer; after it hears it, your
+          request is transcribed like any other voice message and the reply is read aloud.
+          {recording !== null && (
+            <span className="lm-inline-ok"> Say “Hey Lumo” now ({recording} of 3)…</span>
+          )}
+          {error && <span className="lm-inline-error"> {error}</span>}
+        </>
+      }
+    >
+      <div className="lm-row-actions">
+        <Button size="sm" variant="secondary" loading={recording !== null} onClick={() => void record()}>
+          {ready ? 'Record again' : 'Set up'}
+        </Button>
+        <Switch
+          checked={s.wakeWordEnabled && ready}
+          disabled={!ready}
+          onCheckedChange={(v) => void save({ wakeWordEnabled: v })}
+          aria-label="Listen for Hey Lumo"
+        />
+      </div>
+    </SettingRow>
   );
 }

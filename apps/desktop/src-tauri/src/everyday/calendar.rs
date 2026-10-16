@@ -26,7 +26,7 @@ pub struct Event {
 /// Check and normalize the pasted addresses: https (or webcal, which is https), at most five.
 pub fn normalize_urls(raw: &str) -> Result<Vec<String>> {
     let mut out = Vec::new();
-    for line in raw.lines().map(str::trim).filter(|l| !l.is_empty()) {
+    for line in raw.split_whitespace() {
         let fixed = match line.strip_prefix("webcal://") {
             Some(rest) => format!("https://{rest}"),
             None => line.to_string(),

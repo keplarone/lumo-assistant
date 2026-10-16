@@ -1,14 +1,15 @@
-import { Button, Callout } from '@lumo/ui';
-import { FileText, FolderInput, Globe, MapPin } from 'lucide-react';
-import { useEffect, useRef } from 'react';
+import { Button, Callout, IconButton } from '@lumo/ui';
+import { FileText, FolderInput, Globe, MapPin, Sun, Volume2, X } from 'lucide-react';
+import { useEffect, useRef, useState } from 'react';
 import { Composer, type ComposerHandle } from '../components/Composer';
 import { rememberPendingSend } from '../components/ConversationView';
 import { Mascot } from '../components/Mascot';
 import { greeting } from '../lib/format';
-import { api, type AttachmentInfo } from '../lib/ipc';
+import { api, on, type AttachmentInfo, type Brief } from '../lib/ipc';
 import { navigate } from '../lib/router';
+import { speech } from '../lib/speech';
 import { useApp } from '../state/app';
-import { startedHere } from '../state/runs';
+import { markStartedHere } from '../state/runs';
 
 /** Real prompts that work with Lumo's tools today. */
 const SUGGESTIONS = [
@@ -53,7 +54,7 @@ export function Home() {
 
   const send = async (text: string, attachments: AttachmentInfo[], agentId: string | null) => {
     const started = await api.startRun({ text, attachments: attachments.map((a) => a.token), agentId });
-    startedHere.add(started.runId);
+    markStartedHere(started.runId);
     rememberPendingSend(started.conversationId, text, attachments);
     void app.reloadConversations();
     navigate({ name: 'conversation', id: started.conversationId });
@@ -77,6 +78,7 @@ export function Home() {
             </Button>
           </Callout>
         )}
+        <BriefCard />
         <Composer ref={composer} onSend={send} running={false} agents={app.agents} acceptDrops autoFocus />
         <div className="lm-suggestions" role="list" aria-label="Suggestions">
           {SUGGESTIONS.map((s) => (
@@ -95,6 +97,58 @@ export function Home() {
             </button>
           ))}
         </div>
+      </div>
+    </div>
+  );
+}
+
+/**
+ * Today's morning brief, until the user dismisses it. The first time an unseen brief shows, it is
+ * read aloud (when that setting is on) and marked seen, so it is read once a day, not on every visit.
+ */
+function BriefCard() {
+  const app = useApp();
+  const [brief, setBrief] = useState<Brief | null>(null);
+  const readAloud = useRef(app.settings.briefReadAloud);
+  readAloud.current = app.settings.briefReadAloud;
+
+  useEffect(() => {
+    let alive = true;
+    const load = async () => {
+      const b = (await api.everydayOverview().catch(() => null))?.brief ?? null;
+      if (!alive || !b || b.seen) return;
+      setBrief(b);
+      if (readAloud.current) speech.speak(b.text);
+      void api.markBriefSeen(b.day).catch(() => {});
+    };
+    void load();
+    const sub = on('everyday-alert', (a) => {
+      if (a.kind === 'brief') void load();
+    });
+    return () => {
+      alive = false;
+      void sub.then((u) => u());
+    };
+  }, []);
+
+  if (!brief) return null;
+  return (
+    <div className="lm-card lm-brief lm-home-brief" role="region" aria-label="Your morning brief">
+      <div className="lm-brief-head">
+        <Sun aria-hidden />
+        <span className="lm-row-title">Your morning brief</span>
+        <IconButton size="sm" label="Dismiss the brief" icon={<X />} onClick={() => setBrief(null)} />
+      </div>
+      {brief.text.split('\n\n').map((p, i) => (
+        <p key={i}>{p}</p>
+      ))}
+      <div className="lm-row-actions">
+        <Button size="sm" variant="ghost" icon={<Volume2 />} onClick={() => speech.speak(brief.text)}>
+          Read aloud
+        </Button>
+        <Button size="sm" variant="ghost" onClick={() => navigate({ name: 'everyday' })}>
+          Open My day
+        </Button>
       </div>
     </div>
   );

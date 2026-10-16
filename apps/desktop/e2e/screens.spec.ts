@@ -36,6 +36,12 @@ const settings = {
   sttBaseUrl: 'https://api.openai.com/v1',
   sttModel: 'whisper-1',
   ttsEnabled: false,
+  briefEnabled: true,
+  briefTime: '08:00',
+  briefReadAloud: false,
+  temperatureUnit: 'auto',
+  wakeWordEnabled: false,
+  voiceStyle: 'lumo',
   mascotEnabled: true,
   reducedMotion: false,
   plan: 'free',
@@ -110,6 +116,7 @@ const planRow = (id: string, name: string, monthlyTokens: number | null, extra: 
   localModels: ['Orbit 3.8', 'Nebula 4.2', 'Solar 5.4', 'Nova 5.5'],
   cloudModels: true,
   automations: null,
+  priceWatches: null,
   computerControl: true,
   ...extra,
 });
@@ -122,18 +129,79 @@ const planUsage = {
   allowedModels: ['qwen3:4b', 'qwen3:8b'],
   cloudModels: false,
   automationsAllowed: 1,
+  priceWatchesAllowed: 3,
   computerControl: false,
   plans: [
     planRow('free', 'Free', 1_000_000, {
       localModels: ['Orbit 3.8', 'Nebula 4.2'],
       cloudModels: false,
       automations: 1,
+      priceWatches: 3,
       computerControl: false,
     }),
-    planRow('lite', 'Lumo Lite', 30_000_000, { automations: 10 }),
+    planRow('lite', 'Lumo Lite', 30_000_000, { automations: 10, priceWatches: 25 }),
     planRow('pro', 'Lumo Pro', 150_000_000),
     planRow('unlimited', 'Lumo Unlimited', null),
   ],
+};
+// commands.rs EverydayOverview.
+const everydayOverview = {
+  reminders: [
+    {
+      id: 'r1',
+      text: 'Take my meds',
+      dueAt: '2026-10-17T13:00:00Z',
+      repeat: 'daily',
+      done: false,
+      lastFiredAt: null,
+      createdAt: now,
+    },
+  ],
+  subscriptions: [
+    {
+      id: 's1',
+      name: 'Netflix',
+      amount: 15.49,
+      currency: 'USD',
+      cycle: 'monthly',
+      nextRenewal: '2026-10-19',
+      manageUrl: 'https://www.netflix.com/account',
+      createdAt: now,
+    },
+    {
+      id: 's2',
+      name: 'iCloud+',
+      amount: 35.88,
+      currency: 'USD',
+      cycle: 'yearly',
+      nextRenewal: '2027-02-02',
+      manageUrl: null,
+      createdAt: now,
+    },
+  ],
+  priceWatches: [
+    {
+      id: 'p1',
+      name: 'Noise-cancelling headphones',
+      url: 'https://shop.example.com/headphones',
+      currency: 'USD',
+      targetPrice: 249,
+      firstPrice: 299,
+      lastPrice: 279,
+      lowestPrice: 279,
+      lastCheckedAt: now,
+      lastError: null,
+      createdAt: now,
+    },
+  ],
+  brief: {
+    day: '2026-10-16',
+    text: 'Happy Friday, Ada!\n\nIt’s 14°C and partly cloudy right now, with a high of 17°C.\n\nOn your calendar: 10:00 Dentist.\n\nHave a lovely day!',
+    data: { problems: [], missing: [] },
+    createdAt: now,
+    seen: false,
+  },
+  calendarConnected: true,
 };
 const html = `<!doctype html><html><head><meta charset="utf-8"><title>Rise Bakery</title><link rel="stylesheet" href="style.css"></head><body><header><h1>Rise Bakery</h1><p>Sourdough, baked every morning.</p></header><main><section><h2>Today</h2><ul><li>Country loaf</li><li>Rye with caraway</li><li>Cardamom buns</li></ul></section></main></body></html>`;
 const css = `body{font-family:Georgia,serif;margin:0;background:#fbf6ee;color:#3b2a1a}header{padding:48px 32px;background:#e9d8bf}h1{margin:0;font-size:40px}main{padding:24px 32px}`;
@@ -195,6 +263,7 @@ const base: Fixtures = {
     checkedAt: null,
   },
   plan_usage: planUsage,
+  everyday_overview: everydayOverview,
   local_models_status: {
     brand: 'Lumo on-device models',
     engine: 'llama.cpp',
@@ -553,6 +622,27 @@ test('settings: general, plans, help, privacy, about', async ({ page }) => {
     await shot(page, `settings-${section}`);
   }
   await expect(page.getByText('Apache-2.0').first()).toBeVisible();
+});
+
+test('my day: brief, reminders, bills and price watch', async ({ page }) => {
+  await boot(page, { route: '#/everyday' });
+  await expect(page.getByRole('heading', { name: 'My day', level: 1 })).toBeVisible();
+  await expect(page.getByText('Happy Friday, Ada!')).toBeVisible();
+  await expect(page.getByText('Take my meds', { exact: true })).toBeVisible();
+  // 15.49 a month plus 35.88 a year (2.99 a month).
+  await expect(page.getByText('about $18.48 a month')).toBeVisible();
+  await expect(page.getByText(/Now \$279\.00 · was \$299\.00 · target \$249\.00/)).toBeVisible();
+  await shot(page, 'my-day');
+  await page.goto('/#/settings/everyday');
+  await expect(page.getByRole('heading', { name: 'My day', exact: true })).toBeVisible();
+  await page.goto('/#/settings/voice');
+  await expect(page.getByText('“Hey Lumo”', { exact: true })).toBeVisible();
+  await shot(page, 'settings-voice');
+});
+
+test('home shows the unseen morning brief', async ({ page }) => {
+  await boot(page, { route: '#/' });
+  await expect(page.getByRole('region', { name: 'Your morning brief' })).toContainText('Happy Friday, Ada!');
 });
 
 test('projects workspace with editor and preview', async ({ page, context }) => {
