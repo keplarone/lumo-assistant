@@ -51,6 +51,29 @@ jobs:
           if [ -n "$KEY" ] && [ -n "$PUBKEY" ]; then
             echo "args=--config {\"bundle\":{\"createUpdaterArtifacts\":true},\"plugins\":{\"updater\":{\"pubkey\":\"$PUBKEY\"}}}" >> "$GITHUB_OUTPUT"
           fi
+      # Empty signing variables make the bundler try to sign and fail, so pass them only when set.
+      - name: Use code-signing secrets only when they are configured
+        shell: bash
+        env:
+          APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
+          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+          APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_PASSWORD: ${{ secrets.APPLE_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+        run: |
+          set_if() { if [ -n "${!1}" ]; then { echo "$1<<__LUMO_EOF__"; echo "${!1}"; echo "__LUMO_EOF__"; } >> "$GITHUB_ENV"; fi; }
+          if [ -n "$APPLE_CERTIFICATE" ]; then
+            for v in APPLE_CERTIFICATE APPLE_CERTIFICATE_PASSWORD APPLE_SIGNING_IDENTITY; do set_if "$v"; done
+          fi
+          if [ -n "$APPLE_ID" ]; then
+            for v in APPLE_ID APPLE_PASSWORD APPLE_TEAM_ID; do set_if "$v"; done
+          fi
+          if [ -n "$TAURI_SIGNING_PRIVATE_KEY" ]; then
+            for v in TAURI_SIGNING_PRIVATE_KEY TAURI_SIGNING_PRIVATE_KEY_PASSWORD; do set_if "$v"; done
+          fi
       - uses: tauri-apps/tauri-action@v0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -62,15 +85,7 @@ jobs:
           LUMO_WHOP_CHECKOUT_LITE: ${{ vars.LUMO_WHOP_CHECKOUT_LITE }}
           LUMO_WHOP_CHECKOUT_PRO: ${{ vars.LUMO_WHOP_CHECKOUT_PRO }}
           LUMO_WHOP_CHECKOUT_UNLIMITED: ${{ vars.LUMO_WHOP_CHECKOUT_UNLIMITED }}
-          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
-          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
-          # macOS signing and notarization (optional; unsigned builds are flagged by Gatekeeper).
-          APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
-          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
-          APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
-          APPLE_ID: ${{ secrets.APPLE_ID }}
-          APPLE_PASSWORD: ${{ secrets.APPLE_PASSWORD }}
-          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          # Signing secrets (updater, Apple) arrive through GITHUB_ENV from the step above when configured.
         with:
           projectPath: apps/desktop
           # The tag comes from the app version, so a manual run (workflow_dispatch) also creates it.
