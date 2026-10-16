@@ -19,19 +19,20 @@ with your permission, checks its own work and reports back. It is **pre-release 
 
 ## How it is put together
 
-The webview is treated as untrusted. Rust owns model API keys (in the OS keychain), all model HTTP, the
-SQLCipher database and every tool. The model can only call typed, validated tools; each tool has a risk tier,
+The webview is treated as untrusted. Rust owns all model HTTP, the SQLCipher database, every key and token
+(in the OS keychain) and every tool. The model can only call typed, validated tools; each tool has a risk tier,
 and writes ask in the app while sensitive actions (screen control, deploys, purchases handoff) ask through a
 native OS dialog. Content from web pages and files is wrapped as untrusted and cannot change your
 instructions. Details are in [docs/02-architecture.md](docs/02-architecture.md).
 
-On-device models run inside Lumo itself: the Rust core links llama.cpp (MIT) and downloads the catalog's
-GGUF files from Hugging Face, pinned and checked by SHA-256. Nothing else needs to be installed.
+Lumo's models are OpenRouter models, reached through Lumo's own model gateway (`services/license`, on
+Vercel), which holds the OpenRouter key and enforces each plan's models and monthly allowance. Free uses
+OpenRouter's free models; Lumo Lite and Lumo Pro use stronger paid ones. The app never holds a model key.
 
 ## Develop
 
-Requirements: Node 22+, pnpm 10, a stable Rust toolchain, CMake, a C++ compiler and libclang (for the
-built-in llama.cpp engine), and on Linux the packages listed in [docs/release.md](docs/release.md).
+Requirements: Node 22+, pnpm 10, a stable Rust toolchain, and on Linux the packages listed in
+[docs/release.md](docs/release.md).
 
 ```sh
 pnpm install

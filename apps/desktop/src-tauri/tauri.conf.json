@@ -58,14 +58,6 @@
       "icons/icon.icns",
       "icons/icon.ico"
     ],
-    "linux": {
-      "deb": {
-        "depends": ["libvulkan1"]
-      },
-      "rpm": {
-        "depends": ["vulkan-loader"]
-      }
-    },
     "macOS": {
       "minimumSystemVersion": "11.0",
       "entitlements": "./Entitlements.plist"

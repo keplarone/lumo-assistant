@@ -70,8 +70,8 @@ pub struct Paths {
 pub struct Endpoints {
     pub nominatim: String,
     pub overpass: String,
-    /// Host that on-device model files are downloaded from (the catalog pins the rest of the address).
-    pub model_downloads: String,
+    /// Lumo's model gateway (see models.rs). None in builds without one.
+    pub lumo_api: Option<String>,
 }
 
 impl Default for Endpoints {
@@ -79,7 +79,7 @@ impl Default for Endpoints {
         Endpoints {
             nominatim: "https://nominatim.openstreetmap.org".into(),
             overpass: "https://overpass-api.de/api/interpreter".into(),
-            model_downloads: crate::local_models::DOWNLOAD_HOST.into(),
+            lumo_api: crate::models::api_base(),
         }
     }
 }
@@ -126,8 +126,6 @@ pub struct Core {
     pub provider_override: Mutex<Option<Arc<dyn ModelProvider>>>,
     pub endpoints: Mutex<Endpoints>,
     pub api_bases: Mutex<crate::integrations::ApiBases>,
-    /// The built-in on-device model engine (keeps the model in use loaded).
-    pub local_engine: Arc<crate::model::local::engine::Engine>,
 }
 
 impl Core {
@@ -148,7 +146,6 @@ impl Core {
             provider_override: Mutex::new(None),
             endpoints: Mutex::new(Endpoints::default()),
             api_bases: Mutex::new(Default::default()),
-            local_engine: Arc::new(Default::default()),
         })
     }
 
@@ -156,50 +153,23 @@ impl Core {
         settings::load(&self.db).unwrap_or_default()
     }
 
-    /// The model provider for the current settings.
+    /// The model provider: Lumo's model gateway, signed in with this install and the plan's license.
     pub fn provider(&self) -> Result<Arc<dyn ModelProvider>> {
         if let Some(p) = self.provider_override.lock().clone() {
             return Ok(p);
         }
-        let s = self.settings();
-        // An old setting from a higher plan can't be used after a downgrade.
-        crate::plans::check_model(crate::plans::limits(&s.plan), &s.provider, &s.chat_model())?;
-        match s.provider.as_str() {
-            "local" => {
-                let choose = || {
-                    crate::error::LumoError::Unavailable(
-                        "Download an on-device model (Orbit, Nebula, Solar or Nova) in Settings → Model to start.".into(),
-                    )
-                };
-                let entry = crate::local_models::catalog_entry(&s.local_model).map_err(|_| choose())?;
-                if !crate::local_models::is_installed(self, entry) {
-                    return Err(crate::error::LumoError::Unavailable(format!(
-                        "{} isn't downloaded yet. Download it in Settings → Model to start.",
-                        entry.tier
-                    )));
-                }
-                Ok(Arc::new(crate::model::local::LocalProvider::new(
-                    self.local_engine.clone(),
-                    entry,
-                    crate::local_models::model_path(self, entry),
-                )))
-            }
-            "openai_compatible" => {
-                let key = self.secrets.get("openai_compatible_api_key")?;
-                Ok(Arc::new(crate::model::openai::OpenAiCompatible::new(
-                    self.http.clone(),
-                    &s.openai_base_url,
-                    key,
-                    s.openai_model.clone(),
-                )))
-            }
-            _ => {
-                let key = self.secrets.get("anthropic_api_key")?.ok_or_else(|| {
-                    crate::error::LumoError::Unavailable("Add your Anthropic API key in Settings → Model to start.".into())
-                })?;
-                Ok(Arc::new(crate::model::anthropic::Anthropic::new(self.http.clone(), &s.anthropic_base_url, key)))
-            }
-        }
+        let base = self
+            .endpoints
+            .lock()
+            .lumo_api
+            .clone()
+            .ok_or_else(|| crate::error::LumoError::Unavailable("Lumo's models aren't available in this build.".into()))?;
+        Ok(Arc::new(crate::model::cloud::LumoCloud::new(
+            self.http.clone(),
+            &base,
+            crate::models::install_id(self)?,
+            crate::models::license_key(self),
+        )))
     }
 }
 

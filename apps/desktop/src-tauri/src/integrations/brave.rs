@@ -1,4 +1,4 @@
-//! Brave Search, for web search with local models (Anthropic models have built-in search).
+//! Brave Search, for web search (the `search_web` tool) when the user adds a Brave Search key.
 
 use crate::error::Result;
 use serde_json::Value;

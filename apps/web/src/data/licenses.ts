@@ -36,19 +36,6 @@ export const FONTS: LicenseEntry[] = [
 
 export const PACKAGES: LicenseEntry[] = [
   { name: 'Tauri', license: 'MIT or Apache-2.0', url: 'https://tauri.app', use: 'Desktop app shell' },
-  {
-    name: 'llama.cpp and ggml',
-    license: 'MIT',
-    url: 'https://github.com/ggml-org/llama.cpp',
-    use: 'The built-in engine that runs on-device models',
-    copyright: 'Copyright (c) 2023-2026 The ggml authors',
-  },
-  {
-    name: 'llama-cpp-rs (llama-cpp-2)',
-    license: 'MIT or Apache-2.0',
-    url: 'https://github.com/utilityai/llama-cpp-rs',
-    use: 'Rust bindings for llama.cpp',
-  },
   { name: 'React and React DOM', license: 'MIT', url: 'https://react.dev', use: 'Interface' },
   { name: 'three.js', license: 'MIT', url: 'https://threejs.org', use: 'The Lumo mascot and 3D scenes' },
   {
