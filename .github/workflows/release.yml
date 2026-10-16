@@ -73,8 +73,9 @@ jobs:
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
         with:
           projectPath: apps/desktop
-          tagName: ${{ github.ref_name }}
-          releaseName: Lumo ${{ github.ref_name }}
+          # The tag comes from the app version, so a manual run (workflow_dispatch) also creates it.
+          tagName: v__VERSION__
+          releaseName: Lumo v__VERSION__
           releaseBody: See the assets below. Read docs/release.md before publishing.
           releaseDraft: true
           prerelease: true

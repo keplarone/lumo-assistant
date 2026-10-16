@@ -1,6 +1,7 @@
 # Releasing Lumo
 
-Pushing a tag like `v0.1.0` runs `.github/workflows/release.yml`. It builds installers on macOS (universal),
+Pushing a tag like `v0.1.0`, or running the Release workflow by hand on the default branch, runs
+`.github/workflows/release.yml`; the release is tagged `v<app version>`. It builds installers on macOS (universal),
 Windows and Linux and attaches them to a **draft pre-release**. Nothing is published until a person reviews
 the draft and publishes it.
 
