@@ -28,6 +28,8 @@ pub trait Platform: Send + Sync {
     async fn pick_folder(&self) -> Option<PathBuf>;
     /// Capture the primary screen as PNG bytes plus (width, height).
     fn capture_screen(&self) -> Result<(Vec<u8>, u32, u32)>;
+    /// The app name and title of the window in front.
+    fn active_window(&self) -> Result<(String, String)>;
     /// Tell every window about something (privacy indicators, list changes).
     fn broadcast(&self, event: &str, payload: serde_json::Value);
 }
@@ -66,6 +68,9 @@ pub struct Pending {
     pub runs: Mutex<HashMap<String, ActiveRun>>,
     /// Tools the user allowed for the rest of a conversation ("don't ask again here"). Write tier only.
     pub conversation_allow: Mutex<HashMap<String, Vec<String>>>,
+    /// Files the user chose (drag and drop or the file picker), by token. The webview refers to
+    /// attachments only by these tokens, so it cannot make Lumo read arbitrary paths.
+    pub attachments: Mutex<HashMap<String, PathBuf>>,
 }
 
 #[derive(Clone)]
@@ -89,6 +94,7 @@ pub struct Core {
     /// Replaces the configured provider (tests and the end-to-end harness).
     pub provider_override: Mutex<Option<Arc<dyn ModelProvider>>>,
     pub endpoints: Mutex<Endpoints>,
+    pub api_bases: Mutex<crate::integrations::ApiBases>,
 }
 
 impl Core {
@@ -108,6 +114,7 @@ impl Core {
             rate: RateLimiter::default(),
             provider_override: Mutex::new(None),
             endpoints: Mutex::new(Endpoints::default()),
+            api_bases: Mutex::new(Default::default()),
         })
     }
 
@@ -178,6 +185,9 @@ pub mod testing {
         }
         fn capture_screen(&self) -> Result<(Vec<u8>, u32, u32)> {
             Err(crate::error::LumoError::Unavailable("no screen in tests".into()))
+        }
+        fn active_window(&self) -> Result<(String, String)> {
+            Ok(("Editor".into(), "notes.md".into()))
         }
         fn broadcast(&self, _event: &str, _payload: serde_json::Value) {}
     }

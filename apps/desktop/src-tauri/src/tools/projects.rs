@@ -22,6 +22,8 @@ pub struct Project {
     pub conversation_id: Option<String>,
     pub created_at: String,
     pub updated_at: String,
+    pub site_url: Option<String>,
+    pub github_repo: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -33,10 +35,21 @@ pub struct Version {
 }
 
 fn row(r: &rusqlite::Row) -> rusqlite::Result<Project> {
-    Ok(Project { id: r.get(0)?, name: r.get(1)?, path: r.get(2)?, kind: r.get(3)?, conversation_id: r.get(4)?, created_at: r.get(5)?, updated_at: r.get(6)? })
+    Ok(Project {
+        id: r.get(0)?,
+        name: r.get(1)?,
+        path: r.get(2)?,
+        kind: r.get(3)?,
+        conversation_id: r.get(4)?,
+        created_at: r.get(5)?,
+        updated_at: r.get(6)?,
+        site_url: r.get(7)?,
+        github_repo: r.get(8)?,
+    })
 }
 
-const COLS: &str = "id, name, path, kind, conversation_id, created_at, updated_at";
+const COLS: &str = "id, name, path, kind, conversation_id, created_at, updated_at, site_url, github_repo";
+const INSERT_COLS: &str = "id, name, path, kind, conversation_id, created_at, updated_at";
 
 pub fn list(core: &Core) -> Result<Vec<Project>> {
     let conn = core.db.conn();
@@ -166,11 +179,11 @@ pub fn create(core: &Core, name: &str, kind: &str, conversation_id: Option<&str>
     let dir = std::fs::canonicalize(&dir)?;
     policy::add_folder_grant(&core.db, &dir)?;
     let t = now();
-    let p = Project { id: new_id(), name: name.into(), path: dir.display().to_string(), kind: kind.into(), conversation_id: conversation_id.map(String::from), created_at: t.clone(), updated_at: t };
+    let p = Project { id: new_id(), name: name.into(), path: dir.display().to_string(), kind: kind.into(), conversation_id: conversation_id.map(String::from), created_at: t.clone(), updated_at: t, site_url: None, github_repo: None };
     {
         let conn = core.db.conn();
         conn.execute(
-            &format!("INSERT INTO projects({COLS}) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)"),
+            &format!("INSERT INTO projects({INSERT_COLS}) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)"),
             rusqlite::params![p.id, p.name, p.path, p.kind, p.conversation_id, p.created_at, p.updated_at],
         )?;
         if let Some(c) = conversation_id {

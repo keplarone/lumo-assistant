@@ -44,7 +44,6 @@ pub struct Grant {
 pub const CAPABILITIES: &[(&str, &str)] = &[
     ("clipboard_read", "Read your clipboard"),
     ("screen", "See your screen when you ask"),
-    ("input_control", "Control mouse and keyboard when you ask"),
     ("active_window", "Know which app is in front"),
 ];
 

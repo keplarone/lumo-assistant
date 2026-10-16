@@ -92,6 +92,7 @@ CREATE TABLE automations (
   prompt TEXT NOT NULL,
   agent_id TEXT,
   trigger_json TEXT NOT NULL,
+  allowed_tools_json TEXT NOT NULL DEFAULT '[]',
   enabled INTEGER NOT NULL DEFAULT 1,
   notify INTEGER NOT NULL DEFAULT 1,
   created_at TEXT NOT NULL,
@@ -130,6 +131,9 @@ CREATE TABLE projects (
   path TEXT NOT NULL UNIQUE,
   kind TEXT NOT NULL,
   conversation_id TEXT,
+  netlify_site_id TEXT,
+  site_url TEXT,
+  github_repo TEXT,
   created_at TEXT NOT NULL,
   updated_at TEXT NOT NULL
 );

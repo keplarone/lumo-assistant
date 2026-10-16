@@ -82,3 +82,45 @@ impl TypedTool for TakeScreenshot {
         })
     }
 }
+
+pub struct ActiveWindow;
+
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct NoInput {}
+
+#[async_trait]
+impl TypedTool for ActiveWindow {
+    type Input = NoInput;
+    const NAME: &'static str = "get_active_window";
+    const DESCRIPTION: &'static str = "Get the name and title of the app window the user was using just before Lumo, when they refer to 'this' document, page or app.";
+    fn schema(&self) -> Value {
+        object_schema(json!({}), &[])
+    }
+    fn risk(&self, ctx: &ToolCtx, _: &NoInput) -> Risk {
+        if policy::has_capability(&ctx.core.db, "active_window") {
+            Risk::Read
+        } else {
+            Risk::Write
+        }
+    }
+    fn label(&self, _: &NoInput) -> String {
+        "Checking which app you're using".into()
+    }
+    fn preview(&self, _ctx: &ToolCtx, _: &NoInput) -> Result<ActionPreview> {
+        Ok(ActionPreview {
+            title: "Let Lumo see which app and window are in front".into(),
+            details: vec![],
+            warning: Some("To stop being asked, allow it in Settings → Permissions.".into()),
+        })
+    }
+    async fn run(&self, ctx: &ToolCtx, _: NoInput) -> Result<ToolOutput> {
+        let (app, title) = ctx.core.platform.active_window()?;
+        Ok(ToolOutput {
+            text: "Active window:".into(),
+            untrusted: Some(format!("App: {app}\nTitle: {title}")),
+            summary: format!("You're in {app}"),
+            ..Default::default()
+        })
+    }
+}

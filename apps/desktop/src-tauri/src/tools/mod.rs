@@ -12,6 +12,7 @@ pub mod journal;
 pub mod memory;
 pub mod places;
 pub mod projects;
+pub mod publish;
 pub mod shell;
 pub mod system;
 pub mod ui;
@@ -180,12 +181,16 @@ impl Registry {
             Arc::new(Typed(clipboard::WriteClipboard)),
             Arc::new(Typed(system::Notify)),
             Arc::new(Typed(system::TakeScreenshot)),
+            Arc::new(Typed(system::ActiveWindow)),
             Arc::new(Typed(memory::Remember)),
             Arc::new(Typed(memory::Forget)),
             Arc::new(Typed(projects::CreateProject)),
             Arc::new(Typed(projects::SaveVersion)),
             Arc::new(Typed(projects::PreviewProject)),
             Arc::new(Typed(shell::RunCommand)),
+            Arc::new(Typed(publish::SearchWeb)),
+            Arc::new(Typed(publish::PublishToGithub)),
+            Arc::new(Typed(publish::DeployToNetlify)),
         ];
         Registry { tools }
     }
