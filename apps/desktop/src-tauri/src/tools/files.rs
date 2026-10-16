@@ -682,7 +682,7 @@ impl TypedTool for MoveToTrash {
                 failed.push(format!("{}: a granted folder itself cannot be trashed", display(&p)));
                 continue;
             }
-            match trash::delete(&p) {
+            match crate::util::move_to_trash(&p) {
                 Ok(()) => {
                     journal::record(ctx, "trash", &p, None, None)?;
                     done += 1;

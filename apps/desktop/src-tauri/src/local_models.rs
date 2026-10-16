@@ -217,7 +217,7 @@ pub fn status_with(core: &Core, memory_gb: u32, accelerator: String) -> LocalSta
             display_name: e.tier.to_string(),
             installed: is_installed(core, e),
             partial_bytes: std::fs::metadata(partial_path(core, e)).map(|m| m.len()).unwrap_or(0),
-            fits: memory_gb == 0 || memory_gb >= e.min_memory_gb,
+            fits: crate::device::current().model_fits(memory_gb, e.min_memory_gb),
             selected: s.provider == "local" && same_tag(&s.local_model, e.id),
             required_plan: crate::plans::required_plan(core, e.id),
         })

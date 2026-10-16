@@ -152,6 +152,17 @@ const base: Fixtures = {
       ['claude-sonnet-5', 'Claude Sonnet 5'],
     ],
     updaterConfigured: false,
+    device: {
+      formFactor: 'desktop',
+      computerControl: true,
+      runCommands: true,
+      systemTrash: true,
+      tray: true,
+      globalShortcut: true,
+      selfUpdate: true,
+      folderPicker: true,
+      modelMemoryPercent: 100,
+    },
   },
   secrets_status: [
     { name: 'anthropic_api_key', label: 'Anthropic API key', set: true },

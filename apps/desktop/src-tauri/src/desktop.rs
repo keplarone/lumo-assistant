@@ -1,5 +1,8 @@
-//! The desktop shell: the real `Platform` (native dialogs, notifications, clipboard, screen), the
+//! The app shell: the real `Platform` (native dialogs, notifications, clipboard, screen), the
 //! tray, the global shortcut, the compact window and the preview protocol.
+//!
+//! The same shell runs on phones. Parts phones don't have (tray, global shortcut, compact window,
+//! screen capture and input control) are compiled for computers only; see `crate::device`.
 
 use crate::agent::events::ActionPreview;
 use crate::core::{Core, Platform, Screenshot};
@@ -9,11 +12,16 @@ use async_trait::async_trait;
 use parking_lot::Mutex;
 use std::path::PathBuf;
 use std::sync::Arc;
+#[cfg(desktop)]
 use tauri::menu::{CheckMenuItem, Menu, MenuItem, PredefinedMenuItem};
+#[cfg(desktop)]
 use tauri::tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent};
-use tauri::{AppHandle, Emitter, Manager, WebviewUrl, WebviewWindowBuilder};
+use tauri::{AppHandle, Emitter, Manager};
+#[cfg(desktop)]
+use tauri::{WebviewUrl, WebviewWindowBuilder};
 use tauri_plugin_clipboard_manager::ClipboardExt;
 use tauri_plugin_dialog::{DialogExt, MessageDialogButtons, MessageDialogKind};
+#[cfg(desktop)]
 use tauri_plugin_global_shortcut::{GlobalShortcutExt, ShortcutState};
 use tauri_plugin_notification::NotificationExt;
 use tauri_plugin_opener::OpenerExt;
@@ -35,6 +43,7 @@ impl Platform for TauriPlatform {
             text.push_str(&format!("\n{w}"));
         }
         let (tx, rx) = tokio::sync::oneshot::channel();
+        #[cfg_attr(mobile, allow(unused_mut))]
         let mut b = self
             .app
             .dialog()
@@ -42,6 +51,7 @@ impl Platform for TauriPlatform {
             .title(format!("Lumo: {}", preview.title))
             .kind(MessageDialogKind::Warning)
             .buttons(MessageDialogButtons::OkCancelCustom("Allow".into(), "Don't Allow".into()));
+        #[cfg(desktop)]
         if let Some(w) = self.app.get_webview_window("main") {
             b = b.parent(&w);
         }
@@ -73,6 +83,13 @@ impl Platform for TauriPlatform {
         self.app.clipboard().write_text(text.to_string()).map_err(|e| LumoError::Unavailable(format!("could not use the clipboard: {e}")))
     }
 
+    #[cfg(mobile)]
+    async fn pick_folder(&self) -> Option<PathBuf> {
+        // Phones don't let apps pick arbitrary folders; Lumo works in its own projects folder there.
+        None
+    }
+
+    #[cfg(desktop)]
     async fn pick_folder(&self) -> Option<PathBuf> {
         let (tx, rx) = tokio::sync::oneshot::channel();
         let mut b = self.app.dialog().file().set_title("Choose a folder for Lumo");
@@ -86,119 +103,16 @@ impl Platform for TauriPlatform {
     }
 
     fn capture_screen(&self) -> Result<Screenshot> {
-        let monitors = xcap::Monitor::all().map_err(|e| LumoError::Unavailable(format!("screen capture is not available: {e}")))?;
-        let m = monitors
-            .iter()
-            .find(|m| m.is_primary().unwrap_or(false))
-            .or(monitors.first())
-            .ok_or_else(|| LumoError::Unavailable("no display found".into()))?;
-        let img = m.capture_image().map_err(|e| {
-            LumoError::Unavailable(format!(
-                "Lumo could not capture the screen ({e}). On macOS, allow Lumo under System Settings → Privacy & Security → Screen Recording."
-            ))
-        })?;
-        // Logical size of the display, which is what input coordinates use.
-        let (sw, sh) = (m.width().unwrap_or(img.width()), m.height().unwrap_or(img.height()));
-        let (ox, oy) = (m.x().unwrap_or(0), m.y().unwrap_or(0));
-        // Downscale large displays: fewer tokens, same usefulness.
-        let img = if img.width() > 1568 {
-            let h = (img.height() as f64 * 1568.0 / img.width() as f64) as u32;
-            xcap::image::imageops::resize(&img, 1568, h, xcap::image::imageops::FilterType::Triangle)
-        } else {
-            img
-        };
-        let (w, h) = (img.width(), img.height());
-        let mut png = std::io::Cursor::new(Vec::new());
-        img.write_to(&mut png, xcap::image::ImageFormat::Png).map_err(|e| LumoError::Other(e.into()))?;
-        Ok(Screenshot { png: png.into_inner(), width: w, height: h, origin_x: ox, origin_y: oy, screen_width: sw, screen_height: sh })
+        capture_primary_screen()
     }
 
     fn perform_input(&self, actions: &[InputAction]) -> Result<()> {
-        use enigo::{Axis, Button, Coordinate, Direction, Enigo, Keyboard, Mouse, Settings};
-        let mut e = Enigo::new(&Settings::default()).map_err(|e| {
-            LumoError::Unavailable(format!(
-                "Lumo can't control input on this system ({e}). On macOS, allow Lumo under System Settings → Privacy & Security → Accessibility."
-            ))
-        })?;
-        let err = |e: enigo::InputError| LumoError::Unavailable(format!("input failed: {e}"));
-        let pause = || std::thread::sleep(std::time::Duration::from_millis(60));
-        for a in actions {
-            match a {
-                InputAction::MoveTo { x, y } => e.move_mouse(*x, *y, Coordinate::Abs).map_err(err)?,
-                InputAction::Click { x, y, button, count } => {
-                    e.move_mouse(*x, *y, Coordinate::Abs).map_err(err)?;
-                    pause();
-                    let b = match button.as_deref() {
-                        Some("right") => Button::Right,
-                        Some("middle") => Button::Middle,
-                        _ => Button::Left,
-                    };
-                    for _ in 0..count.unwrap_or(1) {
-                        e.button(b, Direction::Click).map_err(err)?;
-                    }
-                }
-                InputAction::Drag { from_x, from_y, to_x, to_y } => {
-                    e.move_mouse(*from_x, *from_y, Coordinate::Abs).map_err(err)?;
-                    e.button(Button::Left, Direction::Press).map_err(err)?;
-                    pause();
-                    e.move_mouse(*to_x, *to_y, Coordinate::Abs).map_err(err)?;
-                    pause();
-                    e.button(Button::Left, Direction::Release).map_err(err)?;
-                }
-                InputAction::Scroll { x, y, dx, dy } => {
-                    e.move_mouse(*x, *y, Coordinate::Abs).map_err(err)?;
-                    if *dy != 0 {
-                        e.scroll(*dy, Axis::Vertical).map_err(err)?;
-                    }
-                    if *dx != 0 {
-                        e.scroll(*dx, Axis::Horizontal).map_err(err)?;
-                    }
-                }
-                InputAction::Type { text } => e.text(text).map_err(err)?,
-                InputAction::Key { keys } => {
-                    let parts = crate::tools::computer::parse_keys(keys)?;
-                    let keys: Vec<enigo::Key> = parts.iter().map(|p| to_key(p)).collect();
-                    for k in &keys[..keys.len() - 1] {
-                        e.key(*k, Direction::Press).map_err(err)?;
-                    }
-                    e.key(keys[keys.len() - 1], Direction::Click).map_err(err)?;
-                    for k in keys[..keys.len() - 1].iter().rev() {
-                        e.key(*k, Direction::Release).map_err(err)?;
-                    }
-                }
-                InputAction::Wait { ms } => std::thread::sleep(std::time::Duration::from_millis(*ms as u64)),
-            }
-            pause();
-        }
-        Ok(())
+        send_input(actions)
     }
 
     fn input_control_changed(&self, active: bool) {
-        let gs = self.app.global_shortcut();
-        if active {
-            let res = gs.on_shortcut(crate::tools::computer::STOP_SHORTCUT, |app, _sc, ev| {
-                if ev.state == ShortcutState::Pressed {
-                    if let Some(state) = app.try_state::<crate::commands::AppState>() {
-                        let ids: Vec<String> = state.core.pending.input_sessions.lock().iter().cloned().collect();
-                        for id in ids {
-                            crate::agent::cancel(&state.core, &id);
-                            crate::tools::computer::end_session(&state.core, &id);
-                        }
-                    }
-                }
-            });
-            if let Err(e) = res {
-                log::warn!("could not register the stop shortcut: {e}");
-            }
-            if let Some(tray) = self.app.tray_by_id("lumo") {
-                let _ = tray.set_tooltip(Some("Lumo is using your mouse and keyboard"));
-            }
-        } else {
-            let _ = gs.unregister(crate::tools::computer::STOP_SHORTCUT);
-            if let Some(tray) = self.app.tray_by_id("lumo") {
-                let _ = tray.set_tooltip(Some("Lumo"));
-            }
-        }
+        #[cfg(desktop)]
+        stop_shortcut_and_tray(&self.app, active);
         let _ =
             self.app.emit("input-control", serde_json::json!({ "active": active, "stopShortcut": crate::tools::computer::STOP_SHORTCUT }));
     }
@@ -216,6 +130,138 @@ impl Platform for TauriPlatform {
     }
 }
 
+#[cfg(desktop)]
+fn capture_primary_screen() -> Result<Screenshot> {
+    let monitors = xcap::Monitor::all().map_err(|e| LumoError::Unavailable(format!("screen capture is not available: {e}")))?;
+    let m = monitors
+        .iter()
+        .find(|m| m.is_primary().unwrap_or(false))
+        .or(monitors.first())
+        .ok_or_else(|| LumoError::Unavailable("no display found".into()))?;
+    let img = m.capture_image().map_err(|e| {
+        LumoError::Unavailable(format!(
+            "Lumo could not capture the screen ({e}). On macOS, allow Lumo under System Settings → Privacy & Security → Screen Recording."
+        ))
+    })?;
+    // Logical size of the display, which is what input coordinates use.
+    let (sw, sh) = (m.width().unwrap_or(img.width()), m.height().unwrap_or(img.height()));
+    let (ox, oy) = (m.x().unwrap_or(0), m.y().unwrap_or(0));
+    // Downscale large displays: fewer tokens, same usefulness.
+    let img = if img.width() > 1568 {
+        let h = (img.height() as f64 * 1568.0 / img.width() as f64) as u32;
+        xcap::image::imageops::resize(&img, 1568, h, xcap::image::imageops::FilterType::Triangle)
+    } else {
+        img
+    };
+    let (w, h) = (img.width(), img.height());
+    let mut png = std::io::Cursor::new(Vec::new());
+    img.write_to(&mut png, xcap::image::ImageFormat::Png).map_err(|e| LumoError::Other(e.into()))?;
+    Ok(Screenshot { png: png.into_inner(), width: w, height: h, origin_x: ox, origin_y: oy, screen_width: sw, screen_height: sh })
+}
+
+#[cfg(desktop)]
+fn send_input(actions: &[InputAction]) -> Result<()> {
+    use enigo::{Axis, Button, Coordinate, Direction, Enigo, Keyboard, Mouse, Settings};
+    let mut e = Enigo::new(&Settings::default()).map_err(|e| {
+        LumoError::Unavailable(format!(
+            "Lumo can't control input on this system ({e}). On macOS, allow Lumo under System Settings → Privacy & Security → Accessibility."
+        ))
+    })?;
+    let err = |e: enigo::InputError| LumoError::Unavailable(format!("input failed: {e}"));
+    let pause = || std::thread::sleep(std::time::Duration::from_millis(60));
+    for a in actions {
+        match a {
+            InputAction::MoveTo { x, y } => e.move_mouse(*x, *y, Coordinate::Abs).map_err(err)?,
+            InputAction::Click { x, y, button, count } => {
+                e.move_mouse(*x, *y, Coordinate::Abs).map_err(err)?;
+                pause();
+                let b = match button.as_deref() {
+                    Some("right") => Button::Right,
+                    Some("middle") => Button::Middle,
+                    _ => Button::Left,
+                };
+                for _ in 0..count.unwrap_or(1) {
+                    e.button(b, Direction::Click).map_err(err)?;
+                }
+            }
+            InputAction::Drag { from_x, from_y, to_x, to_y } => {
+                e.move_mouse(*from_x, *from_y, Coordinate::Abs).map_err(err)?;
+                e.button(Button::Left, Direction::Press).map_err(err)?;
+                pause();
+                e.move_mouse(*to_x, *to_y, Coordinate::Abs).map_err(err)?;
+                pause();
+                e.button(Button::Left, Direction::Release).map_err(err)?;
+            }
+            InputAction::Scroll { x, y, dx, dy } => {
+                e.move_mouse(*x, *y, Coordinate::Abs).map_err(err)?;
+                if *dy != 0 {
+                    e.scroll(*dy, Axis::Vertical).map_err(err)?;
+                }
+                if *dx != 0 {
+                    e.scroll(*dx, Axis::Horizontal).map_err(err)?;
+                }
+            }
+            InputAction::Type { text } => e.text(text).map_err(err)?,
+            InputAction::Key { keys } => {
+                let parts = crate::tools::computer::parse_keys(keys)?;
+                let keys: Vec<enigo::Key> = parts.iter().map(|p| to_key(p)).collect();
+                for k in &keys[..keys.len() - 1] {
+                    e.key(*k, Direction::Press).map_err(err)?;
+                }
+                e.key(keys[keys.len() - 1], Direction::Click).map_err(err)?;
+                for k in keys[..keys.len() - 1].iter().rev() {
+                    e.key(*k, Direction::Release).map_err(err)?;
+                }
+            }
+            InputAction::Wait { ms } => std::thread::sleep(std::time::Duration::from_millis(*ms as u64)),
+        }
+        pause();
+    }
+    Ok(())
+}
+
+/// While Lumo controls input: the stop shortcut works everywhere and the tray says so.
+#[cfg(desktop)]
+fn stop_shortcut_and_tray(app: &AppHandle, active: bool) {
+    let gs = app.global_shortcut();
+    if active {
+        let res = gs.on_shortcut(crate::tools::computer::STOP_SHORTCUT, |app, _sc, ev| {
+            if ev.state == ShortcutState::Pressed {
+                if let Some(state) = app.try_state::<crate::commands::AppState>() {
+                    let ids: Vec<String> = state.core.pending.input_sessions.lock().iter().cloned().collect();
+                    for id in ids {
+                        crate::agent::cancel(&state.core, &id);
+                        crate::tools::computer::end_session(&state.core, &id);
+                    }
+                }
+            }
+        });
+        if let Err(e) = res {
+            log::warn!("could not register the stop shortcut: {e}");
+        }
+        if let Some(tray) = app.tray_by_id("lumo") {
+            let _ = tray.set_tooltip(Some("Lumo is using your mouse and keyboard"));
+        }
+    } else {
+        let _ = gs.unregister(crate::tools::computer::STOP_SHORTCUT);
+        if let Some(tray) = app.tray_by_id("lumo") {
+            let _ = tray.set_tooltip(Some("Lumo"));
+        }
+    }
+}
+
+/// Phones don't let apps see or control the screen, so these tools are never offered there.
+#[cfg(mobile)]
+fn capture_primary_screen() -> Result<Screenshot> {
+    Err(LumoError::Unavailable("Screen capture is only available in Lumo on a computer.".into()))
+}
+
+#[cfg(mobile)]
+fn send_input(_actions: &[InputAction]) -> Result<()> {
+    Err(LumoError::Unavailable("Controlling the mouse and keyboard is only available in Lumo on a computer.".into()))
+}
+
+#[cfg(desktop)]
 /// Note the focused window before Lumo takes focus (for `get_active_window`).
 pub fn remember_front_window(platform: &TauriPlatform) {
     let found = xcap::Window::all().ok().and_then(|ws| {
@@ -237,6 +283,7 @@ pub fn show_main(app: &AppHandle) {
 }
 
 /// The floating assistant: a small window that stays on top, opened with the global shortcut.
+#[cfg(desktop)]
 pub fn toggle_compact(app: &AppHandle) {
     if let Some(w) = app.get_webview_window("compact") {
         if w.is_visible().unwrap_or(false) && w.is_focused().unwrap_or(false) {
@@ -266,8 +313,10 @@ pub fn toggle_compact(app: &AppHandle) {
     }
 }
 
+#[cfg(desktop)]
 static MAIN_SHORTCUT: Mutex<Option<String>> = Mutex::new(None);
 
+#[cfg(desktop)]
 pub fn register_shortcut(app: &AppHandle, shortcut: &str) -> Result<()> {
     let gs = app.global_shortcut();
     if let Some(prev) = MAIN_SHORTCUT.lock().take() {
@@ -286,6 +335,7 @@ pub fn register_shortcut(app: &AppHandle, shortcut: &str) -> Result<()> {
     Ok(())
 }
 
+#[cfg(desktop)]
 pub fn build_tray(app: &AppHandle, core: &Arc<Core>) -> tauri::Result<()> {
     let open = MenuItem::with_id(app, "open", "Open Lumo", true, None::<&str>)?;
     let ask = MenuItem::with_id(app, "ask", "Ask Lumo…", true, None::<&str>)?;
@@ -356,6 +406,7 @@ pub fn preview_response(core: &Core, uri_path: &str) -> tauri::http::Response<Ve
     }
 }
 
+#[cfg(desktop)]
 fn to_key(p: &str) -> enigo::Key {
     use enigo::Key;
     match p {

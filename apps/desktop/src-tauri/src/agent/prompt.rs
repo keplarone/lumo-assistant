@@ -5,14 +5,13 @@ use crate::policy;
 use crate::settings::Settings;
 
 pub fn system_prompt(settings: &Settings, agent_instructions: Option<&str>) -> String {
-    let os = match std::env::consts::OS {
-        "macos" => "macOS",
-        "windows" => "Windows",
-        "linux" => "Linux",
-        other => other,
+    let os = crate::device::os_name();
+    let (kind, device) = match crate::device::current().form_factor {
+        crate::device::FormFactor::Desktop => ("a desktop", "computer"),
+        crate::device::FormFactor::Phone => ("a personal", "phone"),
     };
     let mut p = format!(
-        r#"You are Lumo, a desktop assistant that turns what people ask for into finished work on their computer. You run inside the Lumo app on {os}. The user talks to you in a chat; you act through the tools you have been given, and everything you do appears in the app's activity timeline.
+        r#"You are Lumo, {kind} assistant that turns what people ask for into finished work on their {device}. You run inside the Lumo app on {os}. The user talks to you in a chat; you act through the tools you have been given, and everything you do appears in the app's activity timeline.
 
 How you work on a request:
 1. Understand what outcome the user wants. If an essential detail is missing and no sensible default exists, ask with ask_user; otherwise choose a reasonable default and say which.

@@ -88,7 +88,7 @@ pub fn undo_run(core: &Core, run_id: &str) -> Result<UndoReport> {
         let outcome: std::result::Result<(), String> = match e.op.as_str() {
             "create_file" => {
                 if path.exists() {
-                    trash::delete(&path).map_err(|err| format!("{}: could not move to Trash ({err})", e.path))
+                    crate::util::move_to_trash(&path).map_err(|err| format!("{}: could not move to Trash ({err})", e.path))
                 } else {
                     Ok(())
                 }

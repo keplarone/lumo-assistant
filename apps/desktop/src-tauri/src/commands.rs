@@ -56,6 +56,8 @@ pub struct AppInfo {
     log_dir: String,
     models: Vec<(String, String)>,
     updater_configured: bool,
+    /// What this device can do (phones have no tray, shortcut, screen control or commands).
+    device: crate::device::DeviceCaps,
 }
 
 #[tauri::command]
@@ -68,6 +70,7 @@ pub fn app_info(state: S) -> AppInfo {
         log_dir: state.core.paths.log_dir.display().to_string(),
         models: settings::MODELS.iter().map(|(a, b)| (a.to_string(), b.to_string())).collect(),
         updater_configured: crate::updater_configured(),
+        device: crate::device::current(),
     }
 }
 
@@ -88,6 +91,7 @@ pub async fn save_settings(app: AppHandle, state: S<'_>, mut settings: Settings)
     // A saved key is only sent to a new server after the user confirms it natively.
     settings::confirm_key_destinations(&state.core, &old, &settings).await?;
     settings::save(&state.core.db, &settings)?;
+    #[cfg(desktop)]
     if old.global_shortcut != settings.global_shortcut {
         if let Err(e) = desktop::register_shortcut(&app, &settings.global_shortcut) {
             // Restore the old one so the user isn't left without a shortcut.
@@ -733,9 +737,21 @@ pub fn show_main_window(app: AppHandle) {
 
 #[tauri::command]
 pub fn toggle_compact_window(app: AppHandle) {
+    // Phones have no floating window; the app itself is always one tap away.
+    #[cfg(desktop)]
     desktop::toggle_compact(&app);
+    #[cfg(mobile)]
+    let _ = app;
 }
 
+#[cfg(mobile)]
+#[tauri::command]
+pub async fn check_for_updates(app: AppHandle) -> ApiResult<Option<String>> {
+    let _ = app;
+    Err(LumoError::Unavailable("On a phone, Lumo is updated by your app store.".into()).into())
+}
+
+#[cfg(desktop)]
 #[tauri::command]
 pub async fn check_for_updates(app: AppHandle) -> ApiResult<Option<String>> {
     if !crate::updater_configured() {
@@ -753,6 +769,14 @@ pub async fn check_for_updates(app: AppHandle) -> ApiResult<Option<String>> {
     }
 }
 
+#[cfg(mobile)]
+#[tauri::command]
+pub async fn install_update(app: AppHandle) -> ApiResult<()> {
+    let _ = app;
+    Err(LumoError::Unavailable("On a phone, Lumo is updated by your app store.".into()).into())
+}
+
+#[cfg(desktop)]
 #[tauri::command]
 pub async fn install_update(app: AppHandle) -> ApiResult<()> {
     use tauri_plugin_updater::UpdaterExt;
@@ -799,7 +823,12 @@ pub async fn local_models_status(state: S<'_>) -> ApiResult<crate::local_models:
 /// Download one of Lumo's on-device models. Progress arrives as `local-model-progress` events.
 #[tauri::command]
 pub async fn download_local_model(state: S<'_>, id: String) -> ApiResult<()> {
-    crate::local_models::catalog_entry(&id)?;
+    let entry = crate::local_models::catalog_entry(&id)?;
+    // On a phone a model that can't run is many gigabytes of wasted storage and data, so refuse it here.
+    let device = crate::device::current();
+    if device.form_factor == crate::device::FormFactor::Phone && !device.model_fits(crate::local_models::memory_gb(), entry.min_memory_gb) {
+        return Err(invalid(format!("{} needs more memory than this phone has.", entry.tier)).into());
+    }
     let token = tokio_util::sync::CancellationToken::new();
     {
         let mut slot = LOCAL_DOWNLOADS.lock();
