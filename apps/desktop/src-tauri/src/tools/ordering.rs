@@ -69,8 +69,10 @@ fn order_text(app: &str, i: &StartOrderInput) -> String {
     s
 }
 
+/// Filling a cart needs screen control (a paid plan) and a model that can see screenshots. The
+/// on-device models are text-only, so with them Lumo hands the order over instead.
 fn can_control(ctx: &ToolCtx) -> bool {
-    crate::plans::current(&ctx.core).computer_control
+    crate::plans::current(&ctx.core).computer_control && ctx.core.settings().provider != "local"
 }
 
 #[async_trait]
@@ -131,7 +133,7 @@ impl TypedTool for StartOrder {
                 title: format!("Open {} with your order list", app.name),
                 details,
                 warning: Some(format!(
-                    "Your plan doesn't include screen control, so Lumo copies the list to your clipboard and opens {} for you to add the items and order.",
+                    "Lumo can't fill the cart for you with your current plan or model, so it copies the list to your clipboard and opens {} for you to add the items and order.",
                     app.name
                 )),
             })
@@ -155,7 +157,7 @@ impl TypedTool for StartOrder {
             ctx.core.platform.open_url(&url)?;
             return Ok(ToolOutput {
                 text: format!(
-                    "The user confirmed. {} opened in their browser and the order list is on their clipboard. Their plan has no screen control, so the user adds the items and orders themselves. Nothing is ordered yet.",
+                    "The user confirmed. {} opened in their browser and the order list is on their clipboard. Screen control isn't available (plan or on-device model), so the user adds the items and orders themselves. Nothing is ordered yet.",
                     app.name
                 ),
                 summary: format!("Opened {} with your list", app.name),
@@ -284,6 +286,9 @@ mod tests {
         *platform.confirm.lock() = true;
         let (core, _d) = core_with(platform.clone());
         set_plan(&core, "pro");
+        let mut s = core.settings();
+        s.provider = "anthropic".into();
+        crate::settings::save(&core.db, &s).unwrap();
         let (ctx, _) = ctx(core.clone(), Origin::User);
         let r = Registry::standard();
         let names: Vec<String> = r.names().into_iter().map(String::from).collect();
@@ -329,6 +334,24 @@ mod tests {
         let names: Vec<String> = r.names().into_iter().map(String::from).collect();
         let res = execute(&r, &ctx, &order(), &names).await;
         assert!(res.ok, "{}", res.block);
+        assert!(platform.confirms.lock()[0].title.contains("with your order list"));
+        assert!(platform.clipboard.lock().contains("2 × Pad thai"));
+        assert!(!session_active(&core, &ctx.run_id));
+    }
+
+    #[tokio::test]
+    async fn on_device_models_get_the_list_and_the_app() {
+        let platform = Arc::new(FakePlatform::default());
+        *platform.confirm.lock() = true;
+        let (core, _d) = core_with(platform.clone());
+        set_plan(&core, "pro");
+        let mut s = core.settings();
+        s.provider = "local".into();
+        crate::settings::save(&core.db, &s).unwrap();
+        let (ctx, _) = ctx(core.clone(), Origin::User);
+        let r = Registry::standard();
+        let names: Vec<String> = r.names().into_iter().map(String::from).collect();
+        assert!(execute(&r, &ctx, &order(), &names).await.ok);
         assert!(platform.confirms.lock()[0].title.contains("with your order list"));
         assert!(platform.clipboard.lock().contains("2 × Pad thai"));
         assert!(!session_active(&core, &ctx.run_id));
