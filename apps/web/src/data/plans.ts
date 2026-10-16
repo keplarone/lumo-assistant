@@ -12,7 +12,7 @@
 import type { CapabilityId } from './capabilities';
 
 /**
- * Billing period. Pending the owner's confirmation; change it here only.
+ * Billing period, confirmed monthly by the owner. Change it here only.
  * `suffix` is shown after prices, `unitCode` is the UN/CEFACT code used in JSON-LD (MON = month).
  */
 export const BILLING_PERIOD = { suffix: '/month', label: 'per month, billed monthly', unitCode: 'MON', isoDuration: 'P1M' } as const;
@@ -47,6 +47,7 @@ export const PLANS: readonly Plan[] = [
     tagline: 'Try Lumo with a limited number of tasks each month.',
     features: [
       { text: 'Core desktop assistant with a limited number of tasks each month' },
+      { text: 'Lumo Local models that run on your computer', capability: 'on-device-models' },
       { text: 'Conversations', capability: 'conversations' },
       { text: 'File organizing in folders you allow', capability: 'files' },
       { text: 'Finding places', capability: 'restaurant-finder' },

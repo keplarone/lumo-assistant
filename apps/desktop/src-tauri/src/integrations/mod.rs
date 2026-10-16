@@ -71,6 +71,14 @@ pub fn status(core: &Core) -> Vec<IntegrationStatus> {
             secret: Some("anthropic_api_key".into()),
         },
         IntegrationStatus {
+            id: "local".into(),
+            name: format!("{} (on-device)", crate::local_models::BRAND),
+            status: if s.provider == "local" && !s.local_model.is_empty() { "connected" } else { "not_connected" }.into(),
+            account: if s.local_model.is_empty() { None } else { Some(s.local_model.clone()) },
+            detail: "Open models that run on this computer through Ollama. Free to use, and nothing leaves your machine.".into(),
+            secret: None,
+        },
+        IntegrationStatus {
             id: "openai_compatible".into(),
             name: "Local or OpenAI-compatible model".into(),
             status: if s.provider == "openai_compatible" { "connected" } else { "not_connected" }.into(),

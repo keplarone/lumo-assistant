@@ -147,6 +147,20 @@ pub fn delete_secret(state: S, name: String) -> ApiResult<()> {
 pub async fn test_model_connection(state: S<'_>) -> ApiResult<String> {
     let s = state.core.settings();
     let http = &state.core.http;
+    if s.provider == "local" {
+        let st = crate::local_models::status(&state.core).await;
+        if !st.runtime_running {
+            return Err(LumoError::Unavailable(format!(
+                "The on-device runtime is not running. Install it from {}.",
+                st.runtime_download_url
+            ))
+            .into());
+        }
+        return match st.models.iter().find(|m| m.selected && m.installed) {
+            Some(m) => Ok(format!("{} is ready on this computer.", m.display_name)),
+            None => Err(LumoError::Unavailable("Download and choose an on-device model first.".into()).into()),
+        };
+    }
     let resp = if s.provider == "anthropic" {
         let key =
             state.core.secrets.get("anthropic_api_key")?.ok_or_else(|| LumoError::Unavailable("No Anthropic API key is saved.".into()))?;
@@ -761,4 +775,47 @@ pub fn disconnect_integration(state: S, id: String) -> ApiResult<()> {
 pub async fn transcribe_audio(app: AppHandle, state: S<'_>, audio_base64: String, mime_type: String) -> ApiResult<String> {
     let _ = app.emit("privacy", json!({"kind": "microphone", "detail": "Sending your recording for transcription"}));
     Ok(crate::voice::transcribe(&state.core, &audio_base64, &mime_type).await?)
+}
+
+// ---- On-device models -----------------------------------------------------------------------
+
+static LOCAL_DOWNLOADS: parking_lot::Mutex<Option<(String, tokio_util::sync::CancellationToken)>> = parking_lot::Mutex::new(None);
+
+#[tauri::command]
+pub async fn local_models_status(state: S<'_>) -> ApiResult<crate::local_models::LocalStatus> {
+    Ok(crate::local_models::status(&state.core).await)
+}
+
+/// Download one of Lumo's on-device models. Progress arrives as `local-model-progress` events.
+#[tauri::command]
+pub async fn download_local_model(state: S<'_>, id: String) -> ApiResult<()> {
+    crate::local_models::catalog_entry(&id)?;
+    let token = tokio_util::sync::CancellationToken::new();
+    {
+        let mut slot = LOCAL_DOWNLOADS.lock();
+        if let Some((current, _)) = slot.as_ref() {
+            return Err(invalid(format!("{current} is already downloading")).into());
+        }
+        *slot = Some((id.clone(), token.clone()));
+    }
+    let res = crate::local_models::pull(&state.core, &id, token).await;
+    *LOCAL_DOWNLOADS.lock() = None;
+    Ok(res?)
+}
+
+#[tauri::command]
+pub fn cancel_local_download() {
+    if let Some((_, token)) = LOCAL_DOWNLOADS.lock().as_ref() {
+        token.cancel();
+    }
+}
+
+#[tauri::command]
+pub async fn delete_local_model(state: S<'_>, id: String) -> ApiResult<()> {
+    Ok(crate::local_models::delete(&state.core, &id).await?)
+}
+
+#[tauri::command]
+pub async fn select_local_model(state: S<'_>, id: String) -> ApiResult<()> {
+    Ok(crate::local_models::select(&state.core, &id).await?)
 }

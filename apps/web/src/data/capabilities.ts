@@ -26,7 +26,8 @@ export type CapabilityId =
   | 'github'
   | 'netlify'
   | 'direct-food-ordering'
-  | 'custom-agents';
+  | 'custom-agents'
+  | 'on-device-models';
 
 export interface Capability {
   id: CapabilityId;
@@ -100,6 +101,13 @@ export const CAPABILITIES: readonly Capability[] = [
     status: 'in-development',
     summary: 'Compare products against what matters to you, then open the merchant’s page so you can buy there.',
     note: 'Lumo does not check out or pay for you.',
+  },
+  {
+    id: 'on-device-models',
+    name: 'Lumo Local on-device models',
+    status: 'in-development',
+    summary: 'Open models that run on your own computer through the free Ollama app, so requests stay private and work offline.',
+    note: 'Less capable than the best cloud models on hard tasks.',
   },
   {
     id: 'computer-use',

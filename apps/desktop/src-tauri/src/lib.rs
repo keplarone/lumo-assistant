@@ -9,6 +9,7 @@ pub mod db;
 pub mod desktop;
 pub mod error;
 pub mod integrations;
+pub mod local_models;
 pub mod model;
 pub mod policy;
 pub mod secrets;
@@ -178,6 +179,11 @@ pub fn run() {
             commands::verify_integration,
             commands::disconnect_integration,
             commands::transcribe_audio,
+            commands::local_models_status,
+            commands::download_local_model,
+            commands::cancel_local_download,
+            commands::delete_local_model,
+            commands::select_local_model,
         ])
         .run(tauri::generate_context!())
         .expect("error while running Lumo");

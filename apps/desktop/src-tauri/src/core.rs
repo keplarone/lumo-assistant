@@ -148,6 +148,20 @@ impl Core {
         }
         let s = self.settings();
         match s.provider.as_str() {
+            "local" => {
+                if s.local_model.is_empty() {
+                    return Err(crate::error::LumoError::Unavailable(format!(
+                        "Download a {} model in Settings → Model to start.",
+                        crate::local_models::BRAND
+                    )));
+                }
+                Ok(Arc::new(crate::model::openai::OpenAiCompatible::new(
+                    self.http.clone(),
+                    &format!("{}/v1", s.local_base_url.trim_end_matches('/')),
+                    None,
+                    s.local_model.clone(),
+                )))
+            }
             "openai_compatible" => {
                 let key = self.secrets.get("openai_compatible_api_key")?;
                 Ok(Arc::new(crate::model::openai::OpenAiCompatible::new(
@@ -184,6 +198,7 @@ pub mod testing {
         pub inputs: Mutex<Vec<crate::tools::computer::InputAction>>,
         pub control_active: Mutex<Vec<bool>>,
         pub screen: Mutex<Option<Screenshot>>,
+        pub broadcasts: Mutex<Vec<(String, serde_json::Value)>>,
     }
 
     #[async_trait]
@@ -223,7 +238,9 @@ pub mod testing {
         fn active_window(&self) -> Result<(String, String)> {
             Ok(("Editor".into(), "notes.md".into()))
         }
-        fn broadcast(&self, _event: &str, _payload: serde_json::Value) {}
+        fn broadcast(&self, event: &str, payload: serde_json::Value) {
+            self.broadcasts.lock().push((event.to_string(), payload));
+        }
     }
 
     pub fn core_with(platform: Arc<FakePlatform>) -> (Arc<Core>, tempfile::TempDir) {

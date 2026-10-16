@@ -120,11 +120,8 @@ pub fn prepare(
                 web_search: anthropic && settings.web_search_enabled,
                 web_fetch: anthropic && settings.web_search_enabled,
             };
-            let model = if settings.provider == "anthropic" {
-                agent_model.unwrap_or(settings.model.clone())
-            } else {
-                settings.openai_model.clone()
-            };
+            let model =
+                if settings.provider == "anthropic" { agent_model.unwrap_or(settings.model.clone()) } else { settings.chat_model() };
             store::create_conversation(
                 core,
                 if text.is_empty() { "Attachment" } else { text },

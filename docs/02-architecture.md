@@ -111,7 +111,8 @@ deltas to a sink and returns the complete, replayable content blocks. Implementa
   flagged and answered with an error result, never executed); vision and PDF input; `refusal`, `pause_turn`
   and `max_tokens` stop reasons handled; server-side fallbacks on models that support them; retries with
   `retry-after` for 429/5xx before any output; optional beta features are dropped automatically if the API
-  rejects them. Mouse and keyboard control (the computer-use toolset) is **not** wired up yet.
+  rejects them. Mouse and keyboard control is Lumo's own typed `control_computer` tool (see Computer use below), not
+  the Anthropic computer-use beta toolset.
 - **OpenAI-compatible** (`/v1/chat/completions` streaming with function tools) for local models (Ollama,
   LM Studio) and other vendors. Server tools are unavailable there, so web search uses the `search_web` tool
   (Brave Search, when the user adds a key) and the local `fetch_url` tool. Thinking blocks are dropped when
@@ -197,9 +198,24 @@ reporting`), `text_delta`, `progress_note`, `plan`, `tool_started`, `tool_finish
 `approval_resolved`, `question`, `options`, `open_preview`, `privacy`, `assistant_message`, `run_finished`
 (`done | failed | cancelled | refused | stopped`, plus `needs_attention` for automations).
 App events: `files-dropped` (attachment tokens from drag and drop), `runs-changed`, `settings-changed`,
-`automations-changed`, `projects-changed`.
+`automations-changed`, `projects-changed`, `input-control` (`{active, stopShortcut}` while Lumo is driving
+the mouse and keyboard).
 
-Not yet implemented: speech-to-text and text-to-speech commands, and computer-use input control.
+Voice: `transcribe_audio` sends recorded audio to the configured speech-to-text endpoint
+(`{stt_base_url}/audio/transcriptions`, OpenAI-compatible; a key is required unless the endpoint is local).
+Text-to-speech uses the webview's speech synthesis when the user turns it on.
+
+### Computer use
+
+`take_screenshot` (Read, `screen` capability) captures the primary display, downscaled to at most 1568 px wide,
+and remembers its geometry for the run. `control_computer` takes 1 to 20 typed actions (`move_to`, `click`,
+`drag`, `scroll`, `type`, `key`, `wait`) in screenshot pixels; Rust maps them to desktop coordinates, so the
+model never supplies raw OS coordinates. The first call in a run is Sensitive and needs the native dialog;
+later calls in the same run are allowed without asking. While control is active the global shortcut
+`Alt+Shift+Escape` cancels the run, the tray tooltip changes, a `privacy` event is emitted and the UI shows a
+Stop banner. Control ends with the run. Automations can never use it. Each call returns a fresh screenshot so
+the model verifies the result before continuing. macOS needs Screen Recording and Accessibility permission;
+on Linux, input works on X11 (Wayland compositors may refuse synthetic input).
 
 ## 7. Data
 

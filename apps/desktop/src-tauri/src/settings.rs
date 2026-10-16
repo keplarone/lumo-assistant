@@ -11,7 +11,7 @@ pub struct Settings {
     pub user_name: Option<String>,
     /// "system", "dark" or "light".
     pub theme: String,
-    /// "anthropic" or "openai_compatible".
+    /// "anthropic", "openai_compatible" or "local" (on-device models through a local runtime).
     pub provider: String,
     pub model: String,
     /// "low", "medium", "high" or "xhigh".
@@ -19,6 +19,10 @@ pub struct Settings {
     pub anthropic_base_url: String,
     pub openai_base_url: String,
     pub openai_model: String,
+    /// The on-device model runtime (Ollama). Must be on this machine.
+    pub local_base_url: String,
+    /// Runtime tag of the chosen on-device model; empty until one is downloaded and chosen.
+    pub local_model: String,
     /// Long-term memory is off until the user turns it on.
     pub memory_enabled: bool,
     pub web_search_enabled: bool,
@@ -57,6 +61,8 @@ impl Default for Settings {
             anthropic_base_url: "https://api.anthropic.com".into(),
             openai_base_url: "http://localhost:11434/v1".into(),
             openai_model: "llama3.1".into(),
+            local_base_url: "http://127.0.0.1:11434".into(),
+            local_model: String::new(),
             memory_enabled: false,
             web_search_enabled: true,
             global_shortcut: "Alt+Space".into(),
@@ -82,7 +88,7 @@ impl Settings {
         if !["system", "dark", "light"].contains(&self.theme.as_str()) {
             return Err(invalid("theme must be system, dark or light"));
         }
-        if !["anthropic", "openai_compatible"].contains(&self.provider.as_str()) {
+        if !["anthropic", "openai_compatible", "local"].contains(&self.provider.as_str()) {
             return Err(invalid("unknown provider"));
         }
         if !["low", "medium", "high", "xhigh"].contains(&self.effort.as_str()) {
@@ -91,6 +97,10 @@ impl Settings {
         check_endpoint(&self.anthropic_base_url, false)?;
         check_endpoint(&self.openai_base_url, true)?;
         check_endpoint(&self.stt_base_url, true)?;
+        check_endpoint(&self.local_base_url, true)?;
+        if !is_local(&self.local_base_url) {
+            return Err(invalid("the on-device model runtime must run on this computer"));
+        }
         if self.model.trim().is_empty() || self.model.len() > 100 {
             return Err(invalid("model name is required"));
         }
@@ -104,6 +114,21 @@ impl Settings {
         }
         Ok(())
     }
+}
+
+impl Settings {
+    /// The model a new conversation uses, for the active provider.
+    pub fn chat_model(&self) -> String {
+        match self.provider.as_str() {
+            "local" => self.local_model.clone(),
+            "openai_compatible" => self.openai_model.clone(),
+            _ => self.model.clone(),
+        }
+    }
+}
+
+fn is_local(raw: &str) -> bool {
+    url::Url::parse(raw).map(|u| matches!(u.host_str(), Some("localhost") | Some("127.0.0.1") | Some("[::1]"))).unwrap_or(false)
 }
 
 /// Endpoints must be HTTPS, except plain HTTP on the local machine (for local models).
