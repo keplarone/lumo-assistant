@@ -1,7 +1,17 @@
-import { Button, Callout, Input, SegmentedControl, Select, Switch } from '@lumo/ui';
+import { Button, Callout, Input, ProgressBar, SegmentedControl, Select, Switch } from '@lumo/ui';
 import { PlugZap } from 'lucide-react';
 import { useEffect, useState } from 'react';
-import { api, errorMessage, type Effort, type Provider } from '../../lib/ipc';
+import { formatBytes } from '../../lib/format';
+import {
+  api,
+  errorMessage,
+  isApiError,
+  on,
+  type Effort,
+  type Provider,
+  type SpeechModelProgress,
+  type SpeechModelStatus,
+} from '../../lib/ipc';
 import { LocalModels } from '../../components/LocalModels';
 import { routeHref } from '../../lib/router';
 import { speech } from '../../lib/speech';
@@ -252,34 +262,54 @@ export function VoiceSection() {
         description="Talk to Lumo with the microphone button in the message box: click for hands-free (it stops when you pause), or hold it, or hold Ctrl/⌘+Shift+Space."
       />
       <Callout tone="neutral" title="Where your voice goes">
-        A recording is made only while the microphone indicator is on. When you stop, it is sent to the
-        speech-to-text service below, and only the text comes back into the message box. Nothing is sent until
-        you press Enter.
+        {s.sttEngine === 'device'
+          ? 'A recording is made only while the microphone indicator is on. Lumo turns it into text on this computer; the recording never leaves it. Nothing is sent until you press Enter.'
+          : 'A recording is made only while the microphone indicator is on. When you stop, it is sent to the speech-to-text service below, and only the text comes back into the message box. Nothing is sent until you press Enter.'}
       </Callout>
       <SettingRow
-        label="Speech-to-text address"
-        description="An OpenAI-compatible transcription endpoint, for example https://api.openai.com/v1, or a local server such as http://localhost:8000/v1."
-        htmlFor="stt-url"
+        label="Speech recognition"
+        description="On this computer is free and private. A service can be faster on older computers."
       >
-        <TextSetting
-          id="stt-url"
-          value={s.sttBaseUrl}
-          inputMode="url"
-          onSave={(v) => save({ sttBaseUrl: v }, 'Couldn’t save the address')}
+        <SegmentedControl
+          label="Speech recognition"
+          value={s.sttEngine}
+          onValueChange={(v) => void save({ sttEngine: v })}
+          options={[
+            { value: 'device', label: 'On this computer' },
+            { value: 'service', label: 'A service' },
+          ]}
         />
       </SettingRow>
-      <SettingRow label="Transcription model" htmlFor="stt-model">
-        <TextSetting
-          id="stt-model"
-          value={s.sttModel}
-          onSave={(v) => save({ sttModel: v }, 'Couldn’t save the model')}
-        />
-      </SettingRow>
-      <SecretField
-        name="stt_api_key"
-        label="Speech-to-text API key"
-        description="Not needed for local servers. Stored in your system keychain and never shown again."
-      />
+      {s.sttEngine === 'device' ? (
+        <SpeechModelSetting />
+      ) : (
+        <>
+          <SettingRow
+            label="Speech-to-text address"
+            description="An OpenAI-compatible transcription endpoint, for example https://api.openai.com/v1, or a local server such as http://localhost:8000/v1."
+            htmlFor="stt-url"
+          >
+            <TextSetting
+              id="stt-url"
+              value={s.sttBaseUrl}
+              inputMode="url"
+              onSave={(v) => save({ sttBaseUrl: v }, 'Couldn’t save the address')}
+            />
+          </SettingRow>
+          <SettingRow label="Transcription model" htmlFor="stt-model">
+            <TextSetting
+              id="stt-model"
+              value={s.sttModel}
+              onSave={(v) => save({ sttModel: v }, 'Couldn’t save the model')}
+            />
+          </SettingRow>
+          <SecretField
+            name="stt_api_key"
+            label="Speech-to-text API key"
+            description="Not needed for local servers. Stored in your system keychain and never shown again."
+          />
+        </>
+      )}
       <SettingRow
         label="Read replies aloud"
         description={
@@ -356,6 +386,10 @@ function WakeWordSetting() {
       window.dispatchEvent(new Event('lumo:wake-samples-changed'));
       if (!s.wakeWordEnabled) await save({ wakeWordEnabled: true });
       app.announce('“Hey Lumo” is set up.');
+      // Hands-free requests need the speech model; fetch it now rather than at the first request.
+      const model = await api.speechModelStatus().catch(() => null);
+      if (s.sttEngine === 'device' && model && !model.installed && !model.downloading)
+        void api.downloadSpeechModel().catch(() => {});
     } catch (e) {
       setError(errorMessage(e));
     } finally {
@@ -390,6 +424,82 @@ function WakeWordSetting() {
           aria-label="Listen for Hey Lumo"
         />
       </div>
+    </SettingRow>
+  );
+}
+
+/** Lumo's on-device speech model: download (with progress), cancel, or remove. */
+export function SpeechModelSetting() {
+  const app = useApp();
+  const [status, setStatus] = useState<SpeechModelStatus | null>(null);
+  const [progress, setProgress] = useState<SpeechModelProgress | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  const reload = () => api.speechModelStatus().then(setStatus, () => setStatus(null));
+  useEffect(() => {
+    void reload();
+    const sub = on('speech-model-progress', (p) => {
+      setProgress(p.done ? null : p);
+      if (p.done) void reload();
+    });
+    return () => void sub.then((u) => u());
+  }, []);
+
+  const download = async () => {
+    setError(null);
+    setStatus((st) => (st ? { ...st, downloading: true } : st));
+    try {
+      await api.downloadSpeechModel();
+      app.announce('The speech model is ready.');
+    } catch (e) {
+      if (!(isApiError(e) && e.code === 'cancelled')) setError(errorMessage(e));
+    } finally {
+      void reload();
+    }
+  };
+  const remove = async () => {
+    try {
+      await api.deleteSpeechModel();
+      void reload();
+    } catch (e) {
+      setError(errorMessage(e));
+    }
+  };
+
+  const size = status ? formatBytes(status.sizeBytes) : '';
+  const busy = !!status?.downloading || !!progress;
+  return (
+    <SettingRow
+      label="Speech model"
+      description={
+        <>
+          {status?.installed
+            ? `Ready. ${status.name}, ${status.license} license, ${size} on this computer.`
+            : `Download once (${size || 'about 290 MB'}) and voice input works without any key or internet.`}
+          {progress && progress.total > 0 && (
+            <ProgressBar
+              className="lm-speech-progress"
+              value={progress.completed / progress.total}
+              label={`Downloading the speech model: ${formatBytes(progress.completed)} of ${formatBytes(progress.total)}`}
+            />
+          )}
+          {error && <span className="lm-inline-error"> {error}</span>}
+        </>
+      }
+    >
+      {status?.installed ? (
+        <Button size="sm" variant="ghost" onClick={() => void remove()}>
+          Remove
+        </Button>
+      ) : busy ? (
+        <Button size="sm" variant="ghost" onClick={() => void api.cancelSpeechModelDownload()}>
+          Cancel
+        </Button>
+      ) : (
+        <Button size="sm" variant="primary" onClick={() => void download()}>
+          Download
+        </Button>
+      )}
     </SettingRow>
   );
 }

@@ -2508,3 +2508,6 @@ a.lm-row-main:hover .lm-row-title {
   width: 10rem;
   flex: none;
 }
+.lm-speech-progress {
+  margin-top: var(--lu-space-2);
+}

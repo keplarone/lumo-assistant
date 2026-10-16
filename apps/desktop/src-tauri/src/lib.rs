@@ -17,6 +17,7 @@ pub mod plans;
 pub mod policy;
 pub mod secrets;
 pub mod settings;
+pub mod stt;
 pub mod tools;
 pub mod util;
 pub mod voice;
@@ -186,6 +187,11 @@ pub fn run() {
             commands::verify_integration,
             commands::disconnect_integration,
             commands::transcribe_audio,
+            commands::transcribe_on_device,
+            commands::speech_model_status,
+            commands::download_speech_model,
+            commands::cancel_speech_model_download,
+            commands::delete_speech_model,
             commands::open_external_url,
             commands::license_status,
             commands::activate_license,

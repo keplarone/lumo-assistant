@@ -225,7 +225,7 @@ pub fn status_with(core: &Core, memory_gb: u32, accelerator: String) -> LocalSta
     LocalStatus { brand: BRAND, engine: "llama.cpp", accelerator, memory_gb, models }
 }
 
-fn download_host(core: &Core) -> String {
+pub(crate) fn download_host(core: &Core) -> String {
     core.endpoints.lock().model_downloads.clone()
 }
 
@@ -284,10 +284,38 @@ async fn download(
     if is_installed(core, entry) {
         return Ok(());
     }
-    let dir = models_dir(core);
-    tokio::fs::create_dir_all(&dir).await?;
-    let part = partial_path(core, entry);
-    let total = entry.size_bytes;
+    let file = PinnedFile {
+        url: entry.url(&download_host(core)),
+        dest: model_path(core, entry),
+        part: partial_path(core, entry),
+        size: entry.size_bytes,
+        sha256: entry.sha256,
+    };
+    download_pinned(&file, cancel, emit).await
+}
+
+/// A file pinned by size and SHA-256 (a model, or one of the speech model's files).
+pub(crate) struct PinnedFile<'a> {
+    pub url: String,
+    pub dest: PathBuf,
+    /// Where the download collects until it is verified.
+    pub part: PathBuf,
+    pub size: u64,
+    pub sha256: &'a str,
+}
+
+/// Download a pinned file, resuming a partial one, and move it into place only once its size and
+/// SHA-256 match. Progress goes to `emit(status, completed, total, done)`.
+pub(crate) async fn download_pinned(
+    pinned: &PinnedFile<'_>,
+    cancel: &tokio_util::sync::CancellationToken,
+    emit: &(dyn Fn(&str, u64, u64, bool) + Sync),
+) -> Result<()> {
+    if let Some(dir) = pinned.dest.parent() {
+        tokio::fs::create_dir_all(dir).await?;
+    }
+    let part = pinned.part.clone();
+    let total = pinned.size;
 
     // Hash what an earlier attempt already saved, so the check covers the whole file.
     let mut hasher = Sha256::new();
@@ -312,7 +340,7 @@ async fn download(
         }
     }
 
-    let mut req = download_client()?.get(entry.url(&download_host(core)));
+    let mut req = download_client()?.get(&pinned.url);
     if have > 0 {
         req = req.header(reqwest::header::RANGE, format!("bytes={have}-"));
     }
@@ -368,11 +396,11 @@ async fn download(
     }
     emit("verifying", total, total, false);
     let digest = hex::encode(hasher.finalize());
-    if digest != entry.sha256 {
+    if digest != pinned.sha256 {
         let _ = tokio::fs::remove_file(&part).await;
         return Err(LumoError::Unavailable("The downloaded file didn't match the expected checksum, so it was deleted. Try again.".into()));
     }
-    tokio::fs::rename(&part, model_path(core, entry)).await?;
+    tokio::fs::rename(&part, &pinned.dest).await?;
     Ok(())
 }
 

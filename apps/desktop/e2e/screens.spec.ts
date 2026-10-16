@@ -33,6 +33,7 @@ const settings = {
   location: null,
   automationsPaused: false,
   maxToolCallsPerRun: 40,
+  sttEngine: 'device',
   sttBaseUrl: 'https://api.openai.com/v1',
   sttModel: 'whisper-1',
   ttsEnabled: false,
@@ -264,6 +265,13 @@ const base: Fixtures = {
   },
   plan_usage: planUsage,
   everyday_overview: everydayOverview,
+  speech_model_status: {
+    installed: false,
+    downloading: false,
+    sizeBytes: 292_886_385,
+    name: 'Whisper base (OpenAI)',
+    license: 'MIT',
+  },
   local_models_status: {
     brand: 'Lumo on-device models',
     engine: 'llama.cpp',
@@ -637,6 +645,7 @@ test('my day: brief, reminders, bills and price watch', async ({ page }) => {
   await expect(page.getByRole('heading', { name: 'My day', exact: true })).toBeVisible();
   await page.goto('/#/settings/voice');
   await expect(page.getByText('“Hey Lumo”', { exact: true })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Download' })).toBeVisible();
   await shot(page, 'settings-voice');
 });
 

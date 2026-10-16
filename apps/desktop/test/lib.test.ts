@@ -4,7 +4,7 @@ import { acceleratorText, memoryWarning, progressFraction, progressText } from '
 import { isWindowsPlatform, previewUrl } from '../src/lib/preview';
 import { chooseVoice, stripMarkdown } from '../src/lib/speech';
 import { applyTheme, resolveTheme } from '../src/lib/theme';
-import { DEFAULT_VAD, pickMimeType, vadStart, vadStep } from '../src/lib/voice';
+import { DEFAULT_VAD, pcm16Base64, pickMimeType, vadStart, vadStep } from '../src/lib/voice';
 import { buildTree } from '../src/screens/Projects';
 
 describe('theme resolution', () => {
@@ -167,5 +167,16 @@ describe('mascot voice', () => {
   it('keeps the system default at normal pitch', () => {
     expect(chooseVoice('system', voices, 'en')).toMatchObject({ pitch: 1, rate: 1 });
     expect(chooseVoice('system', voices, 'en').voice?.name).toBe('Daniel');
+  });
+});
+
+describe('on-device transcription input', () => {
+  it('packs samples as 16-bit little-endian PCM', () => {
+    const b64 = pcm16Base64(new Float32Array([0, 0.5, -0.5, 2, -2]));
+    const bytes = Uint8Array.from(atob(b64), (c) => c.charCodeAt(0));
+    const view = new DataView(bytes.buffer);
+    expect(Array.from({ length: 5 }, (_, i) => view.getInt16(i * 2, true))).toEqual([
+      0, 16384, -16384, 32767, -32768,
+    ]);
   });
 });

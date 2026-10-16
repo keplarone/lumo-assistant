@@ -80,6 +80,8 @@ export interface Settings {
   location: Location | null;
   automationsPaused: boolean;
   maxToolCallsPerRun: number;
+  /** 'device': Lumo's built-in speech model (free, private). 'service': the address below. */
+  sttEngine: 'device' | 'service';
   sttBaseUrl: string;
   sttModel: string;
   ttsEnabled: boolean;
@@ -594,6 +596,23 @@ export interface EverydayAlert {
   id: string | null;
 }
 
+// ---- On-device speech-to-text (stt/) ------------------------------------------------------------
+
+export interface SpeechModelStatus {
+  installed: boolean;
+  downloading: boolean;
+  sizeBytes: number;
+  name: string;
+  license: string;
+}
+
+export interface SpeechModelProgress {
+  status: 'checking' | 'downloading' | 'verifying' | 'success' | 'failed' | 'cancelled';
+  completed: number;
+  total: number;
+  done: boolean;
+}
+
 // ---- On-device models (local_models.rs) -----------------------------------------------------------
 
 export interface LocalModel {
@@ -729,6 +748,14 @@ export const api = {
   // Voice: the recording goes to the user's speech-to-text endpoint; Rust attaches the key.
   transcribeAudio: (audioBase64: string, mimeType: string) =>
     call<string>('transcribe_audio', { audioBase64, mimeType }),
+  /** On this computer: mono 16 kHz 16-bit PCM in, text out. */
+  transcribeOnDevice: (pcmBase64: string, lang: string | null) =>
+    call<string>('transcribe_on_device', { pcmBase64, lang }),
+  speechModelStatus: () => call<SpeechModelStatus>('speech_model_status'),
+  /** Resolves when finished; progress arrives as 'speech-model-progress'. */
+  downloadSpeechModel: () => call<void>('download_speech_model'),
+  cancelSpeechModelDownload: () => call<void>('cancel_speech_model_download'),
+  deleteSpeechModel: () => call<void>('delete_speech_model'),
 
   // Plans and licenses
   licenseStatus: () => call<LicenseStatus>('license_status'),
@@ -794,6 +821,8 @@ export interface AppEvents {
   'plan-usage-changed': PlanUsage;
   /** Download progress for an on-device model. */
   'local-model-progress': LocalModelProgress;
+  /** Download progress for the on-device speech model. */
+  'speech-model-progress': SpeechModelProgress;
   /** A reminder, renewal warning, price drop or morning brief (also shown as a notification). */
   'everyday-alert': EverydayAlert;
   /** Reminders, bills or price watches changed. */

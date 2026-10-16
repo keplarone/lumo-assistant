@@ -795,6 +795,35 @@ pub async fn transcribe_audio(app: AppHandle, state: S<'_>, audio_base64: String
     Ok(crate::voice::transcribe(&state.core, &audio_base64, &mime_type).await?)
 }
 
+/// Transcribe on this computer with Lumo's speech model. `pcm_base64` is mono 16 kHz 16-bit PCM,
+/// decoded from the recording by the webview; nothing is sent anywhere.
+#[tauri::command]
+pub async fn transcribe_on_device(state: S<'_>, pcm_base64: String, lang: Option<String>) -> ApiResult<String> {
+    Ok(crate::stt::transcribe(&state.core, &pcm_base64, lang).await?)
+}
+
+#[tauri::command]
+pub async fn speech_model_status(state: S<'_>) -> ApiResult<crate::stt::SpeechModelStatus> {
+    Ok(crate::stt::status(&state.core))
+}
+
+/// Download the speech model. Progress arrives as `speech-model-progress` events.
+#[tauri::command]
+pub async fn download_speech_model(state: S<'_>) -> ApiResult<()> {
+    Ok(crate::stt::pull(&state.core).await?)
+}
+
+#[tauri::command]
+pub async fn cancel_speech_model_download() -> ApiResult<()> {
+    crate::stt::cancel_download();
+    Ok(())
+}
+
+#[tauri::command]
+pub async fn delete_speech_model(state: S<'_>) -> ApiResult<()> {
+    Ok(crate::stt::delete(&state.core).await?)
+}
+
 // ---- On-device models -----------------------------------------------------------------------
 
 static LOCAL_DOWNLOADS: parking_lot::Mutex<Option<(String, tokio_util::sync::CancellationToken)>> = parking_lot::Mutex::new(None);

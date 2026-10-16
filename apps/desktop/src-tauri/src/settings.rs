@@ -34,6 +34,9 @@ pub struct Settings {
     pub location: Option<Location>,
     pub automations_paused: bool,
     pub max_tool_calls_per_run: u32,
+    /// Where speech is turned into text: "device" (Lumo's built-in Whisper, free and private) or
+    /// "service" (the OpenAI-compatible address below).
+    pub stt_engine: String,
     pub stt_base_url: String,
     pub stt_model: String,
     pub tts_enabled: bool,
@@ -85,6 +88,7 @@ impl Default for Settings {
             location: None,
             automations_paused: false,
             max_tool_calls_per_run: 40,
+            stt_engine: "device".into(),
             stt_base_url: "https://api.openai.com/v1".into(),
             stt_model: "whisper-1".into(),
             tts_enabled: false,
@@ -131,6 +135,9 @@ impl Settings {
         crate::everyday::reminders::parse_time(&self.brief_time).map_err(|_| invalid("the brief time must be HH:MM"))?;
         if !["auto", "celsius", "fahrenheit"].contains(&self.temperature_unit.as_str()) {
             return Err(invalid("temperature unit must be auto, celsius or fahrenheit"));
+        }
+        if !["device", "service"].contains(&self.stt_engine.as_str()) {
+            return Err(invalid("speech-to-text must be device or service"));
         }
         if !["lumo", "system"].contains(&self.voice_style.as_str()) {
             return Err(invalid("voice style must be lumo or system"));
