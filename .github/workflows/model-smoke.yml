@@ -60,4 +60,8 @@ jobs:
           echo "LUMO_SMOKE_GGUF=$RUNNER_TEMP/orbit.gguf" >> "$GITHUB_ENV"
       # Default shell on purpose: under Git Bash, Windows picks up MSYS perl, which can't build OpenSSL.
       - name: Chat and tool call through the engine
+        # GitHub's Macs only have a paravirtual GPU, on which llama.cpp's Metal kernels return garbage
+        # (no simdgroup support), so test the CPU path there. Real Apple silicon Macs use Metal.
+        env:
+          LUMO_GPU: ${{ runner.os == 'macOS' && 'off' || '' }}
         run: cargo test --lib ${{ runner.os == 'Linux' && '--features vulkan' || '' }} smoke -- --ignored --nocapture --test-threads=1

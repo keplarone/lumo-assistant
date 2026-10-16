@@ -134,9 +134,15 @@ fn backend() -> Result<&'static LlamaBackend, String> {
         .map_err(|e| format!("The on-device engine could not start: {e}"))
 }
 
+/// `LUMO_GPU=off` keeps everything on the CPU. Used where a GPU is present but can't be trusted, such as
+/// the paravirtual Metal device on CI Macs, which returns wrong results.
+fn gpu_allowed() -> bool {
+    std::env::var("LUMO_GPU").map_or(true, |v| v != "off")
+}
+
 /// What the hardware offers, e.g. "Metal", "Vulkan" or "CPU". Starts the backend if needed.
 pub fn accelerator() -> String {
-    if backend().is_err() {
+    if !gpu_allowed() || backend().is_err() {
         return "CPU".into();
     }
     llama_cpp_2::list_llama_ggml_backend_devices()
@@ -153,7 +159,7 @@ fn threads() -> i32 {
 }
 
 fn load(backend: &LlamaBackend, path: &PathBuf) -> Result<LlamaModel, String> {
-    let gpu = backend.supports_gpu_offload();
+    let gpu = gpu_allowed() && backend.supports_gpu_offload();
     let params = LlamaModelParams::default().with_n_gpu_layers(if gpu { 999 } else { 0 });
     match LlamaModel::load_from_file(backend, path, &params) {
         Ok(m) => Ok(m),
@@ -286,7 +292,9 @@ fn generate<'m>(backend: &LlamaBackend, model: &'m LlamaModel, session: &mut Opt
             .with_n_ctx(NonZeroU32::new(n_ctx))
             .with_n_batch(BATCH as u32)
             .with_n_threads(threads())
-            .with_n_threads_batch(threads());
+            .with_n_threads_batch(threads())
+            .with_offload_kqv(gpu_allowed())
+            .with_op_offload(gpu_allowed());
         let ctx = model.new_context(backend, params).map_err(|e| format!("The on-device model could not start: {e}"))?;
         *session = Some(Session { ctx, n_ctx, cached: Vec::new() });
     }
