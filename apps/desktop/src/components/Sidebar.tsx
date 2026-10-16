@@ -19,7 +19,10 @@ import { useApp } from '../state/app';
 import { useRuns } from '../state/runs';
 import { LumoMark } from './Mascot';
 
-export const Sidebar = forwardRef<HTMLInputElement, { route: Route }>(function Sidebar({ route }, searchRef) {
+export const Sidebar = forwardRef<HTMLInputElement, { route: Route; open?: boolean }>(function Sidebar(
+  { route, open },
+  searchRef,
+) {
   const app = useApp();
   const runs = useRuns();
   const [query, setQuery] = useState('');
@@ -53,7 +56,7 @@ export const Sidebar = forwardRef<HTMLInputElement, { route: Route }>(function S
   const mod = modKey();
 
   return (
-    <nav className="lm-sidebar" aria-label="Lumo">
+    <nav className="lm-sidebar" id="lm-sidebar" aria-label="Lumo" data-open={open || undefined}>
       <div className="lm-brand" data-tauri-drag-region>
         <LumoMark size={22} />
         <span>{app.settings.mode === 'linx' ? 'Linx Code' : 'Lumo'}</span>

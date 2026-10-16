@@ -288,7 +288,7 @@ export const Composer = forwardRef<ComposerHandle, ComposerProps>(function Compo
               <span>Transcribing…</span>
             </span>
           ) : (
-            <span className="lm-composer-hint" aria-hidden>
+            <span className="lm-composer-hint" aria-hidden data-keys={running ? undefined : true}>
               {running ? 'Lumo is working' : 'Enter to send · Shift+Enter for a new line'}
             </span>
           )}

@@ -10,6 +10,7 @@ import { LocalModels } from '../components/LocalModels';
 import { LumoMark, Mascot } from '../components/Mascot';
 import { PageTransition } from '../components/PageTransition';
 import { signIn } from '../components/SignInSlot';
+import { capabilities } from '../lib/platform';
 import { api, errorMessage, type Grant, type Provider } from '../lib/ipc';
 import { useApp } from '../state/app';
 import { party } from '../state/companion';
@@ -21,7 +22,7 @@ const STEPS: Step[] = [
   'welcome',
   'ask',
   'safe',
-  'desktop',
+  ...(capabilities.desktopBuddy ? (['desktop'] as const) : []),
   'model',
   'you',
   'done',

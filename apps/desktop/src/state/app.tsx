@@ -25,6 +25,7 @@ import {
   type Settings,
 } from '../lib/ipc';
 import { hopFor, mascotEventsFor } from '../lib/mascotEvents';
+import { capabilities } from '../lib/platform';
 import { lumoVoice } from '@lumo/mascot';
 import { getCurrentWindow } from '@tauri-apps/api/window';
 import { applyTheme } from '../lib/theme';
@@ -139,7 +140,10 @@ export function AppProvider({ boot, children }: { boot: Boot; children: ReactNod
     } catch {
       /* not in Tauri */
     }
-    mascotBus.voiced = settings.buddyEnabled && settings.onboarded ? label === 'buddy' : label === 'main';
+    mascotBus.voiced =
+      capabilities.desktopBuddy && settings.buddyEnabled && settings.onboarded
+        ? label === 'buddy'
+        : label === 'main';
   }, [settings.soundsEnabled, settings.buddyEnabled, settings.onboarded]);
   useEffect(() => {
     document.documentElement.dataset.mode = settings.mode;

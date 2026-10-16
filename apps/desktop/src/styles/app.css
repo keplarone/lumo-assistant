@@ -2961,3 +2961,136 @@ a.lm-row-main:hover .lm-row-title {
     display: none;
   }
 }
+
+/* ── Phones and touch ─────────────────────────────────────────────────────────────────────────────
+   The same screens are meant to run in a phone app later: below 640px the sidebar becomes a drawer,
+   and on touch screens every control is at least 44px tall. Nothing is hover-only. */
+
+.lm-nav-toggle,
+.lm-nav-scrim {
+  display: none;
+}
+
+@media (max-width: 640px) {
+  .lm-app {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .lm-nav-toggle {
+    position: fixed;
+    top: max(8px, env(safe-area-inset-top));
+    left: max(8px, env(safe-area-inset-left));
+    z-index: calc(var(--lu-z-overlay) + 2);
+    display: grid;
+    place-items: center;
+    width: 44px;
+    height: 44px;
+    border: 0;
+    border-radius: 50%;
+    background: var(--lu-surface-1);
+    color: var(--lu-text);
+    box-shadow: var(--lu-shadow-2);
+    cursor: pointer;
+  }
+  .lm-nav-toggle svg {
+    width: 20px;
+    height: 20px;
+  }
+  .lm-sidebar {
+    position: fixed;
+    inset: 0 auto 0 0;
+    z-index: calc(var(--lu-z-overlay) + 1);
+    width: min(86vw, 320px);
+    padding-top: calc(60px + env(safe-area-inset-top));
+    padding-bottom: max(var(--lu-space-2), env(safe-area-inset-bottom));
+    background: var(--lu-bg);
+    box-shadow: var(--lu-shadow-3);
+    transform: translateX(-105%);
+    visibility: hidden;
+    transition:
+      transform var(--lu-duration-slow) var(--lu-ease-spring),
+      visibility 0s linear var(--lu-duration-slow);
+  }
+  .lm-sidebar[data-open] {
+    transform: none;
+    visibility: visible;
+    transition: transform var(--lu-duration-slow) var(--lu-ease-spring);
+  }
+  .lm-nav-scrim {
+    position: fixed;
+    inset: 0;
+    z-index: var(--lu-z-overlay);
+    display: block;
+    border: 0;
+    background: oklch(0.2 0.05 264 / 0.3);
+  }
+  .lm-main {
+    margin: 0;
+    border-radius: 0;
+    padding-top: calc(52px + env(safe-area-inset-top));
+  }
+  .lm-page {
+    padding: var(--lu-space-4);
+  }
+  .lm-mascot-hero {
+    width: 200px;
+    height: 170px;
+  }
+  .lm-onboarding {
+    padding: var(--lu-space-3);
+  }
+  .lm-onboarding-card {
+    padding: var(--lu-space-4);
+    border-radius: 22px;
+  }
+  .lm-demo-screen {
+    height: 110px;
+  }
+  .lm-conversation-split[data-preview] {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .lm-home {
+    grid-template-columns: minmax(0, 1fr);
+    padding: var(--lu-space-4) var(--lu-space-4) var(--lu-space-8);
+  }
+  .lm-greeting {
+    font-size: var(--lu-text-xl);
+    text-align: center;
+  }
+  .lm-suggestion {
+    white-space: normal;
+    text-align: left;
+  }
+}
+
+@media (pointer: coarse) {
+  /* Keyboard hints mean nothing on a touch screen. */
+  .lm-new-task-kbd {
+    display: none;
+  }
+  /* Keeps its place in the row (it pushes the send button right), just empty. */
+  .lm-composer-hint[data-keys] {
+    font-size: 0;
+  }
+  .lu-button,
+  .lm-nav-item,
+  .lm-conv-item,
+  .lm-suggestion,
+  .lm-mode-option,
+  .lm-more-options,
+  .lm-buddy-menu button {
+    min-height: 44px;
+  }
+  .lu-button[data-size='sm'],
+  .lu-icon-button {
+    min-width: 44px;
+  }
+  /* Switches keep their look; the touch area grows around them. */
+  .lu-switch {
+    position: relative;
+  }
+  .lu-switch::after {
+    content: '';
+    position: absolute;
+    inset: -12px;
+  }
+}

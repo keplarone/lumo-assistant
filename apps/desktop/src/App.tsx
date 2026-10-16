@@ -1,5 +1,6 @@
 import { Button, Callout, Spinner, StatusDot, ToastProvider, TooltipProvider } from '@lumo/ui';
 import { getCurrentWindow } from '@tauri-apps/api/window';
+import { Menu, X } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import { ConversationView } from './components/ConversationView';
 import { InputControlBanner } from './components/InputControlBanner';
@@ -148,6 +149,10 @@ function GlobalPrivacy() {
 }
 
 function Shell({ route }: { route: Route }) {
+  const [navOpen, setNavOpen] = useState(false);
+  // Going somewhere closes the drawer.
+  const key = routeKey(route);
+  useEffect(() => setNavOpen(false), [key]);
   const search = useRef<HTMLInputElement>(null);
   useHiddenTricks();
 
@@ -182,7 +187,26 @@ function Shell({ route }: { route: Route }) {
       <a className="lm-skip" href="#main">
         Skip to content
       </a>
-      <Sidebar ref={search} route={route} />
+      {/* On phone-sized windows the sidebar becomes a drawer behind this button. */}
+      <button
+        type="button"
+        className="lm-nav-toggle"
+        aria-label={navOpen ? 'Close menu' : 'Open menu'}
+        aria-expanded={navOpen}
+        aria-controls="lm-sidebar"
+        onClick={() => setNavOpen((o) => !o)}
+      >
+        {navOpen ? <X aria-hidden /> : <Menu aria-hidden />}
+      </button>
+      <Sidebar ref={search} route={route} open={navOpen} />
+      {navOpen && (
+        <button
+          type="button"
+          className="lm-nav-scrim"
+          aria-label="Close menu"
+          onClick={() => setNavOpen(false)}
+        />
+      )}
       <main className="lm-main" id="main" tabIndex={-1}>
         <InputControlBanner />
         <PageTransition routeKey={routeKey(route)}>

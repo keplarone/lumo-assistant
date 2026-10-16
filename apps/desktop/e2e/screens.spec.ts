@@ -620,3 +620,38 @@ test('onboarding: a short tour, then the model step offers the free on-device pa
   await settle(page);
   await shot(page, 'onboarding-model');
 });
+
+test.describe('phone-sized window', () => {
+  test.use({ viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true });
+
+  test('home, menu drawer and first run fit a phone and use big touch targets', async ({ page }) => {
+    await boot(page, { route: '#/' });
+    await expect(page.getByRole('heading', { level: 1 })).toContainText('Ada');
+    await settle(page, 2500);
+    await shot(page, 'phone-home');
+    // No sideways scrolling.
+    expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(390);
+
+    const menu = page.getByRole('button', { name: 'Open menu' });
+    const box = await menu.boundingBox();
+    expect(box!.width).toBeGreaterThanOrEqual(44);
+    await menu.tap();
+    const settingsLink = page.getByRole('link', { name: 'Settings' });
+    await expect(settingsLink).toBeVisible();
+    expect((await settingsLink.boundingBox())!.height).toBeGreaterThanOrEqual(44);
+    await settle(page, 600);
+    await shot(page, 'phone-menu');
+    await settingsLink.tap();
+    await expect(page.getByRole('button', { name: 'Open menu' })).toBeVisible();
+  });
+
+  test('first run on a phone', async ({ page }) => {
+    await boot(page, {
+      route: '#/',
+      fixtures: { get_settings: { ...settings, onboarded: false, userName: null } },
+    });
+    await settle(page);
+    await shot(page, 'phone-onboarding');
+    expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(390);
+  });
+});
