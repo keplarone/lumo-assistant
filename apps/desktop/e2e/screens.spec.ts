@@ -161,7 +161,6 @@ const base: Fixtures = {
       globalShortcut: true,
       selfUpdate: true,
       folderPicker: true,
-      modelMemoryPercent: 100,
     },
   },
   secrets_status: [

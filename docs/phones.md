@@ -7,7 +7,7 @@ packaging and screens, not a second app.
 ## What is ready
 
 - **One core for both.** The agent loop, plans and usage limits, accounts and licenses, memory,
-  automations, the encrypted database, cloud models and the on-device engine are shared. Accounts
+  automations, the encrypted database and cloud models are shared. Accounts
   and plans already follow the person across devices.
 - **`src-tauri/src/device.rs`** is the one place that says what a device can do. The agent, plans and
   UI ask it instead of checking the operating system. The UI gets the same answer as `device` in
@@ -22,9 +22,6 @@ packaging and screens, not a second app.
 - **Secrets stay in the device's own secure store.** iPhone: the Keychain's data-protection store,
   readable after the first unlock and never synced or restored to another device. Android: storage
   encrypted with an Android Keystore key. As on computers, there is no plaintext fallback.
-- **On-device models fit the phone.** A phone counts only half its memory as available to a model,
-  since the system and other apps keep the rest, and Lumo refuses to download a model the phone
-  can't run. In practice phones get the smaller models.
 - **CI compiles the core for Android and iPhone** on every pull request (`Rust for phones`), so
   nothing desktop-only slips back into shared code.
 

@@ -823,12 +823,7 @@ pub async fn local_models_status(state: S<'_>) -> ApiResult<crate::local_models:
 /// Download one of Lumo's on-device models. Progress arrives as `local-model-progress` events.
 #[tauri::command]
 pub async fn download_local_model(state: S<'_>, id: String) -> ApiResult<()> {
-    let entry = crate::local_models::catalog_entry(&id)?;
-    // On a phone a model that can't run is many gigabytes of wasted storage and data, so refuse it here.
-    let device = crate::device::current();
-    if device.form_factor == crate::device::FormFactor::Phone && !device.model_fits(crate::local_models::memory_gb(), entry.min_memory_gb) {
-        return Err(invalid(format!("{} needs more memory than this phone has.", entry.tier)).into());
-    }
+    crate::local_models::catalog_entry(&id)?;
     let token = tokio_util::sync::CancellationToken::new();
     {
         let mut slot = LOCAL_DOWNLOADS.lock();

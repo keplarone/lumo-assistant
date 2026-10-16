@@ -114,7 +114,6 @@ export interface DeviceCaps {
   globalShortcut: boolean;
   selfUpdate: boolean;
   folderPicker: boolean;
-  modelMemoryPercent: number;
 }
 
 export interface SecretStatus {
