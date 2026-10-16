@@ -113,11 +113,10 @@ jobs:
         uses: taiki-e/install-action@v2
         with:
           tool: cargo-ndk
+      # The runner image ships the NDK and sets ANDROID_NDK_ROOT; cargo-ndk reads ANDROID_NDK_HOME.
       - name: Clippy (Android)
         if: matrix.name == 'Android'
-        env:
-          ANDROID_NDK_HOME: ${{ env.ANDROID_NDK_LATEST_HOME }}
-        run: cargo ndk --platform 26 -t arm64-v8a clippy --lib -- -D warnings
+        run: ANDROID_NDK_HOME="$ANDROID_NDK_ROOT" cargo ndk --platform 26 -t arm64-v8a clippy --lib -- -D warnings
       - name: Clippy (iPhone)
         if: matrix.name == 'iPhone'
         run: cargo clippy --lib --target ${{ matrix.target }} -- -D warnings

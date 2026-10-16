@@ -41,3 +41,9 @@ packaging and screens, not a second app.
 
 Ordering apps on a phone works through checkout handoff (Lumo fills in what it can and opens the
 merchant's app or site to finish), because phones don't let one app control another.
+
+## Build notes
+
+- `Cargo.lock` holds `libc` at 0.2.189: 0.2.190 dropped `mach_task_self` on iOS, which `num_threads`
+  (through `time`, used by Tauri) still calls. Keep it there until `num_threads` moves to `mach2`;
+  the iPhone CI check fails if a `cargo update` brings it back.
