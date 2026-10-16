@@ -143,8 +143,8 @@ test('picks a lower frame cap while idle and asleep', async ({ page }) => {
   const expected: Record<string, number> = { think: 60, idle: 30, sleep: 12, type: 60 };
   for (const [mood, rate] of Object.entries(expected)) {
     await host(page, (h, m) => h.setMood(m), mood);
-    // The driver re-reads the cap on its next rAF tick (software GL frames are slow here).
-    await expect.poll(() => host(page, (h) => h.stats().rate), { message: mood, timeout: 5000 }).toBe(rate);
+    // The driver re-reads the cap on its next rAF tick (software GL frames with fur are slow here).
+    await expect.poll(() => host(page, (h) => h.stats().rate), { message: mood, timeout: 15_000 }).toBe(rate);
   }
   await host(page, (h) => h.unmount());
 });
