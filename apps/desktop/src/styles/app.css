@@ -123,8 +123,8 @@ dd {
   height: 30px;
 }
 .lm-mascot-nest {
-  width: 92px;
-  height: 92px;
+  width: 60px;
+  height: 60px;
 }
 .lm-mascot-buddy {
   width: 100%;
@@ -2933,7 +2933,8 @@ a.lm-row-main:hover .lm-row-title {
     40px 30px,
     70px 10px,
     20px 60px;
-  animation: lm-confetti 2.6s linear forwards;
+  opacity: 0;
+  animation: lm-confetti 2.6s linear;
 }
 @keyframes lm-confetti {
   from {

@@ -65,7 +65,18 @@ describe('desktop flight', () => {
     let st = start;
     const rng = mulberry32(5);
     for (let i = 0; i < 240 * 60; i++) {
-      st = stepFlight(st, { now: i / 60, dt: 1 / 60, mood: 'idle', areas: [SCREEN], size: SIZE, scale: 1, cursor: null, point: null, calm: false, rng });
+      st = stepFlight(st, {
+        now: i / 60,
+        dt: 1 / 60,
+        mood: 'idle',
+        areas: [SCREEN],
+        size: SIZE,
+        scale: 1,
+        cursor: null,
+        point: null,
+        calm: false,
+        rng,
+      });
       if (Math.hypot(st.pos.x - 1600, st.pos.y - 760) > 200) moved = true;
     }
     expect(moved).toBe(true);
@@ -94,7 +105,8 @@ describe('desktop flight', () => {
     ]) {
       const { s } = run(initialFlight({ x: 300, y: 300 }), 4, { point: pt });
       expect(s.mode).toBe('point');
-      const covers = pt.x >= s.pos.x && pt.x <= s.pos.x + SIZE.w && pt.y >= s.pos.y && pt.y <= s.pos.y + SIZE.h;
+      const covers =
+        pt.x >= s.pos.x && pt.x <= s.pos.x + SIZE.w && pt.y >= s.pos.y && pt.y <= s.pos.y + SIZE.h;
       expect(covers, JSON.stringify({ pt, pos: s.pos })).toBe(false);
     }
   });

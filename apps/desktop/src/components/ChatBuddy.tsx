@@ -14,10 +14,13 @@ import { useApp } from '../state/app';
 import { chirp, mascotBus } from '../state/mascot';
 import { Mascot } from './Mascot';
 
-const FLYER = 92;
+const FLYER = 60;
 const OUT_MS = 620;
 const STAY_MS = 1700;
 const BACK_MS = 560;
+/** He grows a little once he is out of the icon, and shrinks back into it. */
+const OUT_SCALE = 1.6;
+const mix = (a: number, b: number, t: number) => a + (b - a) * t;
 
 interface P {
   x: number;
@@ -63,7 +66,7 @@ export function ChatBuddy() {
     const place = () => {
       if (flying.current || !nest.current || !flyer.current) return;
       const r = nest.current.getBoundingClientRect();
-      flyer.current.style.transform = `translate(${r.left + r.width / 2 - FLYER / 2}px, ${r.top + r.height / 2 - FLYER / 2 - 6}px)`;
+      flyer.current.style.transform = `translate(${r.left + r.width / 2 - FLYER / 2}px, ${r.top + r.height / 2 - FLYER / 2}px)`;
     };
     place();
     const ro = new ResizeObserver(place);
@@ -116,14 +119,21 @@ export function ChatBuddy() {
     setOut(true);
     el.dataset.flying = 'true';
     chirp('whoosh');
-    await fly(el, start, ctrl, end, OUT_MS);
+    await fly(el, start, ctrl, end, OUT_MS, (k) => 1 + (OUT_SCALE - 1) * k);
     if (celebrate) handle.current?.celebrate();
     else handle.current?.wave('right');
     await hover(el, end, STAY_MS);
     chirp('whoosh');
     const n2 = nest.current?.getBoundingClientRect() ?? n;
-    const home = { x: n2.left + n2.width / 2, y: n2.top + n2.height / 2 - 6 };
-    await fly(el, end, { x: (end.x + home.x) / 2 - 80, y: Math.min(end.y, home.y) - 60 }, home, BACK_MS);
+    const home = { x: n2.left + n2.width / 2, y: n2.top + n2.height / 2 };
+    await fly(
+      el,
+      end,
+      { x: (end.x + home.x) / 2 - 80, y: Math.min(end.y, home.y) - 60 },
+      home,
+      BACK_MS,
+      (k) => mix(OUT_SCALE, 1, k),
+    );
     handle.current?.setFlight(0, 0);
     el.style.filter = '';
     delete el.dataset.flying;
@@ -132,7 +142,7 @@ export function ChatBuddy() {
     chirp('pop');
   }
 
-  function fly(el: HTMLElement, a: P, c: P, b: P, ms: number) {
+  function fly(el: HTMLElement, a: P, c: P, b: P, ms: number, grow: (k: number) => number) {
     return new Promise<void>((resolve) => {
       const t0 = performance.now();
       let prev = a;
@@ -146,7 +156,7 @@ export function ChatBuddy() {
         prev = p;
         prevT = now;
         const mb = motionBlurStyle(vx, vy);
-        el.style.transform = `translate(${p.x - FLYER / 2}px, ${p.y - FLYER / 2}px)${mb.stretch}`;
+        el.style.transform = `translate(${p.x - FLYER / 2}px, ${p.y - FLYER / 2}px)${mb.stretch} scale(${grow(k)})`;
         el.style.filter = mb.filter;
         handle.current?.setFlight(vx, vy);
         if (k < 1) requestAnimationFrame(step);
@@ -160,7 +170,7 @@ export function ChatBuddy() {
     return new Promise<void>((resolve) => {
       handle.current?.setFlight(0, 0);
       el.style.filter = '';
-      el.style.transform = `translate(${at.x - FLYER / 2}px, ${at.y - FLYER / 2}px)`;
+      el.style.transform = `translate(${at.x - FLYER / 2}px, ${at.y - FLYER / 2}px) scale(${OUT_SCALE})`;
       setTimeout(resolve, ms);
     });
   }

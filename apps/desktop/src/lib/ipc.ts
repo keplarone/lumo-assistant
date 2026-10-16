@@ -89,6 +89,7 @@ export interface Settings {
   buddyEnabled: boolean;
   /** Lumo's little noises. */
   soundsEnabled: boolean;
+  animatedIcon: boolean;
   /** "lumo" (personal, the default) or "linx" (Linx Code: work and build tools). */
   mode: AppMode;
   /** "free", "lite", "pro" or "unlimited". Set only by Rust's license check; saving settings keeps it. */

@@ -67,6 +67,10 @@ llama-cpp-sys-2 = "=0.1.158"
 # Apple GPUs through Metal on every Mac build.
 [target.'cfg(target_os = "macos")'.dependencies]
 llama-cpp-2 = { version = "=0.1.158", default-features = false, features = ["metal"] }
+# The live Dock icon (live_icon.rs). Same versions tauri already uses.
+objc2 = "0.6"
+objc2-app-kit = { version = "0.3", default-features = false, features = ["std", "NSApplication", "NSImage", "NSResponder"] }
+objc2-foundation = { version = "0.3", default-features = false, features = ["std", "NSData"] }
 
 [dev-dependencies]
 tempfile = "3"

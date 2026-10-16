@@ -27,7 +27,15 @@ export function LumoMark({ size = 20, label }: { size?: number; label?: string }
       aria-hidden={label ? undefined : true}
     >
       <g className="lm-mark-ears">
-        <ellipse cx="20" cy="17" rx="7.5" ry="15" transform="rotate(-14 20 17)" fill="#fff" stroke="#c9d6f5" />
+        <ellipse
+          cx="20"
+          cy="17"
+          rx="7.5"
+          ry="15"
+          transform="rotate(-14 20 17)"
+          fill="#fff"
+          stroke="#c9d6f5"
+        />
         <ellipse cx="20" cy="18" rx="3.6" ry="10" transform="rotate(-14 20 18)" fill="#ffc6d9" />
         <ellipse cx="44" cy="17" rx="7.5" ry="15" transform="rotate(14 44 17)" fill="#fff" stroke="#c9d6f5" />
         <ellipse cx="44" cy="18" rx="3.6" ry="10" transform="rotate(14 44 18)" fill="#ffc6d9" />
@@ -107,7 +115,10 @@ export function Mascot({
       clicks.current = [];
       inner.current?.boop('spin');
       mascotBus.send({ type: 'agent', phase: 'uncertain' });
-      setTimeout(() => mascotBus.phase === 'uncertain' && mascotBus.send({ type: 'agent', phase: 'idle' }), 2600);
+      setTimeout(
+        () => mascotBus.phase === 'uncertain' && mascotBus.send({ type: 'agent', phase: 'idle' }),
+        2600,
+      );
       chirp('question');
     } else {
       chirp(Math.random() < 0.5 ? 'boop' : 'giggle');

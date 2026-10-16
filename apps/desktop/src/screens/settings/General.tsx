@@ -103,6 +103,16 @@ export function GeneralSection() {
           aria-label="Lumo on your desktop"
         />
       </SettingRow>
+      <SettingRow
+        label="Animated icon"
+        description="While Lumo runs, his tray, taskbar and Dock icon blinks, flutters while he works, and waves when a reply is ready."
+      >
+        <Switch
+          checked={s.animatedIcon}
+          onCheckedChange={(v) => void save({ animatedIcon: v })}
+          aria-label="Animated icon"
+        />
+      </SettingRow>
       <SettingRow label="Sounds" description="Little chirps and boops when Lumo reacts.">
         <Switch
           checked={s.soundsEnabled}

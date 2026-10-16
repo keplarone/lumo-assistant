@@ -27,9 +27,8 @@ test('the download page has the name, tagline, requirements, pre-release note an
 }) => {
   await page.goto('/');
   await expect(page.locator('h1')).toHaveText('Lumo');
-  await expect(page.locator('.tagline')).toHaveText(
-    'Tell Lumo what you want. Lumo figures out how to make it happen.',
-  );
+  await expect(page.locator('.tagline')).toHaveText('Your personal AI assistant.');
+  await expect(page.locator('.modes')).toContainText('Linx Code');
   await expect(page.locator('.hero-stage')).toBeVisible();
   await expect(page.getByRole('heading', { name: 'System requirements' })).toBeVisible();
   await expect(page.locator('.req-card h3')).toHaveText(['Windows', 'macOS', 'Linux']);

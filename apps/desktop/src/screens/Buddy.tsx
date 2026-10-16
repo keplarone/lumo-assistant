@@ -114,7 +114,8 @@ export function Buddy() {
         const s = await api.buddyScreen();
         if (!live) return;
         screen.current = s;
-        if (!flight.current) flight.current = initialFlight({ x: s.window.x, y: s.window.y }, performance.now() / 1000);
+        if (!flight.current)
+          flight.current = initialFlight({ x: s.window.x, y: s.window.y }, performance.now() / 1000);
         // Dragged: follow the real window until it stops moving, then carry on from there.
         if (held.current) {
           const key = `${s.window.x},${s.window.y}`;
@@ -122,7 +123,11 @@ export function Buddy() {
           else held.current = { last: key, still: 0 };
           if (held.current.still >= 500) {
             held.current = null;
-            flight.current = releaseFlight(flight.current, { x: s.window.x, y: s.window.y }, performance.now() / 1000);
+            flight.current = releaseFlight(
+              flight.current,
+              { x: s.window.x, y: s.window.y },
+              performance.now() / 1000,
+            );
             chirp('whoosh');
           }
         }

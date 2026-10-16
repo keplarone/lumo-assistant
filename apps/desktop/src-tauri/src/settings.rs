@@ -43,6 +43,8 @@ pub struct Settings {
     pub buddy_enabled: bool,
     /// The mascot's little noises.
     pub sounds_enabled: bool,
+    /// Animate the tray, taskbar and Dock icons while Lumo runs.
+    pub animated_icon: bool,
     /// "lumo" (personal assistant) or "linx" (Linx Code, for businesses).
     pub mode: String,
     /// "free", "lite", "pro" or "unlimited". Only the license check changes it; saving settings from the UI keeps it.
@@ -87,6 +89,7 @@ impl Default for Settings {
             reduced_motion: false,
             buddy_enabled: true,
             sounds_enabled: true,
+            animated_icon: true,
             mode: "lumo".into(),
             plan: "free".into(),
             plan_checked_at: None,
@@ -295,7 +298,7 @@ mod tests {
         }
         // Settings saved before these fields existed get the defaults.
         let old: Settings = serde_json::from_str(r#"{"onboarded":true}"#).unwrap();
-        assert!(old.buddy_enabled && old.sounds_enabled);
+        assert!(old.buddy_enabled && old.sounds_enabled && old.animated_icon);
         assert_eq!(old.mode, "lumo");
     }
 }

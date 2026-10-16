@@ -20,7 +20,12 @@ interface RunOptions {
 function boot() {
   const stage = document.getElementById('stage')!;
   const canvas = document.getElementById('c') as HTMLCanvasElement;
-  const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true, preserveDrawingBuffer: true });
+  const renderer = new THREE.WebGLRenderer({
+    canvas,
+    antialias: true,
+    alpha: true,
+    preserveDrawingBuffer: true,
+  });
   renderer.setPixelRatio(1);
   renderer.toneMapping = THREE.NeutralToneMapping;
   const scene = new THREE.Scene();

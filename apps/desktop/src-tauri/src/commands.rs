@@ -38,6 +38,7 @@ pub struct AppSink {
 
 impl EventSink for AppSink {
     fn emit(&self, ev: AgentEvent) {
+        crate::live_icon::on_agent_event(&ev);
         let _ = self.app.emit("agent-event", json!({"runId": self.run_id, "conversationId": self.conversation_id, "event": ev}));
     }
 }

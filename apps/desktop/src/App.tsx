@@ -196,7 +196,11 @@ function Shell({ route }: { route: Route }) {
 
 /** Page changes animate; switching between settings sections or conversations counts as a change. */
 function routeKey(r: Route) {
-  return r.name === 'conversation' || r.name === 'project' ? `${r.name}:${r.id}` : r.name === 'settings' ? 'settings' : r.name;
+  return r.name === 'conversation' || r.name === 'project'
+    ? `${r.name}:${r.id}`
+    : r.name === 'settings'
+      ? 'settings'
+      : r.name;
 }
 
 function RouteView({ route }: { route: Route }) {

@@ -15,7 +15,8 @@ const has = (text: string, words: RegExp) => words.test(text);
 
 const CONCERN =
   /\b(sad|lonely|anxious|anxiety|stress(ed|ful)?|overwhelm(ed|ing)?|exhausted|burn(ed|t)? ?out|depress(ed|ing)?|grief|griev\w*|cry(ing)?|hurt(s|ing)?|scared|afraid|awful day|bad day|rough day|can'?t sleep|panic\w*|miss (him|her|them)|broke up|passed away|died)\b/i;
-const LOVE = /\b(thank(s| you)|ty|love (you|u|it|this)|you'?re (the best|amazing|awesome|great)|appreciate|so (sweet|cute|kind)|good (bot|boy|job lumo))\b|❤|♥|🥰|😍|💙/i;
+const LOVE =
+  /\b(thank(s| you)|ty|love (you|u|it|this)|you'?re (the best|amazing|awesome|great)|appreciate|so (sweet|cute|kind)|good (bot|boy|job lumo))\b|❤|♥|🥰|😍|💙/i;
 const CHEER =
   /\b(yay|woo+|hooray|we did it|i did it|got the job|passed|promotion|engaged|it worked|finally|great news|good news|congrat\w*|celebrat\w*|nailed it|let'?s go+)\b|🎉|🥳/i;
 const LAUGH = /\b(ha(ha)+|lol+|lmao|rofl|hehe+|that'?s (funny|hilarious))\b|😂|🤣|😆/i;
@@ -38,7 +39,8 @@ export function easterEggFor(text: string): EasterEgg | null {
   const t = text.trim().toLowerCase();
   if (/\b(do a )?barrel roll\b|\bdo a flip\b|\bbackflip\b/.test(t)) return 'barrel-roll';
   if (/\b(party time|let'?s party|🎉{2,})/.test(t)) return 'party';
-  if (/\b(good ?night|nighty night|sweet dreams|time for bed)\b/.test(t) && /\blumo\b/.test(t)) return 'goodnight';
+  if (/\b(good ?night|nighty night|sweet dreams|time for bed)\b/.test(t) && /\blumo\b/.test(t))
+    return 'goodnight';
   if (/^boop\b/.test(t)) return 'boop';
   if (/\bdance\b/.test(t) && /\blumo\b/.test(t)) return 'dance';
   if (/^(hi|hey|hello|yo|hiya) lumo\b/.test(t)) return 'hello';
@@ -105,7 +107,7 @@ const LINES: Record<Moment, (name: string, d: Date) => string[]> = {
       : [`Good ${part}${hi}!`, `Hi${hi}! What are we doing today?`, `Hey${hi}, I'm right here.`];
   },
   done: (n) => ['All done!', `Finished${n ? `, ${n}` : ''}!`, 'Done. That was fun.', 'Ta-da!'],
-  failed: () => ["Hmm, that didn't work.", 'Oops. Want me to try another way?', "That one tripped me up."],
+  failed: () => ["Hmm, that didn't work.", 'Oops. Want me to try another way?', 'That one tripped me up.'],
   approval: () => ['I need your OK for this one.', 'Can you check this before I go on?'],
   question: () => ['Quick question for you!', 'I need a little help deciding.'],
   break: (n) => [
@@ -114,7 +116,12 @@ const LINES: Record<Moment, (name: string, d: Date) => string[]> = {
     'Rest your eyes for a minute? Look at something far away.',
   ],
   late: () => ["It's getting late. Don't forget to rest.", 'Night owl mode? Remember to sleep soon.'],
-  idle: () => ['*hums quietly*', 'Just floating around.', 'I like your desktop.', 'Boop me if you need anything.'],
+  idle: () => [
+    '*hums quietly*',
+    'Just floating around.',
+    'I like your desktop.',
+    'Boop me if you need anything.',
+  ],
   poke: () => ['Hehe!', 'Boop!', 'That tickles!', 'Hi!'],
   dizzy: () => ['Whoa... the room is spinning.', 'Okay okay, I am dizzy now.'],
   birthday: () => ["It's my birthday today!", 'Party time! I turned one today.'],

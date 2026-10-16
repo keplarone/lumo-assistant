@@ -10,6 +10,7 @@ pub mod desktop;
 pub mod error;
 pub mod integrations;
 pub mod license;
+pub mod live_icon;
 pub mod local_models;
 pub mod model;
 pub mod plans;
@@ -96,6 +97,7 @@ pub fn run() {
             app.manage(commands::AppState { core: core.clone(), registry: registry.clone() });
 
             desktop::build_tray(&handle, &core)?;
+            live_icon::start(&handle, core.clone());
             let shortcut = core.settings().global_shortcut;
             if let Err(e) = desktop::register_shortcut(&handle, &shortcut) {
                 log::warn!("{e}");

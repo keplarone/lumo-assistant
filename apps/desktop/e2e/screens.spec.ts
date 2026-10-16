@@ -17,7 +17,7 @@ const now = new Date(Date.now() - 2 * 3600_000).toISOString();
 const settings = {
   onboarded: true,
   userName: 'Ada',
-  theme: 'dark',
+  theme: 'light',
   provider: 'anthropic',
   model: 'claude-opus-5-5',
   effort: 'medium',
@@ -37,6 +37,10 @@ const settings = {
   sttModel: 'whisper-1',
   ttsEnabled: false,
   mascotEnabled: true,
+  buddyEnabled: true,
+  soundsEnabled: false,
+  animatedIcon: true,
+  mode: 'lumo',
   reducedMotion: false,
   plan: 'free',
   planCheckedAt: null,
@@ -589,7 +593,9 @@ test('compact window', async ({ page }) => {
   await shot(page, 'compact');
 });
 
-test('onboarding, model step offers the free on-device path first', async ({ page }) => {
+test('onboarding: a short tour, then the model step offers the free on-device path first', async ({
+  page,
+}) => {
   await boot(page, {
     route: '#/',
     fixtures: {
@@ -597,10 +603,19 @@ test('onboarding, model step offers the free on-device path first', async ({ pag
       secrets_status: [{ name: 'anthropic_api_key', label: 'Anthropic API key', set: false }],
     },
   });
-  await page
-    .getByRole('button', { name: /Get started|Continue|Next/ })
-    .first()
-    .click();
+  await settle(page);
+  await shot(page, 'onboarding-welcome');
+  // Welcome, then three tour cards (asking, staying safe, Lumo on the desktop).
+  for (const name of ['ask', 'safe', 'desktop', null]) {
+    await page
+      .getByRole('button', { name: /Get started|Continue|Next/ })
+      .first()
+      .click();
+    if (name) {
+      await page.waitForTimeout(2600);
+      await shot(page, `onboarding-${name}`);
+    }
+  }
   await expect(page.getByText('Orbit 3.8')).toBeVisible();
   await settle(page);
   await shot(page, 'onboarding-model');

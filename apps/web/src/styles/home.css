@@ -30,6 +30,13 @@
   max-width: 24ch;
   text-wrap: balance;
 }
+.modes {
+  margin-top: calc(-1 * var(--lu-space-2));
+  font-size: var(--lu-text-lg);
+  line-height: 1.5;
+  color: var(--lu-text-tertiary);
+  max-width: 40ch;
+}
 .hero-stage {
   aspect-ratio: 760 / 820;
   width: 100%;

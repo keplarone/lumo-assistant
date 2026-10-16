@@ -11,7 +11,8 @@
     "typecheck": "tsc -p .",
     "test": "vitest run",
     "test:visual": "playwright test",
-    "dev": "vite --config harness/vite.config.ts"
+    "dev": "vite --config harness/vite.config.ts",
+    "render:icons": "node scripts/render-icons.mjs"
   },
   "peerDependencies": {
     "@react-three/fiber": "^9.0.0",

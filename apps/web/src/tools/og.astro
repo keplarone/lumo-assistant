@@ -1,15 +1,15 @@
 ---
-/* Dev-only route (/__og), injected when LUMO_STILLS=1. The 1200x630 social card: the owl app icon
+/* Dev-only route (/__og), injected when LUMO_STILLS=1. The 1200x630 social card: the bunny app icon
    and the download line. Rendered to public/og.png by scripts/render-stills.mjs --og. */
 import '@fontsource-variable/inter/wght.css';
 import '@fontsource-variable/bricolage-grotesque/wght.css';
 import '@fontsource/ibm-plex-mono/500.css';
 import '@lumo/ui/styles.css';
-import icon from '../../../../docs/brand/app-icon-512.png';
+import icon from '../../../desktop/src-tauri/icons/source-1024.png';
 import { SITE } from '../data/site';
 ---
 
-<html lang="en" data-theme="dark">
+<html lang="en" data-theme="light">
   <head>
     <meta charset="utf-8" />
     <title>OG</title>
@@ -21,7 +21,7 @@ import { SITE } from '../data/site';
       h1 { margin: 0; font: 600 68px/1.02 var(--lu-font-display); letter-spacing: -0.035em; color: var(--lu-text); max-width: 13ch; }
       p { margin: 0; font: 400 24px/1.4 var(--lu-font-ui); color: var(--lu-text-secondary); max-width: 32ch; }
       .tag { font: 500 15px/1 var(--lu-font-mono); letter-spacing: 0.08em; text-transform: uppercase; color: var(--lu-text-tertiary); }
-      .icon { width: 400px; height: 400px; justify-self: start; filter: drop-shadow(0 24px 60px rgb(40 90 255 / 0.35)); }
+      .icon { width: 400px; height: 400px; justify-self: start; filter: drop-shadow(0 24px 60px rgb(40 90 255 / 0.18)); }
     </style>
   </head>
   <body>
@@ -30,7 +30,7 @@ import { SITE } from '../data/site';
         <div class="brand">Lumo</div>
         <h1>Download Lumo for Windows, macOS and Linux</h1>
         <p>{SITE.tagline}</p>
-        <span class="tag">Desktop AI assistant · Pre-release</span>
+        <span class="tag">Lumo for you · Linx Code for work · Pre-release</span>
       </div>
       <img class="icon" src={icon.src} alt="" />
     </div>

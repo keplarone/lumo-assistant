@@ -19,6 +19,7 @@ export default defineConfig({
         render: resolve(here, 'render.html'),
         host: resolve(here, 'host.html'),
         preview: resolve(here, 'preview.html'),
+        icon: resolve(here, 'icon.html'),
       },
     },
   },

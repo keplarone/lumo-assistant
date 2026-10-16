@@ -1,6 +1,6 @@
 /**
  * Renders the static hero mascot still (the fallback for the 3D hero) from the real @lumo/mascot, and
- * the Open Graph card (owl app icon and download line), using the dev-only /__still and /__og routes.
+ * the Open Graph card (bunny app icon and download line), using the dev-only /__still and /__og routes.
  *
  *   pnpm --filter @lumo/web render:stills          (stills and OG card)
  *   pnpm --filter @lumo/web render:stills --og     (OG card only)

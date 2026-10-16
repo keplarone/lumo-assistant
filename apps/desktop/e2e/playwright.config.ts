@@ -19,7 +19,7 @@ export default defineConfig({
   use: {
     baseURL: 'http://localhost:1420',
     viewport: { width: 1180, height: 780 },
-    colorScheme: 'dark',
+    colorScheme: 'light',
     launchOptions: {
       executablePath: CHROME,
       args: [

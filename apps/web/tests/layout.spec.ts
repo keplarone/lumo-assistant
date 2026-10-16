@@ -16,7 +16,7 @@ test.describe('360px viewport', () => {
   }
 });
 
-test('header is the logo only, with the owl icon', async ({ page }) => {
+test('header is the logo only, with the app icon', async ({ page }) => {
   await page.goto('/privacy/');
   const brand = page.locator('header.site-header a.brand');
   await expect(brand).toHaveAttribute('href', '/');

@@ -62,7 +62,15 @@ const BUSY = new Set(['think', 'process', 'search', 'work', 'type', 'speak', 'li
 const PARTY = new Set(['happy', 'greet']);
 
 export function initialFlight(pos: Vec, now = 0): FlightState {
-  return { pos: { ...pos }, vel: { x: 0, y: 0 }, mode: 'hover', target: { ...pos }, until: now + 3, loop: null, mood: 'idle' };
+  return {
+    pos: { ...pos },
+    vel: { x: 0, y: 0 },
+    mode: 'hover',
+    target: { ...pos },
+    until: now + 3,
+    loop: null,
+    mood: 'idle',
+  };
 }
 
 /** The work area that contains p (or the nearest one). */
@@ -89,7 +97,10 @@ export function clampInto(p: Vec, size: { w: number; h: number }, a: Rect): Vec 
   };
 }
 
-const center = (p: Vec, size: { w: number; h: number }): Vec => ({ x: p.x + size.w / 2, y: p.y + size.h / 2 });
+const center = (p: Vec, size: { w: number; h: number }): Vec => ({
+  x: p.x + size.w / 2,
+  y: p.y + size.h / 2,
+});
 
 /** Where to sit next to a spot without covering it: beside it, a little above. */
 export function besidePoint(pt: Vec, size: { w: number; h: number }, a: Rect, gap: number): Vec {
@@ -183,7 +194,12 @@ function arrived(s: FlightState) {
 
 function pickNext(s: FlightState, inp: FlightInput, a: Rect, margin: number) {
   const { now, size, rng, calm } = inp;
-  const free = { x: a.x + margin, y: a.y + margin, width: a.width - 2 * margin, height: a.height - 2 * margin };
+  const free = {
+    x: a.x + margin,
+    y: a.y + margin,
+    width: a.width - 2 * margin,
+    height: a.height - 2 * margin,
+  };
   if (s.mode === 'cruise' || s.mode === 'visit' || s.mode === 'perch') {
     // After a trip, hover a while.
     s.mode = 'hover';
@@ -196,7 +212,10 @@ function pickNext(s: FlightState, inp: FlightInput, a: Rect, margin: number) {
     s.mode = 'visit';
     const side = inp.cursor.x > a.x + a.width / 2 ? -1 : 1;
     s.target = clampInto(
-      { x: inp.cursor.x + side * 180 * inp.scale - size.w / 2, y: inp.cursor.y - size.h / 2 - 40 * inp.scale },
+      {
+        x: inp.cursor.x + side * 180 * inp.scale - size.w / 2,
+        y: inp.cursor.y - size.h / 2 - 40 * inp.scale,
+      },
       size,
       free,
     );

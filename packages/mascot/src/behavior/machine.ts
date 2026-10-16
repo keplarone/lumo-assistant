@@ -140,7 +140,14 @@ export const PHASE_MOOD: Record<AgentPhase, string> = {
   failed: 'idle',
 };
 
-const BUSY_PHASES = new Set<AgentPhase>(['thinking', 'planning', 'searching', 'working', 'typing', 'awaiting_approval']);
+const BUSY_PHASES = new Set<AgentPhase>([
+  'thinking',
+  'planning',
+  'searching',
+  'working',
+  'typing',
+  'awaiting_approval',
+]);
 
 export function initialState(now: number, cfg: MascotConfig = DEFAULT_CONFIG): MascotState {
   return {
@@ -261,7 +268,11 @@ function step(s: MascotState, e: MascotEvent, now: number, cfg: MascotConfig): M
         case 'love':
           return { ...woke, transient: { mood: 'love', until: now + cfg.reactMs } };
         case 'cheer':
-          return { ...woke, transient: { mood: 'happy', until: now + cfg.celebrateMs }, pulses: s.pulses + 1 };
+          return {
+            ...woke,
+            transient: { mood: 'happy', until: now + cfg.celebrateMs },
+            pulses: s.pulses + 1,
+          };
         case 'laugh':
           return { ...woke, transient: { mood: 'happy', until: now + cfg.reactMs * 0.6 } };
         case 'concern':
