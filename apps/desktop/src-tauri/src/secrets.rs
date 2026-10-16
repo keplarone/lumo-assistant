@@ -84,6 +84,7 @@ pub const KNOWN: &[(&str, &str)] = &[
     ("google_client_secret", "Google OAuth client secret"),
     ("google_tokens", "Google account tokens"),
     ("stt_api_key", "Speech-to-text API key"),
+    ("calendar_ics_urls", "Calendar addresses"),
 ];
 
 pub fn check_known(name: &str) -> Result<()> {

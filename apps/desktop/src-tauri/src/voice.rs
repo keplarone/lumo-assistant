@@ -55,6 +55,29 @@ pub async fn transcribe(core: &Core, audio_b64: &str, mime: &str) -> Result<Stri
     Ok(v["text"].as_str().unwrap_or("").trim().to_string())
 }
 
+/// "Hey Lumo" samples: up to 5 recordings, each up to 200 frames of 13 MFCC values. Stored as
+/// numbers, not audio.
+pub fn wake_templates(core: &Core) -> Result<Vec<Vec<Vec<f32>>>> {
+    let raw: Option<String> = core.db.conn().query_row("SELECT value FROM settings WHERE key = 'wake_templates'", [], |r| r.get(0)).ok();
+    Ok(raw.and_then(|r| serde_json::from_str(&r).ok()).unwrap_or_default())
+}
+
+pub fn save_wake_templates(core: &Core, t: &[Vec<Vec<f32>>]) -> Result<()> {
+    if t.len() > 5 || t.iter().any(|s| s.is_empty() || s.len() > 200 || s.iter().any(|f| f.len() != 13 || f.iter().any(|x| !x.is_finite())))
+    {
+        return Err(invalid("the voice samples are not in the expected shape"));
+    }
+    if t.is_empty() {
+        core.db.conn().execute("DELETE FROM settings WHERE key = 'wake_templates'", [])?;
+        return Ok(());
+    }
+    core.db.conn().execute(
+        "INSERT INTO settings(key, value) VALUES ('wake_templates', ?1) ON CONFLICT(key) DO UPDATE SET value = excluded.value",
+        [serde_json::to_string(t)?],
+    )?;
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -87,5 +110,18 @@ mod tests {
         assert_eq!(text, "Organize my downloads.");
         assert!(transcribe(&core, "", "audio/webm").await.is_err());
         assert!(transcribe(&core, "AAAA", "video/mp4").await.is_err());
+    }
+
+    #[test]
+    fn wake_samples_are_shape_checked() {
+        let (core, _d) = core_with(Arc::new(FakePlatform::default()));
+        assert!(wake_templates(&core).unwrap().is_empty());
+        let one = vec![vec![0.5f32; 13]; 40];
+        save_wake_templates(&core, &[one.clone(), one.clone(), one.clone()]).unwrap();
+        assert_eq!(wake_templates(&core).unwrap().len(), 3);
+        assert!(save_wake_templates(&core, &[vec![vec![0.5f32; 12]; 40]]).is_err());
+        assert!(save_wake_templates(&core, &vec![one.clone(); 6]).is_err());
+        save_wake_templates(&core, &[]).unwrap();
+        assert!(wake_templates(&core).unwrap().is_empty());
     }
 }

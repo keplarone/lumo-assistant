@@ -335,8 +335,10 @@ pub fn due(core: &Core, at: DateTime<Utc>) -> Result<Vec<String>> {
 }
 
 /// The scheduler loop. Checks every 30 seconds; a run missed while Lumo was closed runs once at start.
+/// The everyday helpers (reminders, the morning brief, bills, price watch) run from here too.
 pub async fn scheduler(core: Arc<Core>, registry: Arc<Registry>) {
     loop {
+        crate::everyday::tick(core.clone()).await;
         match due(&core, Utc::now()) {
             Ok(ids) => {
                 for id in ids {

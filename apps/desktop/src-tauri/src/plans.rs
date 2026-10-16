@@ -36,6 +36,8 @@ pub struct PlanLimits {
     pub automations: Option<u32>,
     /// The `control_computer` tool (mouse and keyboard).
     pub computer_control: bool,
+    /// Product pages Lumo checks for price drops. None means no limit.
+    pub price_watches: Option<u32>,
 }
 
 /// The plans, cheapest first. Change limits here; everything else reads this table.
@@ -48,6 +50,7 @@ pub const PLANS: [PlanLimits; 4] = [
         cloud_models: false,
         automations: Some(1),
         computer_control: false,
+        price_watches: Some(3),
     },
     PlanLimits {
         id: "lite",
@@ -57,6 +60,7 @@ pub const PLANS: [PlanLimits; 4] = [
         cloud_models: true,
         automations: Some(10),
         computer_control: true,
+        price_watches: Some(25),
     },
     PlanLimits {
         id: "pro",
@@ -66,6 +70,7 @@ pub const PLANS: [PlanLimits; 4] = [
         cloud_models: true,
         automations: None,
         computer_control: true,
+        price_watches: None,
     },
     PlanLimits {
         id: "unlimited",
@@ -75,6 +80,7 @@ pub const PLANS: [PlanLimits; 4] = [
         cloud_models: true,
         automations: None,
         computer_control: true,
+        price_watches: None,
     },
 ];
 
@@ -221,6 +227,7 @@ pub struct PlanInfo {
     pub cloud_models: bool,
     pub automations: Option<u32>,
     pub computer_control: bool,
+    pub price_watches: Option<u32>,
 }
 
 #[derive(Debug, Clone, Serialize, PartialEq)]
@@ -241,6 +248,8 @@ pub struct PlanUsage {
     /// None means no limit.
     pub automations_allowed: Option<u32>,
     pub computer_control: bool,
+    /// None means no limit.
+    pub price_watches_allowed: Option<u32>,
     /// Every plan's limits, from the same table, for the Plans screen.
     pub plans: Vec<PlanInfo>,
 }
@@ -262,6 +271,7 @@ pub fn usage_at(core: &Core, now: DateTime<Local>) -> PlanUsage {
         cloud_models: l.cloud_models,
         automations_allowed: l.automations,
         computer_control: l.computer_control,
+        price_watches_allowed: l.price_watches,
         plans: PLANS
             .iter()
             .map(|p| PlanInfo {
@@ -272,6 +282,7 @@ pub fn usage_at(core: &Core, now: DateTime<Local>) -> PlanUsage {
                 cloud_models: p.cloud_models,
                 automations: p.automations,
                 computer_control: p.computer_control,
+                price_watches: p.price_watches,
             })
             .collect(),
     }
@@ -407,6 +418,33 @@ pub fn pause_excess_automations(core: &Core) -> Result<usize> {
     crate::audit::record(&core.db, "system", "automations_paused_by_plan", None, Some(&serde_json::json!({"count": extra.len()})), "ok");
     core.platform.broadcast("automations-changed", serde_json::json!({"id": extra[0]}));
     Ok(extra.len())
+}
+
+// ---- Price watches -------------------------------------------------------------------------
+
+/// Refuse watching one more product page than the plan includes.
+pub fn check_price_watch_slot(core: &Core) -> Result<()> {
+    let l = current(core);
+    let n: u32 = core.db.conn().query_row("SELECT count(*) FROM price_watches", [], |r| r.get(0))?;
+    // A technical ceiling for every plan, so background checks stay polite.
+    if n >= 200 {
+        return Err(LumoError::Invalid("Lumo can watch up to 200 prices at once. Stop watching some first.".into()));
+    }
+    let Some(cap) = l.price_watches else { return Ok(()) };
+    if n < cap {
+        return Ok(());
+    }
+    let more: Vec<String> = higher(l)
+        .map(|p| match p.price_watches {
+            Some(c) => format!("{} watches {c}", p.name),
+            None => format!("{} has no limit", p.name),
+        })
+        .collect();
+    Err(plan_limit(format!(
+        "The {} plan watches up to {cap} prices, and you're watching {n}. Stop watching one first, or upgrade: {}.",
+        l.name,
+        join_and(&more.iter().map(String::as_str).collect::<Vec<_>>())
+    )))
 }
 
 // ---- Tools ----------------------------------------------------------------------------------

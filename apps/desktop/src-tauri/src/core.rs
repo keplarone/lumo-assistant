@@ -67,6 +67,8 @@ pub struct Paths {
 pub struct Endpoints {
     pub nominatim: String,
     pub overpass: String,
+    /// MET Norway's weather API (see everyday/weather.rs).
+    pub met_no: String,
     /// Host that on-device model files are downloaded from (the catalog pins the rest of the address).
     pub model_downloads: String,
 }
@@ -76,6 +78,7 @@ impl Default for Endpoints {
         Endpoints {
             nominatim: "https://nominatim.openstreetmap.org".into(),
             overpass: "https://overpass-api.de/api/interpreter".into(),
+            met_no: "https://api.met.no".into(),
             model_downloads: crate::local_models::DOWNLOAD_HOST.into(),
         }
     }

@@ -39,6 +39,17 @@ pub struct Settings {
     pub tts_enabled: bool,
     pub mascot_enabled: bool,
     pub reduced_motion: bool,
+    /// The morning brief (everyday/brief.rs): on/off, local time (HH:MM), and whether the app reads it aloud.
+    pub brief_enabled: bool,
+    pub brief_time: String,
+    pub brief_read_aloud: bool,
+    /// "auto" (by location), "celsius" or "fahrenheit".
+    pub temperature_unit: String,
+    /// Listen for "Hey Lumo" while the app is open. The wake word is matched on this computer; audio
+    /// is only sent for transcription after it is heard.
+    pub wake_word_enabled: bool,
+    /// How spoken replies sound: "lumo" (the mascot's cute voice) or "system" (the plain system voice).
+    pub voice_style: String,
     /// "free", "lite", "pro" or "unlimited". Only the license check changes it; saving settings from the UI keeps it.
     pub plan: String,
     pub plan_checked_at: Option<String>,
@@ -79,6 +90,12 @@ impl Default for Settings {
             tts_enabled: false,
             mascot_enabled: true,
             reduced_motion: false,
+            brief_enabled: true,
+            brief_time: "08:00".into(),
+            brief_read_aloud: true,
+            temperature_unit: "auto".into(),
+            wake_word_enabled: false,
+            voice_style: "lumo".into(),
             plan: "free".into(),
             plan_checked_at: None,
         }
@@ -110,6 +127,13 @@ impl Settings {
         }
         if !(1..=200).contains(&self.max_tool_calls_per_run) {
             return Err(invalid("max tool calls per run must be between 1 and 200"));
+        }
+        crate::everyday::reminders::parse_time(&self.brief_time).map_err(|_| invalid("the brief time must be HH:MM"))?;
+        if !["auto", "celsius", "fahrenheit"].contains(&self.temperature_unit.as_str()) {
+            return Err(invalid("temperature unit must be auto, celsius or fahrenheit"));
+        }
+        if !["lumo", "system"].contains(&self.voice_style.as_str()) {
+            return Err(invalid("voice style must be lumo or system"));
         }
         if let Some(l) = &self.location {
             if !(-90.0..=90.0).contains(&l.lat) || !(-180.0..=180.0).contains(&l.lon) {

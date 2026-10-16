@@ -51,6 +51,8 @@ walkdir = "2"
 trash = "5"
 git2 = { version = "0.21", default-features = false, features = ["vendored-libgit2"] }
 cron = "0.17"
+rrule = "0.14"
+chrono-tz = "0.10"
 mime_guess = "2"
 html2text = "0.17"
 async-trait = "0.1"

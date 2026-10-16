@@ -8,6 +8,7 @@ pub mod core;
 pub mod db;
 pub mod desktop;
 pub mod error;
+pub mod everyday;
 pub mod integrations;
 pub mod license;
 pub mod local_models;
@@ -195,6 +196,20 @@ pub fn run() {
             commands::cancel_local_download,
             commands::delete_local_model,
             commands::select_local_model,
+            commands::everyday_overview,
+            commands::add_reminder,
+            commands::delete_reminder,
+            commands::save_subscription,
+            commands::delete_subscription,
+            commands::find_subscriptions_in_statement,
+            commands::watch_price,
+            commands::set_price_target,
+            commands::check_price_now,
+            commands::delete_price_watch,
+            commands::make_brief_now,
+            commands::mark_brief_seen,
+            commands::get_wake_templates,
+            commands::save_wake_templates,
         ])
         .run(tauri::generate_context!())
         .expect("error while running Lumo");
