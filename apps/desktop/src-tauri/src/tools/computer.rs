@@ -5,6 +5,12 @@
 //! (Alt+Shift+Escape). While a session is active an indicator is shown. Background automations
 //! can never control input. Coordinates are pixels in the latest screenshot and are mapped back to
 //! the real display, and every batch of actions returns a fresh screenshot so the result is checked.
+//!
+//! Vision models trained to point on a relative grid (Qwen3-VL answers on 0–1000 whatever the image
+//! size) are told so in their copy of the tool description (`relative_grid_def`), and their calls
+//! carry `coordinate_space: "relative_1000"`, which the on-device provider adds. The grid is then
+//! converted to the latest screenshot's pixels here, with the rest of the mapping. Cloud models never
+//! see the field, and their calls default to pixels.
 
 use super::{object_schema, ToolCtx, ToolOutput, TypedTool};
 use crate::agent::events::{ActionPreview, AgentEvent};
@@ -62,12 +68,113 @@ pub enum InputAction {
 
 pub struct ControlComputer;
 
+/// What x/y in a call refer to.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum CoordinateSpace {
+    /// Pixels in the latest screenshot (what the tool description tells every model).
+    #[default]
+    #[serde(rename = "pixels")]
+    Pixels,
+    /// 0–1000 across and down the latest screenshot, whatever its size: how Qwen3-VL points.
+    #[serde(rename = "relative_1000")]
+    Relative1000,
+}
+
+/// The far edge of the relative grid.
+pub const GRID: i32 = 1000;
+
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct ControlInput {
     pub actions: Vec<InputAction>,
     /// Shown to the user the first time, e.g. "to fill in the form in your browser".
     pub reason: String,
+    /// Set by the on-device provider for vision models; not part of the schema models are shown.
+    #[serde(default)]
+    pub coordinate_space: CoordinateSpace,
+}
+
+/// The sentence in the tool description that says what x/y are, and its relative-grid version.
+const PIXELS_SENTENCE: &str = "x/y are pixels in the latest screenshot.";
+const GRID_SENTENCE: &str = "x/y are positions in the latest screenshot on a 0-1000 grid: (0, 0) is its top-left corner and (1000, 1000) its bottom-right corner, whatever its size in pixels.";
+/// What `take_screenshot` says about coordinates (system.rs), and its relative-grid version.
+const SCREENSHOT_PIXELS_NOTE: &str = "Coordinates for control_computer use this image's pixels.";
+const SCREENSHOT_GRID_NOTE: &str = "Coordinates for control_computer are on a 0-1000 grid over this image.";
+
+/// The tool as offered to a model that points on the 0–1000 grid: same tool, grid wording, and
+/// x/y bounded by the grid.
+pub fn relative_grid_def(def: &crate::model::ToolDef) -> crate::model::ToolDef {
+    crate::model::ToolDef {
+        name: def.name.clone(),
+        description: def.description.replace(PIXELS_SENTENCE, GRID_SENTENCE),
+        input_schema: control_schema(json!({"type": "integer", "minimum": 0, "maximum": GRID})),
+    }
+}
+
+/// Tool result text (from `take_screenshot`) as a relative-grid model should read it.
+pub fn relative_grid_text(text: &str) -> String {
+    text.replace(SCREENSHOT_PIXELS_NOTE, SCREENSHOT_GRID_NOTE)
+}
+
+/// One grid value as a pixel in a dimension of `size` pixels (`v / 1000 * size`, as Qwen's own
+/// computer-use example converts it), kept inside the image.
+fn grid_to_pixel(v: i32, size: u32) -> Result<i32> {
+    if !(0..=GRID).contains(&v) {
+        return Err(invalid(format!("{v} is outside the 0-{GRID} grid")));
+    }
+    let px = (v as f64 / GRID as f64 * size as f64).round() as i32;
+    Ok(px.clamp(0, size.saturating_sub(1) as i32))
+}
+
+/// Actions with x/y in `space`, as pixels in a `width`×`height` screenshot.
+pub fn to_screenshot_pixels(actions: &[InputAction], space: CoordinateSpace, width: u32, height: u32) -> Result<Vec<InputAction>> {
+    if space == CoordinateSpace::Pixels {
+        return Ok(actions.to_vec());
+    }
+    let p = |x: i32, y: i32| -> Result<(i32, i32)> { Ok((grid_to_pixel(x, width)?, grid_to_pixel(y, height)?)) };
+    actions
+        .iter()
+        .map(|a| {
+            Ok(match a.clone() {
+                InputAction::MoveTo { x, y } => {
+                    let (x, y) = p(x, y)?;
+                    InputAction::MoveTo { x, y }
+                }
+                InputAction::Click { x, y, button, count } => {
+                    let (x, y) = p(x, y)?;
+                    InputAction::Click { x, y, button, count }
+                }
+                InputAction::Drag { from_x, from_y, to_x, to_y } => {
+                    let (from_x, from_y) = p(from_x, from_y)?;
+                    let (to_x, to_y) = p(to_x, to_y)?;
+                    InputAction::Drag { from_x, from_y, to_x, to_y }
+                }
+                InputAction::Scroll { x, y, dx, dy } => {
+                    let (x, y) = p(x, y)?;
+                    InputAction::Scroll { x, y, dx, dy }
+                }
+                other => other,
+            })
+        })
+        .collect()
+}
+
+fn control_schema(xy: Value) -> Value {
+    object_schema(
+        json!({
+            "reason": {"type": "string"},
+            "actions": {"type": "array", "minItems": 1, "maxItems": 20, "items": {"oneOf": [
+                object_schema(json!({"type": {"const": "move_to"}, "x": xy, "y": xy}), &["type", "x", "y"]),
+                object_schema(json!({"type": {"const": "click"}, "x": xy, "y": xy, "button": {"type": "string", "enum": ["left", "right", "middle"]}, "count": {"type": "integer", "minimum": 1, "maximum": 3}}), &["type", "x", "y"]),
+                object_schema(json!({"type": {"const": "drag"}, "from_x": xy, "from_y": xy, "to_x": xy, "to_y": xy}), &["type", "from_x", "from_y", "to_x", "to_y"]),
+                object_schema(json!({"type": {"const": "scroll"}, "x": xy, "y": xy, "dx": {"type": "integer"}, "dy": {"type": "integer", "description": "Positive scrolls down"}}), &["type", "x", "y"]),
+                object_schema(json!({"type": {"const": "type"}, "text": {"type": "string"}}), &["type", "text"]),
+                object_schema(json!({"type": {"const": "key"}, "keys": {"type": "string", "description": "e.g. enter, ctrl+s, cmd+shift+t"}}), &["type", "keys"]),
+                object_schema(json!({"type": {"const": "wait"}, "ms": {"type": "integer", "minimum": 0, "maximum": 5000}}), &["type", "ms"])
+            ]}}
+        }),
+        &["actions", "reason"],
+    )
 }
 
 pub fn session_active(core: &Core, run_id: &str) -> bool {
@@ -215,22 +322,7 @@ impl TypedTool for ControlComputer {
     const NAME: &'static str = "control_computer";
     const DESCRIPTION: &'static str = "Control the mouse and keyboard to do something in another app on the user's screen, when no other tool can do it. Take a screenshot first; x/y are pixels in the latest screenshot. Send up to 20 actions per call; each call returns a new screenshot so you can check the result before continuing. The first call asks the user for permission for this task; the user can take back control at any time. Never enter passwords or payment details, and stop and ask before submitting anything irreversible (sending, buying, deleting).";
     fn schema(&self) -> Value {
-        let xy = json!({"type": "integer", "minimum": 0});
-        object_schema(
-            json!({
-                "reason": {"type": "string"},
-                "actions": {"type": "array", "minItems": 1, "maxItems": 20, "items": {"oneOf": [
-                    object_schema(json!({"type": {"const": "move_to"}, "x": xy, "y": xy}), &["type", "x", "y"]),
-                    object_schema(json!({"type": {"const": "click"}, "x": xy, "y": xy, "button": {"type": "string", "enum": ["left", "right", "middle"]}, "count": {"type": "integer", "minimum": 1, "maximum": 3}}), &["type", "x", "y"]),
-                    object_schema(json!({"type": {"const": "drag"}, "from_x": xy, "from_y": xy, "to_x": xy, "to_y": xy}), &["type", "from_x", "from_y", "to_x", "to_y"]),
-                    object_schema(json!({"type": {"const": "scroll"}, "x": xy, "y": xy, "dx": {"type": "integer"}, "dy": {"type": "integer", "description": "Positive scrolls down"}}), &["type", "x", "y"]),
-                    object_schema(json!({"type": {"const": "type"}, "text": {"type": "string"}}), &["type", "text"]),
-                    object_schema(json!({"type": {"const": "key"}, "keys": {"type": "string", "description": "e.g. enter, ctrl+s, cmd+shift+t"}}), &["type", "keys"]),
-                    object_schema(json!({"type": {"const": "wait"}, "ms": {"type": "integer", "minimum": 0, "maximum": 5000}}), &["type", "ms"])
-                ]}}
-            }),
-            &["actions", "reason"],
-        )
+        control_schema(json!({"type": "integer", "minimum": 0}))
     }
     fn risk(&self, ctx: &ToolCtx, _: &ControlInput) -> Risk {
         if session_active(&ctx.core, &ctx.run_id) {
@@ -269,7 +361,8 @@ impl TypedTool for ControlComputer {
             .get(&ctx.run_id)
             .cloned()
             .ok_or_else(|| invalid("take a screenshot first, so coordinates refer to what is on screen"))?;
-        let mapped = map_all(&shot, &i.actions)?;
+        let in_pixels = to_screenshot_pixels(&i.actions, i.coordinate_space, shot.width, shot.height)?;
+        let mapped = map_all(&shot, &in_pixels)?;
         let started = {
             let mut s = ctx.core.pending.input_sessions.lock();
             let first_overall = s.is_empty();
@@ -396,6 +489,75 @@ mod tests {
         core.pending.screens.lock().insert(auto.run_id.clone(), shot());
         let res = execute(&r, &auto, &call("c5", json!([{"type": "click", "x": 1, "y": 1}])), &names).await;
         assert!(!res.ok && res.needs_attention);
+    }
+
+    #[test]
+    fn relative_grid_points_become_screenshot_pixels() {
+        let click = |x, y| InputAction::Click { x, y, button: None, count: None };
+        fn px(a: &[InputAction]) -> Vec<InputAction> {
+            to_screenshot_pixels(a, CoordinateSpace::Relative1000, 1000, 500).unwrap()
+        }
+        assert_eq!(px(&[click(500, 500)]), [click(500, 250)]);
+        assert_eq!(px(&[click(0, 0)]), [click(0, 0)]);
+        // The far edge stays inside the image.
+        assert_eq!(px(&[click(1000, 1000)]), [click(999, 499)]);
+        let odd = to_screenshot_pixels(&[click(333, 667)], CoordinateSpace::Relative1000, 1280, 720).unwrap();
+        assert_eq!(odd, [click(426, 480)]);
+        assert_eq!(
+            px(&[InputAction::Drag { from_x: 100, from_y: 200, to_x: 900, to_y: 800 }, InputAction::Scroll { x: 10, y: 20, dx: 0, dy: 3 }]),
+            [InputAction::Drag { from_x: 100, from_y: 100, to_x: 900, to_y: 400 }, InputAction::Scroll { x: 10, y: 10, dx: 0, dy: 3 }]
+        );
+        // Actions without a position pass through; values off the grid are refused.
+        let keys = [InputAction::Key { keys: "enter".into() }, InputAction::Type { text: "hi".into() }];
+        assert_eq!(px(&keys), keys);
+        assert!(to_screenshot_pixels(&[click(1001, 5)], CoordinateSpace::Relative1000, 1000, 500).is_err());
+        // Pixels (every cloud model) are left alone.
+        assert_eq!(to_screenshot_pixels(&[click(1500, 5)], CoordinateSpace::Pixels, 1000, 500).unwrap(), [click(1500, 5)]);
+    }
+
+    #[test]
+    fn the_relative_grid_copy_of_the_tool() {
+        let r = Registry::standard();
+        let def = r.defs(None).into_iter().find(|d| d.name == "control_computer").unwrap();
+        // The sentence being replaced is still in the description; the field is not in the schema.
+        assert!(def.description.contains(PIXELS_SENTENCE));
+        assert!(!def.input_schema.to_string().contains("coordinate_space"));
+        let grid = relative_grid_def(&def);
+        assert!(grid.description.contains(GRID_SENTENCE) && !grid.description.contains(PIXELS_SENTENCE));
+        let click = &grid.input_schema["properties"]["actions"]["items"]["oneOf"][1]["properties"];
+        assert_eq!(click["x"]["maximum"], GRID);
+        assert_eq!(click["y"]["maximum"], GRID);
+        let without_max = grid.input_schema.to_string().replace("\"maximum\":1000,", "").replace(",\"maximum\":1000", "");
+        assert_eq!(without_max, def.input_schema.to_string());
+        assert_eq!(
+            relative_grid_text("Shot (10×10 pixels). Coordinates for control_computer use this image's pixels."),
+            "Shot (10×10 pixels). Coordinates for control_computer are on a 0-1000 grid over this image."
+        );
+    }
+
+    #[tokio::test]
+    async fn a_relative_grid_call_lands_on_the_same_spot() {
+        let platform = Arc::new(FakePlatform::default());
+        *platform.screen.lock() = Some(shot());
+        *platform.confirm.lock() = true;
+        let (core, _d) = core_with(platform.clone());
+        set_plan(&core, "lite");
+        let (ctx, _) = ctx(core.clone(), Origin::User);
+        let r = Registry::standard();
+        let names: Vec<String> = r.names().into_iter().map(String::from).collect();
+        let shot_call = json!({"type": "tool_use", "id": "s", "name": "take_screenshot", "input": {"reason": "see"}});
+        let res = execute(&r, &ctx, &shot_call, &names).await;
+        assert!(res.ok);
+        // What take_screenshot says is what relative_grid_text rewrites.
+        assert!(res.block.to_string().contains(SCREENSHOT_PIXELS_NOTE), "{}", res.block);
+        // The middle of the 1000×500 screenshot is (500, 250) in pixels, (1100, 500) on the display.
+        let call = json!({"type": "tool_use", "id": "c1", "name": "control_computer", "input": {"reason": "press it", "coordinate_space": "relative_1000", "actions": [{"type": "click", "x": 500, "y": 500}]}});
+        let res = execute(&r, &ctx, &call, &names).await;
+        assert!(res.ok, "{}", res.block);
+        assert_eq!(platform.inputs.lock()[0], InputAction::Click { x: 1100, y: 500, button: None, count: None });
+        let bad = json!({"type": "tool_use", "id": "c2", "name": "control_computer", "input": {"reason": "x", "coordinate_space": "inches", "actions": [{"type": "click", "x": 1, "y": 1}]}});
+        assert!(!execute(&r, &ctx, &bad, &names).await.ok);
+        end_session(&core, &ctx.run_id);
     }
 
     #[test]

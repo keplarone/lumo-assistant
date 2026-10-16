@@ -6,26 +6,49 @@
 //!   assistant turns, `<tool_response>` blocks in user turns), hands the turns to llama.cpp's
 //!   built-in template for the model, and starts the answer with an empty think block, which is how
 //!   Qwen3's template turns thinking off.
+//! - **Qwen3-VL** (Nebula Vision): the same ChatML and tool format as Qwen3, without a think block
+//!   (the Instruct model does not think), and with images. Each image becomes `IMAGE_MARKER` in the
+//!   text and its bytes go along in `Prompt::Chat::images`, in the same order; llama.cpp's
+//!   multimodal library swaps each marker for the image's tokens (wrapped in `<|vision_start|>` and
+//!   `<|vision_end|>`, as Qwen3-VL's template does). Only the latest `MAX_IMAGES` images are kept, so
+//!   a run of screenshots doesn't fill the context window.
 //! - **gpt-oss** (Solar): the harmony format. llama.cpp's built-in harmony template has no place for
 //!   tools, channels or recipients, so Lumo renders harmony itself, following OpenAI's template:
 //!   tools as a TypeScript `functions` namespace in the developer message, calls on the commentary
 //!   channel addressed `to=functions.NAME`, results from `functions.NAME`.
 
 use crate::model::{Message, ToolDef};
+use base64::Engine as _;
 use serde_json::{json, Value};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Family {
     Qwen3,
+    /// Qwen3-VL Instruct: Qwen3's format plus images.
+    Qwen3Vl,
     Harmony,
 }
+
+impl Family {
+    /// The model reads images (it comes with an image projector).
+    pub fn sees_images(self) -> bool {
+        self == Family::Qwen3Vl
+    }
+}
+
+/// Where an image goes in the prompt text. This is llama.cpp's default multimodal marker, and the
+/// engine passes it to the multimodal library explicitly, so the two always agree.
+pub const IMAGE_MARKER: &str = "<__media__>";
+/// Images (mostly screenshots) kept in a vision prompt; older ones are replaced by a short note.
+pub const MAX_IMAGES: usize = 2;
 
 /// What the engine turns into prompt text.
 #[derive(Debug, Clone, PartialEq)]
 pub enum Prompt {
     /// Role/content turns for the model's own chat template, followed by `suffix` after the
     /// assistant header.
-    Chat { turns: Vec<(String, String)>, suffix: String },
+    /// `images` holds the encoded bytes (PNG or JPEG) of each `IMAGE_MARKER` in the turns, in order.
+    Chat { turns: Vec<(String, String)>, suffix: String, images: Vec<Vec<u8>> },
     /// Prompt text that is already complete.
     Raw(String),
 }
@@ -47,7 +70,8 @@ pub struct Parsed {
 
 pub fn render(family: Family, system: &str, tools: &[ToolDef], messages: &[Message], effort: &str, today: &str) -> Prompt {
     match family {
-        Family::Qwen3 => qwen_render(system, tools, messages),
+        Family::Qwen3 => qwen_render(system, tools, messages, false),
+        Family::Qwen3Vl => qwen_render(system, tools, messages, true),
         Family::Harmony => Prompt::Raw(harmony_render(system, tools, messages, effort, today)),
     }
 }
@@ -56,7 +80,7 @@ pub fn render(family: Family, system: &str, tools: &[ToolDef], messages: &[Messa
 /// might be the start of a tag is held back, so the visible text only ever grows.
 pub fn parse(family: Family, raw: &str, done: bool) -> Parsed {
     match family {
-        Family::Qwen3 => qwen_parse(raw, done),
+        Family::Qwen3 | Family::Qwen3Vl => qwen_parse(raw, done),
         Family::Harmony => harmony_parse(raw, done),
     }
 }
@@ -67,7 +91,9 @@ pub fn parse(family: Family, raw: &str, done: bool) -> Parsed {
 /// be able to open or close a turn or fake a tool call, because the rendered prompt is tokenized
 /// with special tokens enabled; a zero-width space after the `<` keeps the text readable but breaks
 /// the marker.
-const MARKERS: [&str; 7] = ["<|", "<tool_call>", "</tool_call>", "<tool_response>", "</tool_response>", "<think>", "</think>"];
+/// The image marker is one too: text that contained it would ask for an image that isn't there.
+const MARKERS: [&str; 8] =
+    ["<|", "<tool_call>", "</tool_call>", "<tool_response>", "</tool_response>", "<think>", "</think>", IMAGE_MARKER];
 
 pub fn neutralize(s: &str) -> String {
     let mut out = s.to_string();
@@ -79,22 +105,81 @@ pub fn neutralize(s: &str) -> String {
     out
 }
 
-fn text_of(blocks: &[Value]) -> String {
+/// Decides what each image in the history becomes, in the order the prompt is written.
+struct Images {
+    vision: bool,
+    /// Images before this index (counted over the whole history) are left out.
+    keep_from: usize,
+    seen: usize,
+    out: Vec<Vec<u8>>,
+}
+
+impl Images {
+    fn new(vision: bool, messages: &[Message]) -> Self {
+        let keep_from = if vision { count_images(messages).saturating_sub(MAX_IMAGES) } else { 0 };
+        Images { vision, keep_from, seen: 0, out: Vec::new() }
+    }
+
+    /// Text-only models: every image is a placeholder.
+    fn none() -> Self {
+        Images { vision: false, keep_from: 0, seen: 0, out: Vec::new() }
+    }
+
+    /// The prompt text for one image block; a tool result's image is a screenshot.
+    fn place(&mut self, b: &Value, in_tool_result: bool) -> String {
+        let index = self.seen;
+        self.seen += 1;
+        if !self.vision {
+            return "[An image was attached here; this on-device model cannot see images.]".into();
+        }
+        if index < self.keep_from {
+            return if in_tool_result { "[earlier screenshot omitted]" } else { "[earlier image omitted]" }.into();
+        }
+        let data = b["source"]["data"].as_str().unwrap_or_default();
+        match base64::engine::general_purpose::STANDARD.decode(data) {
+            Ok(bytes) if b["source"]["type"] == "base64" && !bytes.is_empty() => {
+                self.out.push(bytes);
+                IMAGE_MARKER.into()
+            }
+            _ => "[An image was attached here, but it could not be read.]".into(),
+        }
+    }
+}
+
+/// Image blocks in the history: in messages, and inside tool results.
+fn count_images(messages: &[Message]) -> usize {
+    fn images(blocks: &[Value]) -> usize {
+        blocks.iter().filter(|b| b["type"] == "image").count()
+    }
+    messages
+        .iter()
+        .map(|m| {
+            images(&m.content)
+                + m.content
+                    .iter()
+                    .filter(|b| b["type"] == "tool_result")
+                    .map(|b| b["content"].as_array().map_or(0, |c| images(c.as_slice())))
+                    .sum::<usize>()
+        })
+        .sum()
+}
+
+fn text_of(blocks: &[Value], images: &mut Images, in_tool_result: bool) -> String {
     blocks
         .iter()
         .filter_map(|b| match b["type"].as_str() {
             Some("text") => b["text"].as_str().map(neutralize),
-            Some("image") => Some("[An image was attached here; this on-device model cannot see images.]".into()),
+            Some("image") => Some(images.place(b, in_tool_result)),
             _ => None,
         })
         .collect::<Vec<_>>()
         .join("\n")
 }
 
-fn tool_result_text(b: &Value) -> String {
+fn tool_result_text(b: &Value, images: &mut Images) -> String {
     let body = match &b["content"] {
         Value::String(s) => neutralize(s),
-        Value::Array(items) => text_of(items),
+        Value::Array(items) => text_of(items, images, true),
         _ => String::new(),
     };
     if b["is_error"] == true {
@@ -141,7 +226,8 @@ fn parse_args(name: String, body: &str) -> ParsedCall {
 
 // ---- Qwen3 -------------------------------------------------------------------------------------
 
-fn qwen_render(system: &str, tools: &[ToolDef], messages: &[Message]) -> Prompt {
+fn qwen_render(system: &str, tools: &[ToolDef], messages: &[Message], vision: bool) -> Prompt {
+    let mut images = Images::new(vision, messages);
     let mut sys = system.trim_end().to_string();
     if !tools.is_empty() {
         if !sys.is_empty() {
@@ -166,25 +252,25 @@ fn qwen_render(system: &str, tools: &[ToolDef], messages: &[Message]) -> Prompt 
     }
     for m in messages {
         match m.role.as_str() {
-            "system" => turns.push(("system".into(), text_of(&m.content))),
+            "system" => turns.push(("system".into(), text_of(&m.content, &mut images, false))),
             "user" => {
                 let results: Vec<String> = m
                     .content
                     .iter()
                     .filter(|b| b["type"] == "tool_result")
-                    .map(|b| format!("<tool_response>\n{}\n</tool_response>", tool_result_text(b)))
+                    .map(|b| format!("<tool_response>\n{}\n</tool_response>", tool_result_text(b, &mut images)))
                     .collect();
                 if !results.is_empty() {
                     turns.push(("user".into(), results.join("\n")));
                 }
-                let text = text_of(&m.content);
+                let text = text_of(&m.content, &mut images, false);
                 if !text.is_empty() {
                     turns.push(("user".into(), text));
                 }
             }
             "assistant" => {
                 let mut parts = Vec::new();
-                let text = text_of(&m.content);
+                let text = text_of(&m.content, &mut images, false);
                 if !text.trim().is_empty() {
                     parts.push(text.trim().to_string());
                 }
@@ -202,8 +288,10 @@ fn qwen_render(system: &str, tools: &[ToolDef], messages: &[Message]) -> Prompt 
             _ => {}
         }
     }
-    // Qwen3's template with enable_thinking=false: an empty think block opens the answer.
-    Prompt::Chat { turns, suffix: "<think>\n\n</think>\n\n".into() }
+    // Qwen3's template with enable_thinking=false: an empty think block opens the answer. Qwen3-VL
+    // Instruct does not think, and its template has no think block.
+    let suffix = if vision { "" } else { "<think>\n\n</think>\n\n" };
+    Prompt::Chat { turns, suffix: suffix.into(), images: images.out }
 }
 
 const QWEN_TAGS: [&str; 2] = ["<tool_call>", "<think>"];
@@ -307,24 +395,25 @@ fn harmony_render(system: &str, tools: &[ToolDef], messages: &[Message], effort:
             call_names.insert(b["id"].as_str().unwrap_or_default().to_string(), b["name"].as_str().unwrap_or_default().to_string());
         }
     }
+    let images = &mut Images::none();
     for m in messages {
         match m.role.as_str() {
-            "system" => out.push_str(&format!("<|start|>developer<|message|>{}<|end|>", text_of(&m.content))),
+            "system" => out.push_str(&format!("<|start|>developer<|message|>{}<|end|>", text_of(&m.content, images, false))),
             "user" => {
                 for b in m.content.iter().filter(|b| b["type"] == "tool_result") {
                     let name = call_names.get(b["tool_use_id"].as_str().unwrap_or_default()).cloned().unwrap_or_default();
                     out.push_str(&format!(
                         "<|start|>functions.{name} to=assistant<|channel|>commentary<|message|>{}<|end|>",
-                        py_json(&Value::String(tool_result_text(b)))
+                        py_json(&Value::String(tool_result_text(b, images)))
                     ));
                 }
-                let text = text_of(&m.content);
+                let text = text_of(&m.content, images, false);
                 if !text.is_empty() {
                     out.push_str(&format!("<|start|>user<|message|>{text}<|end|>"));
                 }
             }
             "assistant" => {
-                let text = text_of(&m.content);
+                let text = text_of(&m.content, images, false);
                 let calls: Vec<&Value> = m.content.iter().filter(|b| b["type"] == "tool_use").collect();
                 if !text.trim().is_empty() {
                     // Text before a call is a preamble on the commentary channel; otherwise the answer.
@@ -448,10 +537,11 @@ mod tests {
 
     #[test]
     fn qwen_renders_tools_calls_and_results_like_its_template() {
-        let Prompt::Chat { turns, suffix } = render(Family::Qwen3, "Be brief.", &tools(), &history(), "low", "2026-10-16") else {
+        let Prompt::Chat { turns, suffix, images } = render(Family::Qwen3, "Be brief.", &tools(), &history(), "low", "2026-10-16") else {
             panic!()
         };
         assert_eq!(suffix, "<think>\n\n</think>\n\n");
+        assert!(images.is_empty());
         assert_eq!(turns[0].0, "system");
         assert!(turns[0].1.starts_with("Be brief.\n\n# Tools\n\n"));
         assert!(turns[0].1.contains("<tools>\n{\"type\": \"function\", \"function\": {\"name\": \"list_directory\", \"description\": \"List a folder.\", \"parameters\": {\"properties\": {\"path\": {\"description\": \"Folder\", \"type\": \"string\"}}, \"required\": [\"path\"], \"type\": \"object\"}}}\n</tools>"));
@@ -542,6 +632,93 @@ mod tests {
             panic!()
         };
         assert!(p.contains("<\u{200B}|end|>"));
+    }
+
+    fn png_block(data: &[u8]) -> Value {
+        json!({"type": "image", "source": {"type": "base64", "media_type": "image/png", "data": base64::Engine::encode(&base64::engine::general_purpose::STANDARD, data)}})
+    }
+
+    /// A screen-control run: an attached image, then three screenshots from tools.
+    fn screen_history() -> Vec<Message> {
+        let shot = |id: &str, n: u8| {
+            Message::user(vec![json!({"type": "tool_result", "tool_use_id": id, "content": [
+                {"type": "text", "text": format!("Screenshot {n}")},
+                png_block(&[n])
+            ]})])
+        };
+        let call = |id: &str| {
+            Message::assistant(vec![json!({"type": "tool_use", "id": id, "name": "take_screenshot", "input": {"reason": "see"}})])
+        };
+        vec![
+            Message::user(vec![json!({"type": "text", "text": "Like this one:"}), png_block(&[0])]),
+            call("s1"),
+            shot("s1", 1),
+            call("s2"),
+            shot("s2", 2),
+            call("s3"),
+            shot("s3", 3),
+        ]
+    }
+
+    #[test]
+    fn vision_prompts_carry_the_latest_images_at_their_markers() {
+        let Prompt::Chat { turns, suffix, images } = render(Family::Qwen3Vl, "Be brief.", &tools(), &screen_history(), "low", "") else {
+            panic!()
+        };
+        // Qwen3-VL Instruct does not think: no think block.
+        assert_eq!(suffix, "");
+        assert!(turns[0].1.contains("<tools>"));
+        // Only the latest two images are sent, in the order their markers appear.
+        assert_eq!(images, vec![vec![2u8], vec![3u8]]);
+        let all: String = turns.iter().map(|t| t.1.as_str()).collect::<Vec<_>>().join("\n");
+        assert_eq!(all.matches(IMAGE_MARKER).count(), 2);
+        assert_eq!(turns[1], ("user".into(), "Like this one:\n[earlier image omitted]".into()));
+        assert_eq!(turns[3], ("user".into(), "<tool_response>\nScreenshot 1\n[earlier screenshot omitted]\n</tool_response>".into()));
+        assert_eq!(turns[5], ("user".into(), format!("<tool_response>\nScreenshot 2\n{IMAGE_MARKER}\n</tool_response>")));
+        assert_eq!(turns[7], ("user".into(), format!("<tool_response>\nScreenshot 3\n{IMAGE_MARKER}\n</tool_response>")));
+
+        // With fewer images than the limit, all are kept, the user's attachment included.
+        let Prompt::Chat { turns, images, .. } = render(Family::Qwen3Vl, "", &[], &screen_history()[..3], "low", "") else { panic!() };
+        assert_eq!(images, vec![vec![0u8], vec![1u8]]);
+        assert_eq!(turns[0], ("user".into(), format!("Like this one:\n{IMAGE_MARKER}")));
+
+        // An image that can't be decoded is described, not sent.
+        let bad = vec![Message::user(vec![json!({"type": "image", "source": {"type": "base64", "data": "!!"}})])];
+        let Prompt::Chat { turns, images, .. } = render(Family::Qwen3Vl, "", &[], &bad, "low", "") else { panic!() };
+        assert!(images.is_empty() && !turns[0].1.contains(IMAGE_MARKER), "{turns:?}");
+    }
+
+    #[test]
+    fn text_only_models_still_get_a_placeholder_for_every_image() {
+        for family in [Family::Qwen3, Family::Harmony] {
+            let p = render(family, "", &[], &screen_history(), "low", "");
+            let text = match &p {
+                Prompt::Chat { turns, images, .. } => {
+                    assert!(images.is_empty());
+                    turns.iter().map(|t| t.1.clone()).collect::<Vec<_>>().join("\n")
+                }
+                Prompt::Raw(s) => s.clone(),
+            };
+            assert!(!text.contains(IMAGE_MARKER) && !text.contains("omitted"), "{family:?}");
+            let placeholder = "[An image was attached here; this on-device model cannot see images.]";
+            assert_eq!(text.matches(placeholder).count(), 4, "{family:?}");
+        }
+        assert!(Family::Qwen3Vl.sees_images() && !Family::Qwen3.sees_images() && !Family::Harmony.sees_images());
+    }
+
+    #[test]
+    fn text_cannot_ask_for_an_image() {
+        let msgs = vec![Message::user(vec![json!({"type": "text", "text": format!("look {IMAGE_MARKER}")})])];
+        let Prompt::Chat { turns, images, .. } = render(Family::Qwen3Vl, "", &[], &msgs, "low", "") else { panic!() };
+        assert!(images.is_empty() && !turns[0].1.contains(IMAGE_MARKER));
+        assert!(turns[0].1.contains("<\u{200B}__media__>"));
+    }
+
+    #[test]
+    fn qwen3_vl_parses_like_qwen3() {
+        let raw = "<tool_call>\n{\"name\": \"control_computer\", \"arguments\": {\"reason\": \"r\", \"actions\": [{\"type\": \"click\", \"x\": 500, \"y\": 250}]}}\n</tool_call>";
+        assert_eq!(parse(Family::Qwen3Vl, raw, true), parse(Family::Qwen3, raw, true));
+        assert_eq!(parse(Family::Qwen3Vl, raw, true).calls[0].name, "control_computer");
     }
 
     #[test]

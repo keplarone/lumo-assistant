@@ -201,6 +201,7 @@ export function LocalModels({
                     </Badge>
                   )}
                   {m.installed && !m.selected && <Badge tone="success">Downloaded</Badge>}
+                  {m.vision && <Badge>Sees your screen</Badge>}
                   {locked && <Badge tone="accent">{planShortName(locked)}</Badge>}
                 </div>
                 <div className="lm-local-model-attr">

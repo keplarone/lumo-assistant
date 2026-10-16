@@ -2,14 +2,21 @@
 //! model stays loaded between requests (and between the steps of one agent run) and the prompt
 //! prefix that is already in the KV cache is not computed again. The thread loads the model a job
 //! asks for, unloads it when a job needs another one, when told to, or after a while without use.
+//!
+//! A vision model is loaded with its image projector (llama.cpp's multimodal library, "mtmd"), and
+//! the two are unloaded together. A prompt with images is split at its first image: the text before
+//! it is decoded like any prompt (and reuses the KV cache), the rest, images included, goes through
+//! mtmd. Positions after an image no longer count tokens (Qwen3-VL uses M-RoPE), so the cache is only
+//! trusted up to the first image; the next request decodes from there again. Correct over fast.
 
-use super::format::Prompt;
+use super::format::{Prompt, IMAGE_MARKER};
 use llama_cpp_2::context::params::LlamaContextParams;
 use llama_cpp_2::context::LlamaContext;
 use llama_cpp_2::llama_backend::LlamaBackend;
 use llama_cpp_2::llama_batch::LlamaBatch;
 use llama_cpp_2::model::params::LlamaModelParams;
 use llama_cpp_2::model::{LlamaChatMessage, LlamaChatTemplate, LlamaModel};
+use llama_cpp_2::mtmd::{MtmdBitmap, MtmdContext, MtmdContextParams, MtmdInputText};
 use llama_cpp_2::sampling::LlamaSampler;
 use llama_cpp_2::token::LlamaToken;
 use parking_lot::Mutex;
@@ -23,6 +30,9 @@ use tokio_util::sync::CancellationToken;
 const IDLE_UNLOAD: Duration = Duration::from_secs(15 * 60);
 /// Prompt tokens decoded per batch; cancellation is checked between batches.
 const BATCH: usize = 512;
+/// Images are scaled down so their long side is at most this many pixels (about 1,000 tokens for a
+/// 16:9 screenshot with Qwen3-VL's 32-pixel patches).
+pub const MAX_IMAGE_SIDE: u32 = 1280;
 
 #[derive(Debug, Clone)]
 pub struct Sampling {
@@ -34,6 +44,8 @@ pub struct Sampling {
 
 pub struct Job {
     pub path: PathBuf,
+    /// The image projector, for a vision model.
+    pub mmproj: Option<PathBuf>,
     /// Context window to allocate (capped at what the model was trained for).
     pub n_ctx: u32,
     pub prompt: Prompt,
@@ -173,6 +185,31 @@ fn load(backend: &LlamaBackend, path: &PathBuf) -> Result<LlamaModel, String> {
     }
 }
 
+/// A loaded model and, for a vision model, its projector. The projector refers to the model, so it
+/// is declared first: fields are dropped in order.
+struct Loaded {
+    mtmd: Option<MtmdContext>,
+    model: LlamaModel,
+}
+
+fn load_projector(model: &LlamaModel, mmproj: &std::path::Path) -> Result<MtmdContext, String> {
+    let path = mmproj.to_str().ok_or("The image projector's path is not valid text.")?;
+    let params = MtmdContextParams {
+        use_gpu: gpu_allowed(),
+        print_timings: false,
+        n_threads: threads(),
+        media_marker: std::ffi::CString::new(IMAGE_MARKER).map_err(|e| e.to_string())?,
+        image_min_tokens: -1,
+        image_max_tokens: -1,
+    };
+    let ctx = MtmdContext::init_from_file(path, model, &params)
+        .map_err(|e| format!("The on-device model's image projector could not be loaded: {e}"))?;
+    if !ctx.support_vision() {
+        return Err("The on-device model's image projector does not support images.".into());
+    }
+    Ok(ctx)
+}
+
 fn worker(rx: mpsc::Receiver<Msg>) {
     let mut pending: Option<Box<Job>> = None;
     loop {
@@ -203,24 +240,32 @@ fn worker(rx: mpsc::Receiver<Msg>) {
                 continue;
             }
         };
-        let path = job.path.clone();
+        let mtmd = match job.mmproj.as_deref().map(|p| load_projector(&model, p)).transpose() {
+            Ok(m) => m,
+            Err(e) => {
+                let _ = job.events.send(Gen::Error(e));
+                continue;
+            }
+        };
+        let loaded = Loaded { mtmd, model };
+        let key = (job.path.clone(), job.mmproj.clone());
         let mut session: Option<Session> = None;
         let mut next = Some(job);
         let mut ack = None;
         while let Some(job) = next.take() {
-            run_job(backend, &model, &mut session, *job);
+            run_job(backend, &loaded, &mut session, *job);
             // Keep the model while jobs for it keep coming.
             match rx.recv_timeout(IDLE_UNLOAD) {
-                Ok(Msg::Generate(j)) if j.path == path => next = Some(j),
+                Ok(Msg::Generate(j)) if (&j.path, &j.mmproj) == (&key.0, &key.1) => next = Some(j),
                 Ok(Msg::Generate(j)) => pending = Some(j),
                 Ok(Msg::Unload(a)) => ack = a,
                 Err(mpsc::RecvTimeoutError::Timeout) => {}
                 Err(mpsc::RecvTimeoutError::Disconnected) => return,
             }
         }
-        // Free the context, then the model.
+        // Free the context, then the projector and the model.
         drop(session);
-        drop(model);
+        drop(loaded);
         if let Some(a) = ack {
             let _ = a.send(());
         }
@@ -234,9 +279,9 @@ struct Session<'m> {
     cached: Vec<LlamaToken>,
 }
 
-fn run_job<'m>(backend: &LlamaBackend, model: &'m LlamaModel, session: &mut Option<Session<'m>>, job: Job) {
+fn run_job<'m>(backend: &LlamaBackend, loaded: &'m Loaded, session: &mut Option<Session<'m>>, job: Job) {
     let events = job.events.clone();
-    let res = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| generate(backend, model, session, &job)));
+    let res = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| generate(backend, loaded, session, &job)));
     match res {
         Ok(Ok(ev)) => {
             let _ = events.send(ev);
@@ -256,7 +301,7 @@ fn run_job<'m>(backend: &LlamaBackend, model: &'m LlamaModel, session: &mut Opti
 fn prompt_text(model: &LlamaModel, prompt: &Prompt) -> Result<String, String> {
     match prompt {
         Prompt::Raw(s) => Ok(s.clone()),
-        Prompt::Chat { turns, suffix } => {
+        Prompt::Chat { turns, suffix, .. } => {
             // The model's own template from its GGUF metadata, applied by llama.cpp.
             let tmpl = model
                 .chat_template(None)
@@ -275,11 +320,68 @@ fn prompt_text(model: &LlamaModel, prompt: &Prompt) -> Result<String, String> {
     }
 }
 
-fn generate<'m>(backend: &LlamaBackend, model: &'m LlamaModel, session: &mut Option<Session<'m>>, job: &Job) -> Result<Gen, String> {
+/// An image, decoded and scaled down so its long side is at most `MAX_IMAGE_SIDE`, as RGB bytes.
+pub fn decode_image(bytes: &[u8]) -> Result<(u32, u32, Vec<u8>), String> {
+    let img = image::load_from_memory(bytes).map_err(|e| format!("An image could not be read: {e}"))?;
+    let img = if img.width().max(img.height()) > MAX_IMAGE_SIDE {
+        img.resize(MAX_IMAGE_SIDE, MAX_IMAGE_SIDE, image::imageops::FilterType::Triangle)
+    } else {
+        img
+    };
+    let rgb = img.to_rgb8();
+    Ok((rgb.width(), rgb.height(), rgb.into_raw()))
+}
+
+/// The prompt as the engine decodes it: plain tokens up to the first image, then (with images) the
+/// rest as mtmd chunks.
+struct Tokenized {
+    head: Vec<LlamaToken>,
+    rest: Option<llama_cpp_2::mtmd::MtmdInputChunks>,
+}
+
+impl Tokenized {
+    /// KV cells the prompt fills.
+    fn len(&self) -> usize {
+        self.head.len() + self.rest.as_ref().map_or(0, |r| r.total_tokens())
+    }
+}
+
+fn tokenize(model: &LlamaModel, mtmd: Option<&MtmdContext>, job: &Job) -> Result<Tokenized, String> {
     let text = prompt_text(model, &job.prompt)?;
+    let images: &[Vec<u8>] = match &job.prompt {
+        Prompt::Chat { images, .. } => images.as_slice(),
+        Prompt::Raw(_) => &[],
+    };
     let vocab = model.vocab();
-    let tokens = vocab.tokenize(text.as_bytes(), true, true);
-    if tokens.is_empty() {
+    if images.is_empty() {
+        return Ok(Tokenized { head: vocab.tokenize(text.as_bytes(), true, true), rest: None });
+    }
+    let mtmd = mtmd.ok_or("This on-device model can't read images.")?;
+    if text.matches(IMAGE_MARKER).count() != images.len() {
+        return Err("The prompt's images didn't line up with the text.".into());
+    }
+    let split = text.find(IMAGE_MARKER).unwrap_or(text.len());
+    let head = vocab.tokenize(text[..split].as_bytes(), true, true);
+    let bitmaps = images
+        .iter()
+        .map(|b| {
+            let (w, h, rgb) = decode_image(b)?;
+            MtmdBitmap::from_image_data(w, h, &rgb).map_err(|e| format!("An image could not be prepared: {e}"))
+        })
+        .collect::<Result<Vec<_>, String>>()?;
+    let refs: Vec<&MtmdBitmap> = bitmaps.iter().collect();
+    let rest = mtmd
+        .tokenize(MtmdInputText { text: text[split..].to_string(), add_special: false, parse_special: true }, &refs)
+        .map_err(|e| format!("The images could not be prepared for the model: {e}"))?;
+    Ok(Tokenized { head, rest: Some(rest) })
+}
+
+fn generate<'m>(backend: &LlamaBackend, loaded: &'m Loaded, session: &mut Option<Session<'m>>, job: &Job) -> Result<Gen, String> {
+    let model = &loaded.model;
+    let prompt = tokenize(model, loaded.mtmd.as_ref(), job)?;
+    let tokens = &prompt.head;
+    let vocab = model.vocab();
+    if prompt.len() == 0 {
         return Err("The prompt was empty.".into());
     }
 
@@ -302,33 +404,49 @@ fn generate<'m>(backend: &LlamaBackend, model: &'m LlamaModel, session: &mut Opt
 
     // Leave room for at least a short answer.
     let room = (job.max_tokens as usize).min(1024);
-    if tokens.len() + room > n_ctx as usize {
-        return Ok(Gen::TooLong { prompt_tokens: tokens.len(), n_ctx });
+    if prompt.len() + room > n_ctx as usize {
+        return Ok(Gen::TooLong { prompt_tokens: prompt.len(), n_ctx });
     }
 
-    // Reuse the part of the prompt already in the cache. At least one token is decoded again so
-    // there are logits to sample from.
-    let mut keep = s.cached.iter().zip(&tokens).take_while(|(a, b)| a == b).count().min(tokens.len() - 1);
-    if keep < s.cached.len() && !matches!(s.ctx.clear_kv_cache_seq(Some(0), Some(keep as u32), None), Ok(true)) {
+    // Reuse the part of the prompt already in the cache. Without images at least one token is
+    // decoded again so there are logits to sample from; with images the chunks after the head do.
+    let reusable = if prompt.rest.is_some() { tokens.len() } else { tokens.len() - 1 };
+    let mut keep = s.cached.iter().zip(tokens).take_while(|(a, b)| a == b).count().min(reusable);
+    if !matches!(s.ctx.clear_kv_cache_seq(Some(0), Some(keep as u32), None), Ok(true)) {
         s.ctx.clear_kv_cache();
         keep = 0;
     }
     s.cached.truncate(keep);
 
     let mut batch = LlamaBatch::new(BATCH, 1);
+    // Next position, and KV cells in use (they differ after an image).
     let mut pos = keep;
+    let mut used = keep;
     for chunk in tokens[keep..].chunks(BATCH) {
         if job.cancel.is_cancelled() {
             return Ok(Gen::Cancelled);
         }
         batch.clear();
         for (i, t) in chunk.iter().enumerate() {
-            let last = pos + i == tokens.len() - 1;
+            let last = prompt.rest.is_none() && pos + i == tokens.len() - 1;
             batch.add(*t, (pos + i) as i32, &[0], last).map_err(|e| e.to_string())?;
         }
         s.ctx.decode(&mut batch).map_err(|e| format!("The on-device model failed: {e}"))?;
         s.cached.extend_from_slice(chunk);
         pos += chunk.len();
+        used += chunk.len();
+    }
+    // Only plain text keeps the cache in step with the tokens: stop tracking after an image.
+    let track = prompt.rest.is_none();
+    if let (Some(rest), Some(mtmd)) = (&prompt.rest, loaded.mtmd.as_ref()) {
+        if job.cancel.is_cancelled() {
+            return Ok(Gen::Cancelled);
+        }
+        let n_past = rest
+            .eval_chunks(mtmd, &s.ctx, pos as i32, 0, BATCH as i32, true)
+            .map_err(|e| format!("The on-device model failed to read an image: {e}"))?;
+        pos = n_past.max(0) as usize;
+        used += rest.total_tokens();
     }
 
     let seed = rand::random::<u32>();
@@ -347,7 +465,8 @@ fn generate<'m>(backend: &LlamaBackend, model: &'m LlamaModel, session: &mut Opt
         if job.cancel.is_cancelled() {
             return Ok(Gen::Cancelled);
         }
-        let token = sampler.sample(&s.ctx, batch.n_tokens() - 1);
+        // The logits of the last token decoded, whichever way it was.
+        let token = sampler.sample(&s.ctx, -1);
         if vocab.is_eog(token) {
             break;
         }
@@ -366,15 +485,47 @@ fn generate<'m>(backend: &LlamaBackend, model: &'m LlamaModel, session: &mut Opt
                 return Ok(Gen::Cancelled);
             }
         }
-        if produced >= job.max_tokens as u64 || pos + 1 >= n_ctx as usize {
+        if produced >= job.max_tokens as u64 || used + 1 >= n_ctx as usize {
             hit_limit = true;
             break;
         }
         batch.clear();
         batch.add(token, pos as i32, &[0], true).map_err(|e| e.to_string())?;
         s.ctx.decode(&mut batch).map_err(|e| format!("The on-device model failed: {e}"))?;
-        s.cached.push(token);
+        if track {
+            s.cached.push(token);
+        }
         pos += 1;
+        used += 1;
     }
-    Ok(Gen::Done { prompt_tokens: tokens.len() as u64, output_tokens: produced, hit_limit })
+    Ok(Gen::Done { prompt_tokens: prompt.len() as u64, output_tokens: produced, hit_limit })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn the_prompt_marker_is_llama_cpps_default() {
+        assert_eq!(IMAGE_MARKER, llama_cpp_2::mtmd::mtmd_default_marker());
+    }
+
+    #[test]
+    fn images_are_decoded_to_rgb_and_scaled_down() {
+        let png = |w, h| {
+            let img = image::RgbImage::from_pixel(w, h, image::Rgb([255, 0, 0]));
+            let mut out = std::io::Cursor::new(Vec::new());
+            img.write_to(&mut out, image::ImageFormat::Png).unwrap();
+            out.into_inner()
+        };
+        let (w, h, rgb) = decode_image(&png(64, 32)).unwrap();
+        assert_eq!((w, h, rgb.len()), (64, 32, 64 * 32 * 3));
+        assert_eq!(&rgb[..3], &[255, 0, 0]);
+        let (w, h, rgb) = decode_image(&png(2560, 1440)).unwrap();
+        assert_eq!((w, h), (1280, 720));
+        assert_eq!(rgb.len(), (w * h * 3) as usize);
+        let (w, h, _) = decode_image(&png(1000, 3000)).unwrap();
+        assert_eq!((w, h), (427, 1280));
+        assert!(decode_image(b"not an image").is_err());
+    }
 }

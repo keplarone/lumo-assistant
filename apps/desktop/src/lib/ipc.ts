@@ -499,6 +499,8 @@ export interface LocalModel {
   downloadGb: number;
   minMemoryGb: number;
   summary: string;
+  /** Sees images: screenshots and attachments, which on-device screen control needs. */
+  vision: boolean;
   displayName: string;
   installed: boolean;
   /** Bytes of an unfinished download that continues next time (0 if none). */

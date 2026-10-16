@@ -44,6 +44,7 @@ pub const PLANS: [PlanLimits; 4] = [
         id: "free",
         name: "Free",
         monthly_tokens: Some(1_000_000),
+        // Not Nebula Vision: what it adds is screen control, which Free doesn't include.
         local_models: Some(&["qwen3:4b", "qwen3:8b"]),
         cloud_models: false,
         automations: Some(1),
@@ -498,7 +499,7 @@ mod tests {
         let u = usage_at(&core, now);
         assert_eq!((u.plan.as_str(), u.tokens_limit, u.percent_used, u.automations_allowed), ("unlimited", None, None, None));
         assert_eq!(u.tokens_used, 10_181_050_000);
-        assert!(u.computer_control && u.cloud_models && u.allowed_models.len() == 4);
+        assert!(u.computer_control && u.cloud_models && u.allowed_models.len() == 5);
         assert_eq!(u.plans.len(), 4);
         assert_eq!(serde_json::to_value(&u).unwrap()["tokensLimit"], serde_json::Value::Null);
     }
@@ -535,6 +536,10 @@ mod tests {
         let free = limits("free");
         assert!(model_allowed(free, "local", "qwen3:4b") && model_allowed(free, "local", "qwen3:8b"));
         assert!(!model_allowed(free, "local", "gpt-oss:20b") && !model_allowed(free, "local", "qwen3:30b"));
+        // The vision model exists for screen control, a paid feature.
+        assert!(!model_allowed(free, "local", "qwen3-vl:8b"));
+        let msg = check_model(free, "local", "qwen3-vl:8b").unwrap_err().to_string();
+        assert!(msg.starts_with("Nebula Vision 4.2 is part of Lumo Lite, Lumo Pro and Lumo Unlimited."), "{msg}");
         assert!(!model_allowed(free, "anthropic", "claude-opus-5-5") && !model_allowed(free, "openai_compatible", "llama3.1"));
         let msg = check_model(free, "local", "qwen3:30b").unwrap_err().to_string();
         assert!(
@@ -545,7 +550,7 @@ mod tests {
         assert!(msg.contains("Cloud and custom model providers are part of Lumo Lite, Lumo Pro and Lumo Unlimited"), "{msg}");
         for plan in ["lite", "pro", "unlimited"] {
             let l = limits(plan);
-            for m in ["qwen3:4b", "qwen3:8b", "gpt-oss:20b", "qwen3:30b"] {
+            for m in ["qwen3:4b", "qwen3:8b", "gpt-oss:20b", "qwen3:30b", "qwen3-vl:8b"] {
                 assert!(model_allowed(l, "local", m), "{plan} {m}");
             }
             assert!(model_allowed(l, "anthropic", "claude-opus-5-5") && model_allowed(l, "openai_compatible", "x"));
@@ -583,6 +588,7 @@ mod tests {
         assert!(core.provider().err().unwrap().to_string().starts_with("Solar 5.4 is part of"));
         assert_eq!(required_plan(&core, "gpt-oss:20b"), Some("lite"));
         assert_eq!(required_plan(&core, "qwen3:8b"), None);
+        assert_eq!(required_plan(&core, "qwen3-vl:8b"), Some("lite"));
         set_plan(&core, "lite");
         // Allowed now: what's missing is only the download.
         let err = core.provider().err().unwrap();
@@ -590,7 +596,7 @@ mod tests {
         assert!(err.to_string().starts_with("Solar 5.4 isn't downloaded yet"), "{err}");
         assert_eq!(required_plan(&core, "gpt-oss:20b"), None);
         let u = usage(&core);
-        assert_eq!(u.allowed_models.len(), 4);
+        assert_eq!(u.allowed_models.len(), 5);
         assert_eq!((u.automations_allowed, u.computer_control, u.cloud_models), (Some(10), true, true));
         assert_eq!(u.plans[0].local_models, vec!["Orbit 3.8".to_string(), "Nebula 4.2".to_string()]);
     }
