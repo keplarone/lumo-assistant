@@ -1,10 +1,11 @@
-//! Lumo's live icons. The installed app icon can't move, but while Lumo runs his tray (menu bar)
-//! icon, his window icons (the taskbar on Windows and Linux) and his Dock icon on macOS can: he
-//! blinks now and then while idle, flutters his wings while he works, and waves when a reply is
-//! ready or something needs you. Settings > General > "Animated icon" turns it off.
+//! Lumo's live icons. The installed app icon can't move, but while Lumo runs the tray (menu bar)
+//! icon, the window icons (the taskbar on Windows and Linux) and the Dock icon on macOS can: a light
+//! sweeps across the blue knot's fur now and then while idle, the knot turns slowly with a shimmer
+//! while Lumo works, and it bounces when a reply is ready or something needs you. Settings > General
+//! > "Animated icon" turns it off.
 //!
-//! The frames are rendered from the 3D character (packages/mascot/scripts/render-icons.mjs) and
-//! embedded in the binary. A small thread swaps them, only when the frame actually changes.
+//! The frames are made from the knot artwork (apps/desktop/scripts/make-icons.py) and embedded in
+//! the binary. A small thread swaps them, only when the frame actually changes.
 
 use std::sync::atomic::{AtomicBool, AtomicI32, Ordering};
 use std::sync::{Arc, OnceLock};
@@ -24,8 +25,11 @@ macro_rules! frames {
 }
 
 const IDLE: &[&[u8]] = frames!("idle-0");
-const BLINK: &[&[u8]] = frames!("blink-0", "blink-1", "blink-2");
-const WORK: &[&[u8]] = frames!("work-0", "work-1", "work-2", "work-3", "work-4", "work-5");
+const BLINK: &[&[u8]] = frames!("blink-0", "blink-1", "blink-2", "blink-3", "blink-4", "blink-5");
+const WORK: &[&[u8]] = frames!(
+    "work-0", "work-1", "work-2", "work-3", "work-4", "work-5", "work-6", "work-7", "work-8", "work-9", "work-10", "work-11", "work-12",
+    "work-13", "work-14", "work-15", "work-16", "work-17", "work-18", "work-19", "work-20", "work-21", "work-22", "work-23"
+);
 const WAVE: &[&[u8]] = frames!("wave-0", "wave-1", "wave-2", "wave-3", "wave-4", "wave-5", "wave-6", "wave-7", "wave-8", "wave-9");
 
 /// One frame every TICK while something plays (12.5 frames a second).
@@ -264,17 +268,17 @@ mod tests {
     fn idle_holds_then_blinks() {
         let mut a = Animator::new(0.0);
         assert!(run_ticks(&mut a, 0.0, 20).iter().all(|f| *f == (Clip::Idle, 0)));
-        let later = run_ticks(&mut a, BLINK_EVERY, 6);
+        let later = run_ticks(&mut a, BLINK_EVERY, BLINK.len() + 2);
         assert_eq!(later[0], (Clip::Blink, 0));
-        assert_eq!(later[2], (Clip::Blink, 2));
-        assert_eq!(later[3], (Clip::Idle, 0));
+        assert_eq!(later[BLINK.len() - 1], (Clip::Blink, BLINK.len() - 1));
+        assert_eq!(later[BLINK.len()], (Clip::Idle, 0));
     }
 
     #[test]
     fn works_in_a_loop_then_waves_once_when_done() {
         let mut a = Animator::new(0.0);
         a.set_working(true);
-        let f = run_ticks(&mut a, 0.0, 14);
+        let f = run_ticks(&mut a, 0.0, WORK.len() + 2);
         assert_eq!(f[0], (Clip::Work, 0));
         assert!(f.iter().all(|(c, _)| *c == Clip::Work));
         assert_eq!(f[WORK.len()], (Clip::Work, 0), "loops");

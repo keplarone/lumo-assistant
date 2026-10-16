@@ -213,12 +213,12 @@ function TourSafe({ onBack, onNext }: { onBack: () => void; onNext: () => void }
   );
 }
 
-/** Tour 3: Lumo can fly around the desktop. The switch is the real setting. */
+/** Tour 3: Lumo on the desktop. The switch is the real setting. */
 function TourDesktop({ onBack, onNext }: { onBack: () => void; onNext: () => void }) {
   const app = useApp();
   return (
     <div className="lm-onboarding-body">
-      <h1 className="lm-onboarding-title">I can fly anywhere on your screen</h1>
+      <h1 className="lm-onboarding-title">I keep you company on your desktop</h1>
       <div className="lm-demo lm-demo-desktop" aria-hidden="true">
         <div className="lm-demo-screen">
           <span className="lm-demo-window" />
@@ -234,8 +234,8 @@ function TourDesktop({ onBack, onNext }: { onBack: () => void; onNext: () => voi
             Lumo on your desktop
           </div>
           <div className="lm-setting-desc" id="buddy-desc">
-            I float on top of your other apps, say hi now and then, and show you where I’m working. Click me
-            to boop me, double-click to ask me something, or drag me anywhere.
+            I stay near your other apps, say hi now and then, and show you where I’m working. Click me to boop
+            me, double-click to ask me something, or drag me where you like.
           </div>
         </div>
         <Switch

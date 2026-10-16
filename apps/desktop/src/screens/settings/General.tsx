@@ -98,7 +98,7 @@ export function GeneralSection() {
         <>
           <SettingRow
             label="Lumo on your desktop"
-            description="Lumo flies around your screen, points at what he is doing, and says hi now and then."
+            description="Lumo keeps you company on your desktop, shows you where he is working, and says hi now and then."
           >
             <Switch
               checked={s.buddyEnabled}
