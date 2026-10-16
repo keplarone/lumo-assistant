@@ -1,6 +1,7 @@
 # Releasing Lumo
 
-Pushing a tag like `v0.1.0` runs `.github/workflows/release.yml`. It builds installers on macOS (universal),
+Pushing a tag like `v0.1.0`, or running the Release workflow by hand on the default branch, runs
+`.github/workflows/release.yml`; the release is tagged `v<app version>`. It builds installers on macOS (universal),
 Windows and Linux and attaches them to a **draft pre-release**. Nothing is published until a person reviews
 the draft and publishes it.
 
@@ -51,7 +52,8 @@ never ship inside the app. To turn it on:
    installers, then deploy the site.
 7. Plans: Whop checkout links open real purchases. Confirm license activation works against the deployed
    license server before announcing paid plans.
-8. Write release notes, then publish the draft. Untick "pre-release" only for a stable release.
+8. Write release notes, then publish the draft (on GitHub, or by running the **Publish release** workflow, which
+   publishes it as a pre-release). Untick "pre-release" only for a stable release.
 
 ## Building locally
 
