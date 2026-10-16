@@ -67,11 +67,17 @@ pub struct Paths {
 pub struct Endpoints {
     pub nominatim: String,
     pub overpass: String,
+    /// Host that on-device model files are downloaded from (the catalog pins the rest of the address).
+    pub model_downloads: String,
 }
 
 impl Default for Endpoints {
     fn default() -> Self {
-        Endpoints { nominatim: "https://nominatim.openstreetmap.org".into(), overpass: "https://overpass-api.de/api/interpreter".into() }
+        Endpoints {
+            nominatim: "https://nominatim.openstreetmap.org".into(),
+            overpass: "https://overpass-api.de/api/interpreter".into(),
+            model_downloads: crate::local_models::DOWNLOAD_HOST.into(),
+        }
     }
 }
 
@@ -114,6 +120,8 @@ pub struct Core {
     pub provider_override: Mutex<Option<Arc<dyn ModelProvider>>>,
     pub endpoints: Mutex<Endpoints>,
     pub api_bases: Mutex<crate::integrations::ApiBases>,
+    /// The built-in on-device model engine (keeps the model in use loaded).
+    pub local_engine: Arc<crate::model::local::engine::Engine>,
 }
 
 impl Core {
@@ -134,6 +142,7 @@ impl Core {
             provider_override: Mutex::new(None),
             endpoints: Mutex::new(Endpoints::default()),
             api_bases: Mutex::new(Default::default()),
+            local_engine: Arc::new(Default::default()),
         })
     }
 
@@ -151,16 +160,22 @@ impl Core {
         crate::plans::check_model(crate::plans::limits(&s.plan), &s.provider, &s.chat_model())?;
         match s.provider.as_str() {
             "local" => {
-                if s.local_model.is_empty() {
-                    return Err(crate::error::LumoError::Unavailable(
+                let choose = || {
+                    crate::error::LumoError::Unavailable(
                         "Download an on-device model (Orbit, Nebula, Solar or Nova) in Settings → Model to start.".into(),
-                    ));
+                    )
+                };
+                let entry = crate::local_models::catalog_entry(&s.local_model).map_err(|_| choose())?;
+                if !crate::local_models::is_installed(self, entry) {
+                    return Err(crate::error::LumoError::Unavailable(format!(
+                        "{} isn't downloaded yet. Download it in Settings → Model to start.",
+                        entry.tier
+                    )));
                 }
-                Ok(Arc::new(crate::model::openai::OpenAiCompatible::new(
-                    self.http.clone(),
-                    &format!("{}/v1", s.local_base_url.trim_end_matches('/')),
-                    None,
-                    s.local_model.clone(),
+                Ok(Arc::new(crate::model::local::LocalProvider::new(
+                    self.local_engine.clone(),
+                    entry,
+                    crate::local_models::model_path(self, entry),
                 )))
             }
             "openai_compatible" => {

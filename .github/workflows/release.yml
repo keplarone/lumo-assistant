@@ -22,13 +22,14 @@ jobs:
             args: --target universal-apple-darwin
           - platform: windows-2022
             args: ''
+          # Vulkan GPU support for on-device models (see docs/release.md); Windows stays CPU-only for now.
           - platform: ubuntu-24.04
-            args: ''
+            args: '--features vulkan'
     runs-on: ${{ matrix.platform }}
     steps:
       - uses: actions/checkout@v4
       - if: runner.os == 'Linux'
-        run: sudo apt-get update && sudo apt-get install -y libwebkit2gtk-4.1-dev libayatana-appindicator3-dev librsvg2-dev libxdo-dev libssl-dev libpipewire-0.3-dev libgbm-dev libxcb1-dev libxrandr-dev libdbus-1-dev
+        run: sudo apt-get update && sudo apt-get install -y libwebkit2gtk-4.1-dev libayatana-appindicator3-dev librsvg2-dev libxdo-dev libssl-dev libpipewire-0.3-dev libgbm-dev libxcb1-dev libxrandr-dev libdbus-1-dev libvulkan-dev glslc spirv-headers
       - uses: pnpm/action-setup@v4
       - uses: actions/setup-node@v4
         with:
