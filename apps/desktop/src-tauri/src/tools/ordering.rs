@@ -69,10 +69,16 @@ fn order_text(app: &str, i: &StartOrderInput) -> String {
     s
 }
 
-/// Filling a cart needs screen control (a paid plan) and a model that can see screenshots. The
-/// on-device models are text-only, so with them Lumo hands the order over instead.
+/// Filling a cart needs screen control (a paid plan) and a model that can see screenshots;
+/// otherwise Lumo hands the order over with the list copied.
 fn can_control(ctx: &ToolCtx) -> bool {
-    crate::plans::current(&ctx.core).computer_control && ctx.core.settings().provider != "local"
+    crate::plans::current(&ctx.core).computer_control && model_sees_images(&ctx.core)
+}
+
+/// Whether the selected model can read screenshots. The on-device models are text-only.
+/// When models gain a vision flag, check that here.
+pub fn model_sees_images(core: &Core) -> bool {
+    core.settings().provider != "local"
 }
 
 #[async_trait]
