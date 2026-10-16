@@ -665,6 +665,12 @@ export const api = {
   deleteLocalModel: (id: string) => call<void>('delete_local_model', { id }),
   selectLocalModel: (id: string) => call<void>('select_local_model', { id }),
 
+  /**
+   * Find the device's location (native confirmation first), round it to ~100 m, name it with
+   * OpenStreetMap and save it as the default location. Errors say how to allow location access.
+   */
+  detectLocation: () => call<Location>('detect_location'),
+
   /** Open an https link in the default browser. Rust checks the scheme before opening it. */
   openExternal: (url: string) => call<void>('open_external_url', { url }),
 

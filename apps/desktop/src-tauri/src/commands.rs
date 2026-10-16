@@ -877,6 +877,32 @@ pub fn plan_usage(state: S) -> crate::plans::PlanUsage {
     crate::plans::usage(&state.core)
 }
 
+// ---- Location -------------------------------------------------------------------------------
+
+/// "Use my current location" in Settings: confirm natively, ask the operating system for one fix,
+/// round it, name it with OpenStreetMap and save it as the default location.
+#[tauri::command]
+pub async fn detect_location(app: AppHandle, state: S<'_>) -> ApiResult<settings::Location> {
+    // The webview is untrusted, so the request is confirmed outside it, as the agent tool is.
+    if !state.core.platform.native_confirm(&crate::location::confirm_preview()).await {
+        return Err(LumoError::Denied("Location not shared.".into()).into());
+    }
+    let _ = app.emit("privacy", json!({"kind": "location", "detail": "Lumo checked your location"}));
+    let loc = match crate::location::detect(&state.core).await {
+        Ok(l) => l,
+        Err(e) => {
+            crate::audit::record(&state.core.db, "user", "detect_location", None, None, "error");
+            return Err(e.into());
+        }
+    };
+    let mut s = state.core.settings();
+    s.location = Some(loc.clone());
+    settings::save(&state.core.db, &s)?;
+    crate::audit::record(&state.core.db, "user", "detect_location", Some(&loc.label), None, "ok");
+    let _ = app.emit("settings-changed", ());
+    Ok(loc)
+}
+
 /// Open a link in the default browser. Only https links are allowed, so the webview cannot launch
 /// local files or other URL schemes.
 #[tauri::command]

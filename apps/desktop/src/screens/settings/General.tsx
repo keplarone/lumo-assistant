@@ -1,7 +1,7 @@
 import { Button, Field, Input, SegmentedControl, Select, Switch } from '@lumo/ui';
-import { Monitor, Moon, Sun } from 'lucide-react';
+import { LocateFixed, Monitor, Moon, Sun } from 'lucide-react';
 import { useState } from 'react';
-import type { ThemeSetting } from '../../lib/ipc';
+import { api, errorMessage, type ThemeSetting } from '../../lib/ipc';
 import { capabilities } from '../../lib/platform';
 import { useApp } from '../../state/app';
 import { SectionHeader, SettingRow, useSave } from './parts';
@@ -19,6 +19,7 @@ export function GeneralSection() {
     lon: s.location ? String(s.location.lon) : '',
   });
   const [locError, setLocError] = useState<string | null>(null);
+  const [locating, setLocating] = useState(false);
 
   const saveShortcut = async () => {
     setShortcutError(null);
@@ -44,6 +45,22 @@ export function GeneralSection() {
     if (!Number.isFinite(lon) || lon < -180 || lon > 180 || loc.lon.trim() === '')
       return setLocError('Longitude must be a number between -180 and 180.');
     await save({ location: { label: loc.label.trim(), lat, lon } }, 'Couldn’t save the location');
+  };
+
+  // Rust confirms in a native dialog, asks the operating system, rounds to ~100 m and saves it.
+  const detectCurrentLocation = async () => {
+    setLocError(null);
+    setLocating(true);
+    try {
+      const l = await api.detectLocation();
+      setLoc({ label: l.label, lat: String(l.lat), lon: String(l.lon) });
+      await app.reloadSettings();
+      app.announce(`Location set to ${l.label}`);
+    } catch (e) {
+      setLocError(errorMessage(e));
+    } finally {
+      setLocating(false);
+    }
   };
 
   const locationChanged =
@@ -195,8 +212,8 @@ export function GeneralSection() {
       <div className="lm-setting-block">
         <div className="lm-setting-label">Your location</div>
         <div className="lm-setting-desc">
-          Used only when you ask for places nearby. Lumo never detects it; enter it yourself. Coordinates are
-          shown on most map sites when you right-click a spot.
+          Used only when you ask for places nearby. Use your computer’s location (rounded to about 100 m) or
+          enter a place yourself. Coordinates are shown on most map sites when you right-click a spot.
         </div>
         <form
           className="lm-location-form"
@@ -229,7 +246,15 @@ export function GeneralSection() {
             />
           </Field>
           <div className="lm-location-actions">
-            <Button type="submit" variant="secondary" disabled={!locationChanged}>
+            <Button
+              variant="secondary"
+              icon={<LocateFixed />}
+              loading={locating}
+              onClick={() => void detectCurrentLocation()}
+            >
+              Use my current location
+            </Button>
+            <Button type="submit" variant="secondary" disabled={!locationChanged || locating}>
               Save location
             </Button>
             {s.location && (
@@ -244,6 +269,11 @@ export function GeneralSection() {
             )}
           </div>
         </form>
+        {locating && (
+          <p className="lm-setting-desc" role="status">
+            Finding your location…
+          </p>
+        )}
         {locError && (
           <p className="lm-inline-error" role="alert">
             {locError}

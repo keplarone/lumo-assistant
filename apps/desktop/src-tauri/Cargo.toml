@@ -67,10 +67,19 @@ llama-cpp-sys-2 = "=0.1.158"
 # Apple GPUs through Metal on every Mac build.
 [target.'cfg(target_os = "macos")'.dependencies]
 llama-cpp-2 = { version = "=0.1.158", default-features = false, features = ["metal"] }
-# The live Dock icon (live_icon.rs). Same versions tauri already uses.
+# Current location (src/location/macos.rs): CoreLocation. The live Dock icon (live_icon.rs): AppKit.
 objc2 = "0.6"
+objc2-foundation = { version = "0.3", default-features = false, features = ["std", "NSArray", "NSData", "NSDate", "NSError", "NSObjCRuntime", "NSObject", "NSRunLoop", "NSString"] }
 objc2-app-kit = { version = "0.3", default-features = false, features = ["std", "NSApplication", "NSImage", "NSResponder"] }
-objc2-foundation = { version = "0.3", default-features = false, features = ["std", "NSData"] }
+objc2-core-location = { version = "0.3", default-features = false, features = ["std", "CLError", "CLLocation", "CLLocationManager", "CLLocationManagerDelegate"] }
+
+# Current location (src/location/windows.rs): Windows.Devices.Geolocation. Same version Tauri uses.
+[target.'cfg(windows)'.dependencies]
+windows = { version = "0.62", features = ["Devices_Geolocation", "Foundation"] }
+
+# Current location (src/location/linux.rs): GeoClue2 over D-Bus. Already used by Tauri's plugins.
+[target.'cfg(target_os = "linux")'.dependencies]
+zbus = "5"
 
 [dev-dependencies]
 tempfile = "3"

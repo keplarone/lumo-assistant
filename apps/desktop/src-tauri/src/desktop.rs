@@ -207,6 +207,10 @@ impl Platform for TauriPlatform {
         })
     }
 
+    async fn current_position(&self) -> Result<crate::location::Fix> {
+        crate::location::os_position().await
+    }
+
     fn broadcast(&self, event: &str, payload: serde_json::Value) {
         let _ = self.app.emit(event, payload);
     }

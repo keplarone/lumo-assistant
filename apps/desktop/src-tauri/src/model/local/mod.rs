@@ -47,6 +47,21 @@ impl LocalProvider {
     }
 }
 
+/// Tools left out for models with a 16k context window: they would crowd out the conversation, and a
+/// small on-device model can't use them well anyway (screen control and screenshots need vision; the
+/// project, publishing and deploy tools are long multi-step developer flows). Other tools can grow
+/// without touching this list; `the_standard_prompt_fits_every_catalog_model` guards the budget.
+const SMALL_CONTEXT_SKIP: &[&str] =
+    &["control_computer", "take_screenshot", "create_project", "preview_project", "save_version", "publish_to_github", "deploy_to_netlify"];
+
+/// The tools a model with `n_ctx` tokens of context is offered.
+fn tools_for(n_ctx: u32, tools: &[crate::model::ToolDef]) -> Vec<crate::model::ToolDef> {
+    if n_ctx > 16_384 {
+        return tools.to_vec();
+    }
+    tools.iter().filter(|t| !SMALL_CONTEXT_SKIP.contains(&t.name.as_str())).cloned().collect()
+}
+
 /// The next history start after `from` that begins a fresh user turn (not tool results), so
 /// dropping the messages before it keeps tool calls and their results together.
 fn next_turn_start(messages: &[super::Message], from: usize) -> Option<usize> {
@@ -64,10 +79,11 @@ impl ModelProvider for LocalProvider {
 
     async fn complete(&self, req: &ModelRequest, sink: EventSink<'_>, cancel: &CancellationToken) -> Result<ModelResponse> {
         let today = chrono::Local::now().format("%Y-%m-%d").to_string();
+        let tools = tools_for(self.n_ctx, &req.tools);
         // The oldest messages are left out when the conversation outgrows the context window.
         let mut from = 0;
         loop {
-            let prompt = format::render(self.family, &req.system, &req.tools, &req.messages[from..], &req.effort, &today);
+            let prompt = format::render(self.family, &req.system, &tools, &req.messages[from..], &req.effort, &today);
             let (tx, mut rx) = tokio::sync::mpsc::unbounded_channel();
             let job_cancel = cancel.child_token();
             self.engine.submit(Job {
@@ -181,12 +197,24 @@ mod tests {
         let defs = crate::tools::Registry::standard().defs(None);
         let sys = crate::agent::prompt::system_prompt(&crate::settings::Settings::default(), None);
         for e in crate::local_models::CATALOG {
-            let chars = match format::render(e.family, &sys, &defs, &[], "low", "2026-10-16") {
+            let chars = match format::render(e.family, &sys, &tools_for(e.context_tokens, &defs), &[], "low", "2026-10-16") {
                 format::Prompt::Raw(s) => s.len(),
                 format::Prompt::Chat { turns, .. } => turns.iter().map(|t| t.1.len()).sum(),
             };
             assert!(chars / 3 < e.context_tokens as usize / 2, "{}: {chars} chars", e.id);
         }
+    }
+
+    #[test]
+    fn small_models_skip_only_the_listed_tools() {
+        let defs = crate::tools::Registry::standard().defs(None);
+        for name in SMALL_CONTEXT_SKIP {
+            assert!(defs.iter().any(|d| d.name == *name), "{name} is not a tool any more");
+        }
+        let small = tools_for(16_384, &defs);
+        assert_eq!(small.len(), defs.len() - SMALL_CONTEXT_SKIP.len());
+        assert!(small.iter().any(|d| d.name == "find_places"));
+        assert_eq!(tools_for(32_768, &defs).len(), defs.len());
     }
 
     #[test]

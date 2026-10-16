@@ -3144,6 +3144,7 @@ dependencies = [
  "mime_guess",
  "objc2",
  "objc2-app-kit",
+ "objc2-core-location",
  "objc2-foundation",
  "parking_lot",
  "rand 0.9.5",
@@ -3173,8 +3174,10 @@ dependencies = [
  "url",
  "uuid",
  "walkdir",
+ "windows 0.62.2",
  "wiremock",
  "xcap",
+ "zbus",
  "zip 2.4.2",
 ]
 
