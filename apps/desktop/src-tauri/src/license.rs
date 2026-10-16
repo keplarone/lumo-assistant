@@ -3,19 +3,19 @@
 //!
 //! Build-time configuration (empty means "not set up in this build", and the UI says so):
 //!   LUMO_LICENSE_SERVER    e.g. https://license.lumo.keplar.one/api/validate
-//!   LUMO_WHOP_CHECKOUT_LITE, LUMO_WHOP_CHECKOUT_PRO, LUMO_WHOP_CHECKOUT_UNLIMITED
+//!   LUMO_WHOP_CHECKOUT_LITE, LUMO_WHOP_CHECKOUT_PRO
 //!                          override the Whop checkout page URLs
+//! The same key is what paid plans send to Lumo's model gateway (see models.rs), which re-checks it.
 
 use crate::core::Core;
 use crate::error::{invalid, LumoError, Result};
 use serde::Serialize;
 use std::time::Duration;
 
-const SECRET: &str = "whop_license_key";
+pub const SECRET: &str = "whop_license_key";
 /// Whop plan ids. These are public identifiers, not secrets.
 pub const WHOP_PLAN_LITE: &str = "plan_0KzI2YIP7k6Pp";
 pub const WHOP_PLAN_PRO: &str = "plan_1ucbcMEoxhW3g";
-pub const WHOP_PLAN_UNLIMITED: &str = "plan_PRiCMfcmM4uul";
 
 fn checkout(over: Option<&'static str>, plan: &str) -> String {
     cfg(over).unwrap_or_else(|| format!("https://whop.com/checkout/{plan}"))
@@ -32,13 +32,12 @@ pub fn server() -> Option<String> {
 #[derive(Debug, Clone, Serialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct LicenseStatus {
-    /// "free", "lite", "pro" or "unlimited".
+    /// "free", "lite" or "pro".
     pub plan: String,
     pub has_key: bool,
     pub licensing_configured: bool,
     pub checkout_lite: String,
     pub checkout_pro: String,
-    pub checkout_unlimited: String,
     pub checked_at: Option<String>,
 }
 
@@ -50,7 +49,6 @@ pub fn status(core: &Core) -> LicenseStatus {
         licensing_configured: server().is_some(),
         checkout_lite: checkout(option_env!("LUMO_WHOP_CHECKOUT_LITE"), WHOP_PLAN_LITE),
         checkout_pro: checkout(option_env!("LUMO_WHOP_CHECKOUT_PRO"), WHOP_PLAN_PRO),
-        checkout_unlimited: checkout(option_env!("LUMO_WHOP_CHECKOUT_UNLIMITED"), WHOP_PLAN_UNLIMITED),
         checked_at: s.plan_checked_at.clone(),
     }
 }
@@ -77,7 +75,7 @@ pub async fn activate(core: &Core, server_url: Option<String>, key: &str) -> Res
         return Err(if code >= 500 { LumoError::Unavailable(err) } else { LumoError::Denied(err) });
     }
     let tier = match body["tier"].as_str() {
-        Some(t @ ("lite" | "pro" | "unlimited")) => t.to_string(),
+        Some(t @ ("lite" | "pro")) => t.to_string(),
         _ => return Err(LumoError::Unavailable("The license server sent an unknown plan.".into())),
     };
     core.secrets.set(SECRET, key)?;
@@ -99,6 +97,21 @@ pub fn deactivate(core: &Core) -> Result<LicenseStatus> {
     crate::audit::record(&core.db, "user", "license_removed", None, None, "ok");
     crate::plans::pause_excess_automations(core)?;
     Ok(status(core))
+}
+
+/// Follow the plan Lumo's model gateway reports for the saved license (it lapsed, or changed on Whop).
+pub fn set_plan(core: &Core, plan: &str) -> Result<()> {
+    let mut s = core.settings();
+    if s.plan == plan {
+        return Ok(());
+    }
+    s.plan = plan.into();
+    s.plan_checked_at = Some(crate::util::now());
+    crate::settings::save(&core.db, &s)?;
+    crate::audit::record(&core.db, "system", "plan_changed", Some(plan), None, "ok");
+    crate::plans::pause_excess_automations(core)?;
+    core.platform.broadcast("settings-changed", serde_json::json!({}));
+    Ok(())
 }
 
 #[cfg(test)]
@@ -135,26 +148,17 @@ mod tests {
         assert_eq!((st.plan.as_str(), st.has_key), ("pro", true));
         let st = deactivate(&core).unwrap();
         assert_eq!((st.plan.as_str(), st.has_key), ("free", false));
-        assert_eq!(st.checkout_unlimited, "https://whop.com/checkout/plan_PRiCMfcmM4uul");
     }
 
     #[tokio::test]
-    async fn activates_unlimited_and_rejects_unknown_tiers() {
+    async fn rejects_unknown_tiers_including_the_retired_unlimited() {
         let server = MockServer::start().await;
         Mock::given(method("POST"))
-            .and(body_json(serde_json::json!({"licenseKey": "UNLIM-000001"})))
             .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({"valid": true, "tier": "unlimited"})))
             .mount(&server)
             .await;
-        Mock::given(method("POST"))
-            .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({"valid": true, "tier": "platinum"})))
-            .mount(&server)
-            .await;
         let (core, _dir) = core_with(Arc::new(FakePlatform::default()));
-        assert!(activate(&core, Some(server.uri()), "OTHER-000002").await.is_err());
+        assert!(activate(&core, Some(server.uri()), "UNLIM-000001").await.is_err());
         assert_eq!(core.settings().plan, "free");
-        let st = activate(&core, Some(server.uri()), "UNLIM-000001").await.unwrap();
-        assert_eq!(st.plan, "unlimited");
-        assert_eq!(crate::plans::usage(&core).tokens_limit, None);
     }
 }

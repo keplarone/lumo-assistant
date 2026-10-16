@@ -119,8 +119,6 @@ impl SecretStore for MemoryStore {
 /// Names of the secrets Lumo knows about. Anything else is rejected, so the webview cannot use the
 /// keychain as general storage or probe for unrelated entries.
 pub const KNOWN: &[(&str, &str)] = &[
-    ("anthropic_api_key", "Anthropic API key"),
-    ("openai_compatible_api_key", "OpenAI-compatible API key"),
     ("brave_search_api_key", "Brave Search API key"),
     ("github_token", "GitHub token"),
     ("netlify_token", "Netlify token"),

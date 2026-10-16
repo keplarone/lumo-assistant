@@ -5,16 +5,19 @@ use crate::agent::events::Collector;
 use crate::core::testing::{core_with, set_plan, FakePlatform};
 use crate::model::{EventSink as StreamSink, ModelProvider, ModelResponse};
 use async_trait::async_trait;
+use parking_lot::Mutex;
 
 /// Returns canned responses in order and records every request.
 pub struct Scripted {
     pub responses: Mutex<Vec<ModelResponse>>,
     pub requests: Mutex<Vec<ModelRequest>>,
+    /// When set, every call is refused the way Lumo's model gateway refuses a used-up allowance.
+    pub plan_limit: Mutex<Option<String>>,
 }
 
 impl Scripted {
     pub fn new(responses: Vec<ModelResponse>) -> Arc<Self> {
-        Arc::new(Scripted { responses: Mutex::new(responses), requests: Mutex::new(vec![]) })
+        Arc::new(Scripted { responses: Mutex::new(responses), requests: Mutex::new(vec![]), plan_limit: Mutex::new(None) })
     }
 }
 
@@ -27,6 +30,9 @@ impl ModelProvider for Scripted {
         self.requests.lock().push(req.clone());
         if cancel.is_cancelled() {
             return Err(LumoError::Cancelled);
+        }
+        if let Some(msg) = self.plan_limit.lock().clone() {
+            return Err(LumoError::PlanLimit(msg));
         }
         let r = {
             let mut v = self.responses.lock();
@@ -55,7 +61,6 @@ pub fn tool_use(id: &str, name: &str, input: Value) -> Value {
 fn setup(script: Vec<ModelResponse>) -> (Arc<Core>, Arc<Scripted>, Arc<FakePlatform>, tempfile::TempDir, std::path::PathBuf) {
     let platform = Arc::new(FakePlatform::default());
     let (core, dir) = core_with(platform.clone());
-    // These tests use the default (cloud) provider, which Free doesn't include; plan limits have their own tests.
     set_plan(&core, "pro");
     let p = Scripted::new(script);
     *core.provider_override.lock() = Some(p.clone());
@@ -302,80 +307,52 @@ async fn attachments_only_by_token_and_context_each_turn() {
 }
 
 #[tokio::test]
-async fn runs_follow_the_plans_models_and_monthly_allowance() {
-    let (core, scripted, _p, _dir, _root) = setup(vec![]);
+async fn the_gateways_plan_limit_ends_the_run_and_the_model_choice_shapes_the_tools() {
+    let (core, scripted, platform, _dir, _root) = setup(vec![]);
     let registry = Arc::new(Registry::standard());
     let start = |core: &Arc<Core>, text: &str| {
         prepare(core, &registry, &StartRequest { text: text.into(), ..Default::default() }, Origin::User, vec![])
     };
 
-    // Free doesn't include cloud providers: refused before anything is recorded.
-    set_plan(&core, "free");
-    let mut s = core.settings();
-    s.provider = "anthropic".into();
-    crate::settings::save(&core.db, &s).unwrap();
-    let err = start(&core, "hello").err().unwrap();
-    assert_eq!(err.code(), "plan_limit");
-    assert!(store::list_conversations(&core, 10, None).unwrap().is_empty());
-    assert!(scripted.requests.lock().is_empty());
-
-    // An on-device model Free includes works; one it doesn't (an old choice from Lite) is refused.
-    s.provider = "local".into();
-    s.local_model = "qwen3:30b".into();
-    crate::settings::save(&core.db, &s).unwrap();
-    assert!(start(&core, "hello").err().unwrap().to_string().starts_with("Nova 5.5 is part of Lumo Lite, Lumo Pro and Lumo Unlimited."));
-    s.local_model = "qwen3:4b".into();
-    crate::settings::save(&core.db, &s).unwrap();
-
-    // Each model call's tokens count. The call that crosses the limit finishes; the next call is
-    // refused and the run ends with the limit message.
-    let mut first = resp(vec![tool_use("n1", "notify", json!({"title": "t", "body": "b"}))], "tool_use");
-    first.usage = Usage { input_tokens: 900_000, output_tokens: 200_000, ..Default::default() };
-    *scripted.responses.lock() = vec![first, resp(vec![json!({"type": "text", "text": "never sent"})], "end_turn")];
-    let events = Arc::new(Collector::default());
+    // The monthly allowance is enforced by the gateway: its refusal ends the run with its message.
+    *scripted.plan_limit.lock() = Some("You've used all of this month's Pro usage. It resets on November 1.".into());
     let spec = start(&core, "remind me").unwrap();
     let conv = spec.conversation_id.clone();
-    let out = drive(core.clone(), registry.clone(), spec, events.clone()).await;
+    let out = drive(core.clone(), registry.clone(), spec, Arc::new(Collector::default())).await;
     assert_eq!(out.status, "limit_reached", "{out:?}");
-    assert!(out.error.as_deref().unwrap().starts_with("You've used all of this month's Free usage. It resets on "));
-    assert_eq!(scripted.requests.lock().len(), 1, "no model call after the limit");
+    assert_eq!(out.error.as_deref(), Some("You've used all of this month's Pro usage. It resets on November 1."));
     assert_history_valid(&core, &conv);
-    let usage = crate::plans::usage(&core);
-    assert_eq!((usage.tokens_used, usage.percent_used), (1_100_000, Some(100)));
-    assert!(_p.broadcasts.lock().iter().any(|(e, v)| e == "plan-usage-changed" && v["tokensUsed"] == 1_100_000));
+    let stored = store::get_conversation(&core, &conv).unwrap();
+    assert_eq!((stored.provider.as_str(), stored.model.as_str()), ("lumo", "auto"));
+    // Usage is refreshed for every window after the run.
+    tokio::time::sleep(std::time::Duration::from_millis(50)).await;
+    assert!(platform.broadcasts.lock().iter().any(|(e, _)| e == "plan-usage-changed"));
+    *scripted.plan_limit.lock() = None;
 
-    // New runs (and continuing this conversation) are refused up front with the same message.
-    let err = start(&core, "again").err().unwrap();
-    assert_eq!(err.code(), "plan_limit");
-    let cont = prepare(
-        &core,
-        &registry,
-        &StartRequest { conversation_id: Some(conv.clone()), text: "more".into(), ..Default::default() },
-        Origin::User,
-        vec![],
-    );
-    assert_eq!(cont.err().unwrap().code(), "plan_limit");
-
-    // Upgrading raises the allowance; a conversation started on a model the plan no longer includes
-    // can't be continued after a downgrade.
-    set_plan(&core, "lite");
-    let mut s = core.settings();
-    s.local_model = "qwen3:30b".into();
-    crate::settings::save(&core.db, &s).unwrap();
-    *scripted.responses.lock() = vec![resp(vec![json!({"type": "text", "text": "Hi."})], "end_turn")];
-    let spec = start(&core, "hi on nova").unwrap();
-    let nova = spec.conversation_id.clone();
-    assert_eq!(drive(core.clone(), registry.clone(), spec, Arc::new(Collector::default())).await.status, "done");
+    // Paid models see the screen; without a catalog Free is assumed not to, so it gets no screen tools.
+    assert!(stored.tools.client.iter().any(|t| t == "take_screenshot"));
+    assert!(!stored.tools.client.iter().any(|t| t == "search_web"), "no Brave key, no web search");
     set_plan(&core, "free");
+    let spec = start(&core, "what's on my screen?").unwrap();
+    let free = store::get_conversation(&core, &spec.conversation_id).unwrap();
+    assert!(!free.tools.client.iter().any(|t| t == "take_screenshot" || t == "control_computer"));
+    core.pending.runs.lock().clear();
+
+    // A conversation from before OpenRouter continues on the current choice, not its old model name.
+    set_plan(&core, "pro");
     let mut s = core.settings();
-    s.local_model = "qwen3:4b".into();
+    s.model = "anthropic/claude-sonnet-5.5".into();
     crate::settings::save(&core.db, &s).unwrap();
+    core.db.conn().execute("UPDATE conversations SET provider = 'local', model = 'qwen3:8b' WHERE id = ?1", [&conv]).unwrap();
+    *scripted.responses.lock() = vec![resp(vec![json!({"type": "text", "text": "Hi."})], "end_turn")];
     let cont = prepare(
         &core,
         &registry,
-        &StartRequest { conversation_id: Some(nova), text: "more".into(), ..Default::default() },
+        &StartRequest { conversation_id: Some(conv), text: "more".into(), ..Default::default() },
         Origin::User,
         vec![],
-    );
-    assert!(cont.err().unwrap().to_string().starts_with("Nova 5.5"));
+    )
+    .unwrap();
+    assert_eq!(drive(core.clone(), registry.clone(), cont, Arc::new(Collector::default())).await.status, "done");
+    assert_eq!(scripted.requests.lock().last().unwrap().model, "anthropic/claude-sonnet-5.5");
 }

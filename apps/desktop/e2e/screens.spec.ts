@@ -18,13 +18,7 @@ const settings = {
   onboarded: true,
   userName: 'Ada',
   theme: 'dark',
-  provider: 'anthropic',
-  model: 'claude-opus-5-5',
-  effort: 'medium',
-  anthropicBaseUrl: 'https://api.anthropic.com',
-  openaiBaseUrl: 'http://localhost:11434/v1',
-  openaiModel: 'llama3.1',
-  localModel: '',
+  model: 'auto',
   memoryEnabled: true,
   webSearchEnabled: true,
   globalShortcut: 'Alt+Space',
@@ -46,8 +40,8 @@ const conversations = [
     id: 'conv-1',
     title: 'Sort my Downloads',
     agentId: null,
-    provider: 'anthropic',
-    model: 'claude-opus-5-5',
+    provider: 'lumo',
+    model: 'auto',
     projectId: null,
     origin: 'user',
     createdAt: now,
@@ -57,8 +51,8 @@ const conversations = [
     id: 'conv-2',
     title: 'Dinner spots near the office',
     agentId: null,
-    provider: 'anthropic',
-    model: 'claude-opus-5-5',
+    provider: 'lumo',
+    model: 'auto',
     projectId: null,
     origin: 'user',
     createdAt: now,
@@ -68,71 +62,78 @@ const conversations = [
     id: 'conv-3',
     title: 'Bakery website',
     agentId: null,
-    provider: 'anthropic',
-    model: 'claude-opus-5-5',
+    provider: 'lumo',
+    model: 'auto',
     projectId: 'proj-1',
     origin: 'user',
     createdAt: now,
     updatedAt: now,
   },
 ];
-const localModel = (
-  id: string,
-  tier: string,
-  base: string,
-  gb: number,
-  mem: number,
-  summary: string,
-  extra: object = {},
-) => ({
-  id,
-  tier,
-  baseModel: base,
-  license: 'Apache-2.0',
-  licenseUrl: 'https://www.apache.org/licenses/LICENSE-2.0',
-  sourceRepo: `Qwen/${base.replace(' ', '-')}-GGUF`,
-  downloadGb: gb,
-  minMemoryGb: mem,
-  summary,
-  displayName: tier,
-  installed: false,
-  partialBytes: 0,
-  fits: true,
-  selected: false,
-  requiredPlan: null,
-  ...extra,
-});
-// plans.rs PlanUsage for the Free plan.
-const planRow = (id: string, name: string, monthlyTokens: number | null, extra: object = {}) => ({
-  id,
-  name,
-  monthlyTokens,
-  localModels: ['Orbit 3.8', 'Nebula 4.2', 'Solar 5.4', 'Nova 5.5'],
-  cloudModels: true,
-  automations: null,
-  computerControl: true,
-  ...extra,
-});
+// plans.rs PlanUsage for the Free plan, with the model gateway's catalog.
+const model = (id: string, name: string, blurb: string, vision = true) => ({ id, name, blurb, vision });
 const planUsage = {
   plan: 'free',
-  tokensUsed: 640_000,
-  tokensLimit: 1_000_000,
   percentUsed: 64,
-  resetsAt: '2026-11-01T00:00:00+00:00',
-  allowedModels: ['qwen3:4b', 'qwen3:8b'],
-  cloudModels: false,
+  resetsAt: '2026-11-01T00:00:00.000Z',
+  usageError: null,
   automationsAllowed: 1,
   computerControl: false,
   plans: [
-    planRow('free', 'Free', 1_000_000, {
-      localModels: ['Orbit 3.8', 'Nebula 4.2'],
-      cloudModels: false,
+    {
+      id: 'free',
+      name: 'Free',
+      priceUsd: 0,
       automations: 1,
       computerControl: false,
-    }),
-    planRow('lite', 'Lumo Lite', 30_000_000, { automations: 10 }),
-    planRow('pro', 'Lumo Pro', 150_000_000),
-    planRow('unlimited', 'Lumo Unlimited', null),
+      defaultModel: 'nvidia/nemotron-3.5-super-vl:free',
+      models: [
+        model(
+          'nvidia/nemotron-3.5-super-vl:free',
+          'Nemotron 3.5 Super VL',
+          'Free model. Can be slow or busy at peak times.',
+        ),
+        model(
+          'xingchen-agi/xing4.0-29b-a4b:free',
+          'Xing4.0 29b A4b',
+          'Free model. Can be slow or busy at peak times.',
+          false,
+        ),
+      ],
+    },
+    {
+      id: 'lite',
+      name: 'Lumo Lite',
+      priceUsd: 19.99,
+      automations: 10,
+      computerControl: true,
+      defaultModel: 'anthropic/claude-haiku-5.5',
+      models: [
+        model(
+          'anthropic/claude-haiku-5.5',
+          'Claude Haiku 5.5',
+          'Fast and careful. Great for everyday tasks.',
+        ),
+        model('openai/gpt-6-luna', 'GPT-6 Luna', 'Quick answers and light tasks.'),
+      ],
+    },
+    {
+      id: 'pro',
+      name: 'Lumo Pro',
+      priceUsd: 49.99,
+      automations: null,
+      computerControl: true,
+      defaultModel: 'anthropic/claude-sonnet-5.5',
+      models: [
+        model('anthropic/claude-sonnet-5.5', 'Claude Sonnet 5.5', 'The strongest at long, many-step tasks.'),
+        model(
+          'anthropic/claude-haiku-5.5',
+          'Claude Haiku 5.5',
+          'Fast and careful. Great for everyday tasks.',
+        ),
+        model('openai/gpt-6-sol', 'GPT-6 Sol', 'Strong at writing, research and planning.'),
+      ],
+    },
   ],
 };
 const html = `<!doctype html><html><head><meta charset="utf-8"><title>Rise Bakery</title><link rel="stylesheet" href="style.css"></head><body><header><h1>Rise Bakery</h1><p>Sourdough, baked every morning.</p></header><main><section><h2>Today</h2><ul><li>Country loaf</li><li>Rye with caraway</li><li>Cardamom buns</li></ul></section></main></body></html>`;
@@ -147,10 +148,6 @@ const base: Fixtures = {
     keychain: null,
     dataDir: '/home/ada/.local/share/one.keplar.lumo',
     logDir: '/home/ada/.local/share/one.keplar.lumo/logs',
-    models: [
-      ['claude-opus-5-5', 'Claude Opus 5.5'],
-      ['claude-sonnet-5', 'Claude Sonnet 5'],
-    ],
     updaterConfigured: false,
     device: {
       formFactor: 'desktop',
@@ -164,7 +161,7 @@ const base: Fixtures = {
     },
   },
   secrets_status: [
-    { name: 'anthropic_api_key', label: 'Anthropic API key', set: true },
+    { name: 'brave_search_api_key', label: 'Brave Search API key', set: false },
     { name: 'stt_api_key', label: 'Speech-to-text key', set: false },
   ],
   list_agents: [],
@@ -201,53 +198,9 @@ const base: Fixtures = {
     licensingConfigured: true,
     checkoutLite: 'https://whop.com/checkout/test-lite',
     checkoutPro: 'https://whop.com/checkout/test-pro',
-    checkoutUnlimited: 'https://whop.com/checkout/test-unlimited',
     checkedAt: null,
   },
   plan_usage: planUsage,
-  local_models_status: {
-    brand: 'Lumo on-device models',
-    engine: 'llama.cpp',
-    accelerator: 'Metal',
-    memoryGb: 16,
-    models: [
-      localModel(
-        'qwen3:4b',
-        'Orbit 3.8',
-        'Qwen3 4B',
-        2.5,
-        8,
-        'Quick answers and simple tasks on most laptops.',
-        { installed: true, selected: true },
-      ),
-      localModel(
-        'qwen3:8b',
-        'Nebula 4.2',
-        'Qwen3 8B',
-        5.0,
-        16,
-        'Good everyday choice for planning and using tools.',
-      ),
-      localModel(
-        'gpt-oss:20b',
-        'Solar 5.4',
-        'gpt-oss 20B',
-        12.1,
-        16,
-        'Stronger reasoning; needs a recent computer with 16 GB of memory or more.',
-        { requiredPlan: 'lite' },
-      ),
-      localModel(
-        'qwen3:30b',
-        'Nova 5.5',
-        'Qwen3 30B-A3B',
-        18.6,
-        32,
-        'The most capable on-device option, for machines with 32 GB of memory or more.',
-        { fits: false, requiredPlan: 'lite' },
-      ),
-    ],
-  },
 };
 
 /** Install the bridge mock before any app code runs. */
@@ -454,32 +407,28 @@ test('computer-control banner', async ({ page }) => {
   expect(cancels).toEqual([{ cmd: 'cancel_run', args: { runId: 'run-9' } }]);
 });
 
-test('settings: model with on-device models', async ({ page }) => {
-  await boot(page, {
-    route: '#/settings/model',
-    fixtures: { get_settings: { ...settings, provider: 'local', localModel: 'qwen3:4b' } },
-  });
-  await expect(page.getByText('Nebula 4.2')).toBeVisible();
-  await page.getByRole('button', { name: 'Download' }).first().click();
-  await emit(page, 'local-model-progress', {
-    model: 'qwen3:8b',
-    status: 'pulling 3a9c',
-    completed: 2_150_000_000,
-    total: 5_200_000_000,
-    done: false,
-  });
-  await expect(page.getByRole('progressbar', { name: 'Downloading Nebula 4.2' })).toBeVisible();
-  await shot(page, 'settings-model-local');
+test('settings: model picker with the plan’s models', async ({ page }) => {
+  await boot(page, { route: '#/settings/model' });
+  await expect(page.getByText('64% of this month’s usage')).toBeVisible();
+  await expect(page.getByText('Free models are shared')).toBeVisible();
+  await page.getByRole('combobox', { name: 'Model' }).click();
+  await expect(page.getByRole('option', { name: 'Auto (Nemotron 3.5 Super VL)' })).toBeVisible();
+  await expect(page.getByRole('option', { name: 'Claude Haiku 5.5 · Lite' })).toHaveAttribute(
+    'aria-disabled',
+    'true',
+  );
+  await expect(page.getByText(/Ollama|on-device/i)).toHaveCount(0);
+  await shot(page, 'settings-model');
 });
 
 test('chat: a plan limit shows the reason and opens checkout', async ({ page }) => {
   const message =
-    'You’ve used all of this month’s Free usage. It resets on November 1. Upgrade to Lite or Pro for 30× or 150× more, or to Unlimited for no limit.';
+    'You’ve used all of this month’s Free usage. It resets on November 1. Upgrade to Lumo Lite or Lumo Pro in Settings → Plans for much more.';
   await boot(page, {
     route: '#/',
     fixtures: {
       start_run_error: { code: 'plan_limit', message },
-      plan_usage: { ...planUsage, tokensUsed: 1_000_000, percentUsed: 100 },
+      plan_usage: { ...planUsage, percentUsed: 100 },
     },
   });
   await expect(page.getByText('You’ve used all of this month’s usage. It resets on')).toBeVisible();
@@ -501,44 +450,6 @@ test('chat: a plan limit shows the reason and opens checkout', async ({ page }) 
   ]);
 });
 
-test('settings: models the plan doesn’t include are marked', async ({ page }) => {
-  await boot(page, {
-    route: '#/settings/model',
-    fixtures: { get_settings: { ...settings, provider: 'local', localModel: 'qwen3:4b' } },
-  });
-  await expect(page.getByText('Nova 5.5')).toBeVisible();
-  await expect(
-    page.locator('.lm-local-model').filter({ hasText: 'Solar 5.4' }).getByText('Lite', { exact: true }),
-  ).toBeVisible();
-  await expect(page.getByText('Included with Lumo Lite and above.')).toHaveCount(2);
-  await expect(page.getByRole('button', { name: 'Download' })).toHaveCount(1);
-});
-
-test('settings: on-device models before any download, one half downloaded', async ({ page }) => {
-  const st = base.local_models_status as Record<string, unknown>;
-  await boot(page, {
-    route: '#/settings/model',
-    fixtures: {
-      get_settings: { ...settings, provider: 'local' },
-      local_models_status: {
-        ...st,
-        accelerator: 'CPU',
-        models: (st.models as Record<string, unknown>[]).map((m) => ({
-          ...m,
-          installed: false,
-          selected: false,
-          partialBytes: m.id === 'qwen3:8b' ? 1_200_000_000 : 0,
-        })),
-      },
-    },
-  });
-  // The engine is built in: nothing to install, and nothing mentions another app.
-  await expect(page.getByText('Built in · runs on the processor')).toBeVisible();
-  await expect(page.getByText(/Ollama/)).toHaveCount(0);
-  await expect(page.getByRole('button', { name: 'Resume download' })).toHaveCount(1);
-  await shot(page, 'settings-local-first-download');
-});
-
 test('settings: general, plans, help, privacy, about', async ({ page }) => {
   await boot(page, { route: '#/settings/general' });
   await expect(page.getByRole('heading', { name: 'General' })).toBeVisible();
@@ -554,15 +465,14 @@ test('settings: general, plans, help, privacy, about', async ({ page }) => {
     if (section === 'plans') {
       await expect(page.getByText('64% of this month’s usage')).toBeVisible();
       await expect(page.getByRole('progressbar', { name: 'This month’s usage' })).toBeVisible();
-      await expect(page.getByText('On-device models: Orbit 3.8 and Nebula 4.2')).toBeVisible();
-      await expect(page.getByText('30× more usage than Free')).toBeVisible();
-      await expect(page.getByText('150× more usage than Free')).toBeVisible();
-      await expect(page.getByText('$124.99')).toBeVisible();
+      await expect(page.getByText('Adds Claude Haiku 5.5 and GPT-6 Luna')).toBeVisible();
+      await expect(page.getByText('$49.99')).toBeVisible();
+      await expect(page.getByText(/Unlimited usage|\$124\.99/)).toHaveCount(0);
     }
     await page.waitForTimeout(300);
     await shot(page, `settings-${section}`);
   }
-  await expect(page.getByText('Apache-2.0').first()).toBeVisible();
+  await expect(page.getByText(/Apache-2\.0/).first()).toBeVisible();
 });
 
 test('projects workspace with editor and preview', async ({ page, context }) => {
@@ -599,19 +509,14 @@ test('compact window', async ({ page }) => {
   await shot(page, 'compact');
 });
 
-test('onboarding, model step offers the free on-device path first', async ({ page }) => {
+test('onboarding needs no model setup', async ({ page }) => {
   await boot(page, {
     route: '#/',
-    fixtures: {
-      get_settings: { ...settings, onboarded: false, userName: null },
-      secrets_status: [{ name: 'anthropic_api_key', label: 'Anthropic API key', set: false }],
-    },
+    fixtures: { get_settings: { ...settings, onboarded: false, userName: null } },
   });
-  await page
-    .getByRole('button', { name: /Get started|Continue|Next/ })
-    .first()
-    .click();
-  await expect(page.getByText('Orbit 3.8')).toBeVisible();
+  await page.getByRole('button', { name: 'Get started' }).click();
+  await expect(page.getByText('What should Lumo call you?')).toBeVisible();
+  await expect(page.getByText(/API key|on-device|Ollama/i)).toHaveCount(0);
   await settle(page);
-  await shot(page, 'onboarding-model');
+  await shot(page, 'onboarding-you');
 });

@@ -23,6 +23,7 @@ import {
   type MemoryItem,
   type ToolInfo,
 } from '../../lib/ipc';
+import { asPlanId, modelName, planModels } from '../../lib/plans';
 import { useApp } from '../../state/app';
 import { SectionHeader, SettingRow, useSave } from './parts';
 
@@ -395,7 +396,7 @@ export function AgentsSection() {
                 <span className="lm-row-meta">
                   {a.description || 'No description'} ·{' '}
                   {a.tools.length ? `${a.tools.length} tools` : 'All tools'}
-                  {a.model ? ` · ${app.info.models.find(([id]) => id === a.model)?.[1] ?? a.model}` : ''}
+                  {a.model ? ` · ${modelName(app.planUsage?.plans ?? [], a.model)}` : ''}
                 </span>
               </div>
               <Button size="sm" variant="ghost" icon={<Pencil />} onClick={() => setEditing(a)}>
@@ -516,7 +517,10 @@ function AgentEditor({ agent, tools, onClose }: { agent: AgentDef; tools: ToolIn
             onValueChange={(v) => setA({ ...a, model: v === 'default' ? null : v })}
             options={[
               { value: 'default', label: 'Use the default model' },
-              ...app.info.models.map(([id, label]) => ({ value: id, label })),
+              ...planModels(app.planUsage?.plans ?? [], asPlanId(app.settings.plan)).models.map((m) => ({
+                value: m.id,
+                label: m.name,
+              })),
             ]}
           />
         </div>
