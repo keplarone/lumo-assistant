@@ -1,11 +1,11 @@
 import { Button, Callout } from '@lumo/ui';
-import { FileText, FolderInput, Globe, MapPin } from 'lucide-react';
-import { useEffect, useRef } from 'react';
+import { Coffee, FileText, FolderInput, Globe, MapPin, RotateCcw, ShoppingBag, UtensilsCrossed } from 'lucide-react';
+import { useEffect, useRef, useState } from 'react';
 import { Composer, type ComposerHandle } from '../components/Composer';
 import { rememberPendingSend } from '../components/ConversationView';
 import { Mascot } from '../components/Mascot';
 import { greeting } from '../lib/format';
-import { api, type AttachmentInfo } from '../lib/ipc';
+import { api, type AttachmentInfo, type RecentOrder } from '../lib/ipc';
 import { navigate } from '../lib/router';
 import { useApp } from '../state/app';
 import { startedHere } from '../state/runs';
@@ -37,7 +37,23 @@ const SUGGESTIONS = [
   },
 ];
 
+/** One-tap orders. Lumo still shows the order in a system dialog before it opens the app. */
+const QUICK_ORDERS = [
+  { icon: <UtensilsCrossed />, label: "Get me McDonald's", prompt: "Get me McDonald's. Ask me what I want if you don't know my usual." },
+  { icon: <Coffee />, label: 'Get me coffee', prompt: 'Get me a coffee from somewhere near me. Ask me what I want if you don\'t know my usual.' },
+  { icon: <ShoppingBag />, label: 'Get my groceries', prompt: 'Help me order groceries. Ask me what I need.' },
+];
+
+function againPrompt(o: RecentOrder): string {
+  const items = o.items.map((i) => `${i.quantity} × ${i.name}`).join(', ');
+  return `Order again on ${o.appName}${o.store ? ` from ${o.store}` : ''}: ${items}.`;
+}
+
 export function Home() {
+  const [recent, setRecent] = useState<RecentOrder[]>([]);
+  useEffect(() => {
+    api.recentOrders().then(setRecent, () => setRecent([]));
+  }, []);
   const app = useApp();
   const composer = useRef<ComposerHandle>(null);
   useEffect(() => {
@@ -92,6 +108,33 @@ export function Home() {
             >
               {s.icon}
               <span>{s.label}</span>
+            </button>
+          ))}
+        </div>
+        <div className="lm-suggestions lm-quick-orders" role="list" aria-label="Quick orders">
+          {recent.slice(0, 3).map((o) => (
+            <button
+              key={o.id}
+              type="button"
+              role="listitem"
+              className="lm-suggestion"
+              title={againPrompt(o)}
+              onClick={() => void send(againPrompt(o), [], null)}
+            >
+              <RotateCcw />
+              <span>{o.store ?? o.appName} again</span>
+            </button>
+          ))}
+          {QUICK_ORDERS.slice(0, recent.length ? 2 : 3).map((q) => (
+            <button
+              key={q.label}
+              type="button"
+              role="listitem"
+              className="lm-suggestion"
+              onClick={() => void send(q.prompt, [], null)}
+            >
+              {q.icon}
+              <span>{q.label}</span>
             </button>
           ))}
         </div>

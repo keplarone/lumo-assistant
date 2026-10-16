@@ -74,6 +74,56 @@ pub fn session_active(core: &Core, run_id: &str) -> bool {
     core.pending.input_sessions.lock().contains(run_id)
 }
 
+/// Start a run's input session after the user allowed it in a native dialog.
+pub fn begin_session(ctx: &ToolCtx) {
+    let started = {
+        let mut s = ctx.core.pending.input_sessions.lock();
+        let first_overall = s.is_empty();
+        s.insert(ctx.run_id.clone());
+        first_overall
+    };
+    if started {
+        ctx.core.platform.input_control_changed(true);
+        ctx.sink.emit(AgentEvent::Privacy {
+            kind: "input_control".into(),
+            detail: format!("Lumo is using your mouse and keyboard. Press {STOP_SHORTCUT} to stop."),
+        });
+    }
+}
+
+/// Whether text contains something that looks like a payment card number: 13 to 19 digits
+/// (spaces and dashes allowed between them) that pass the Luhn check. Lumo never types these.
+pub fn looks_like_card_number(text: &str) -> bool {
+    let mut digits: Vec<u32> = Vec::new();
+    let flush = |digits: &mut Vec<u32>| -> bool {
+        let hit = (13..=19).contains(&digits.len()) && luhn(digits);
+        digits.clear();
+        hit
+    };
+    for c in text.chars() {
+        match c {
+            '0'..='9' => digits.push(c.to_digit(10).unwrap_or(0)),
+            ' ' | '-' if !digits.is_empty() => {}
+            _ => {
+                if flush(&mut digits) {
+                    return true;
+                }
+            }
+        }
+    }
+    flush(&mut digits)
+}
+
+fn luhn(digits: &[u32]) -> bool {
+    let sum: u32 = digits
+        .iter()
+        .rev()
+        .enumerate()
+        .map(|(i, d)| if i % 2 == 1 { if d * 2 > 9 { d * 2 - 9 } else { d * 2 } } else { *d })
+        .sum();
+    sum % 10 == 0
+}
+
 /// End a run's input session (run finished or stopped).
 pub fn end_session(core: &Core, run_id: &str) {
     let removed = core.pending.input_sessions.lock().remove(run_id);
@@ -143,6 +193,11 @@ fn validate(actions: &[InputAction]) -> Result<()> {
     for a in actions {
         match a {
             InputAction::Type { text } if text.chars().count() > 2000 => return Err(invalid("type at most 2000 characters at a time")),
+            InputAction::Type { text } if looks_like_card_number(text) => {
+                return Err(LumoError::Denied(
+                    "Lumo never types payment card numbers. Stop here and let the user enter payment details themselves.".into(),
+                ))
+            }
             InputAction::Key { keys } => {
                 parse_keys(keys)?;
             }
@@ -232,6 +287,10 @@ impl TypedTool for ControlComputer {
             &["actions", "reason"],
         )
     }
+    fn check(&self, ctx: &ToolCtx, i: &ControlInput) -> Result<()> {
+        validate(&i.actions)?;
+        super::ordering::check_control(&ctx.core, &ctx.run_id)
+    }
     fn risk(&self, ctx: &ToolCtx, _: &ControlInput) -> Risk {
         if session_active(&ctx.core, &ctx.run_id) {
             // The user already allowed control for this task in a native dialog.
@@ -270,19 +329,7 @@ impl TypedTool for ControlComputer {
             .cloned()
             .ok_or_else(|| invalid("take a screenshot first, so coordinates refer to what is on screen"))?;
         let mapped = map_all(&shot, &i.actions)?;
-        let started = {
-            let mut s = ctx.core.pending.input_sessions.lock();
-            let first_overall = s.is_empty();
-            s.insert(ctx.run_id.clone());
-            first_overall
-        };
-        if started {
-            ctx.core.platform.input_control_changed(true);
-            ctx.sink.emit(AgentEvent::Privacy {
-                kind: "input_control".into(),
-                detail: format!("Lumo is using your mouse and keyboard. Press {STOP_SHORTCUT} to stop."),
-            });
-        }
+        begin_session(ctx);
         if ctx.cancel.is_cancelled() {
             return Err(LumoError::Cancelled);
         }

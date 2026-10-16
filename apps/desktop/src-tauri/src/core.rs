@@ -90,6 +90,8 @@ pub struct Pending {
     pub input_sessions: Mutex<std::collections::HashSet<String>>,
     /// Geometry of the last screenshot, per run.
     pub screens: Mutex<HashMap<String, Screenshot>>,
+    /// Orders Lumo is filling in the user's browser, per run.
+    pub orders: Mutex<HashMap<String, crate::tools::ordering::OrderSession>>,
 }
 
 #[derive(Clone)]

@@ -589,6 +589,9 @@ a.lm-row-main:hover .lm-row-title {
     color var(--lu-duration-fast) var(--lu-ease-standard),
     border-color var(--lu-duration-fast) var(--lu-ease-standard);
 }
+.lm-quick-orders {
+  margin-top: 0;
+}
 .lm-suggestion svg {
   width: 14px;
   height: 14px;
@@ -2034,6 +2037,14 @@ a.lm-row-main:hover .lm-row-title {
 }
 .lm-integration-detail {
   font-size: var(--lu-text-xs);
+  color: var(--lu-text-secondary);
+}
+.lm-ordering-apps {
+  margin-top: var(--lu-space-6);
+}
+.lm-ordering-group {
+  margin: var(--lu-space-4) 0 var(--lu-space-2);
+  font-size: var(--lu-text-sm);
   color: var(--lu-text-secondary);
 }
 .lm-integration[data-status='upcoming'] .lm-integration-name {
