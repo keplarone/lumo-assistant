@@ -58,6 +58,6 @@ jobs:
           curl -fL --retry 3 -o "$RUNNER_TEMP/orbit.gguf" "$url"
           python3 -c "import hashlib,sys;h=hashlib.sha256();f=open(sys.argv[1],'rb');[h.update(b) for b in iter(lambda:f.read(1<<20),b'')];sys.exit(h.hexdigest()!=sys.argv[2])" "$RUNNER_TEMP/orbit.gguf" "$sha"
           echo "LUMO_SMOKE_GGUF=$RUNNER_TEMP/orbit.gguf" >> "$GITHUB_ENV"
+      # Default shell on purpose: under Git Bash, Windows picks up MSYS perl, which can't build OpenSSL.
       - name: Chat and tool call through the engine
-        shell: bash
         run: cargo test --lib ${{ runner.os == 'Linux' && '--features vulkan' || '' }} smoke -- --ignored --nocapture --test-threads=1
