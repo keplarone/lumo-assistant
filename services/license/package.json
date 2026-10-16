@@ -1,0 +1,13 @@
+{
+  "name": "@lumo/license",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Checks Whop memberships for the Lumo desktop app. Deploy as a serverless function (Vercel: api/validate.js).",
+  "scripts": {
+    "test": "node --test test/*.test.js"
+  },
+  "engines": {
+    "node": ">=22"
+  }
+}

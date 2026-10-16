@@ -77,8 +77,11 @@ pub fn get_settings(state: S) -> Settings {
 }
 
 #[tauri::command]
-pub fn save_settings(app: AppHandle, state: S, settings: Settings) -> ApiResult<Settings> {
+pub fn save_settings(app: AppHandle, state: S, mut settings: Settings) -> ApiResult<Settings> {
     let old = state.core.settings();
+    // The plan comes only from a verified license, never from the webview.
+    settings.plan = old.plan.clone();
+    settings.plan_checked_at = old.plan_checked_at.clone();
     settings::save(&state.core.db, &settings)?;
     if old.global_shortcut != settings.global_shortcut {
         if let Err(e) = desktop::register_shortcut(&app, &settings.global_shortcut) {
@@ -818,4 +821,21 @@ pub async fn delete_local_model(state: S<'_>, id: String) -> ApiResult<()> {
 #[tauri::command]
 pub async fn select_local_model(state: S<'_>, id: String) -> ApiResult<()> {
     Ok(crate::local_models::select(&state.core, &id).await?)
+}
+
+// ---- Plans and licenses (Whop) --------------------------------------------------------------
+
+#[tauri::command]
+pub fn license_status(state: S) -> crate::license::LicenseStatus {
+    crate::license::status(&state.core)
+}
+
+#[tauri::command]
+pub async fn activate_license(state: S<'_>, license_key: String) -> ApiResult<crate::license::LicenseStatus> {
+    Ok(crate::license::activate(&state.core, crate::license::server(), &license_key).await?)
+}
+
+#[tauri::command]
+pub fn remove_license(state: S) -> ApiResult<crate::license::LicenseStatus> {
+    Ok(crate::license::deactivate(&state.core)?)
 }

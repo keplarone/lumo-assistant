@@ -38,6 +38,9 @@ pub struct Settings {
     pub tts_enabled: bool,
     pub mascot_enabled: bool,
     pub reduced_motion: bool,
+    /// "free", "lite" or "pro". Only the license check changes it; saving settings from the UI keeps it.
+    pub plan: String,
+    pub plan_checked_at: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
@@ -76,6 +79,8 @@ impl Default for Settings {
             tts_enabled: false,
             mascot_enabled: true,
             reduced_motion: false,
+            plan: "free".into(),
+            plan_checked_at: None,
         }
     }
 }
@@ -103,6 +108,9 @@ impl Settings {
         }
         if self.model.trim().is_empty() || self.model.len() > 100 {
             return Err(invalid("model name is required"));
+        }
+        if !["free", "lite", "pro"].contains(&self.plan.as_str()) {
+            return Err(invalid("unknown plan"));
         }
         if !(1..=200).contains(&self.max_tool_calls_per_run) {
             return Err(invalid("max tool calls per run must be between 1 and 200"));

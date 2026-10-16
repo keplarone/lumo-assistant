@@ -9,6 +9,7 @@ pub mod db;
 pub mod desktop;
 pub mod error;
 pub mod integrations;
+pub mod license;
 pub mod local_models;
 pub mod model;
 pub mod policy;
@@ -179,6 +180,9 @@ pub fn run() {
             commands::verify_integration,
             commands::disconnect_integration,
             commands::transcribe_audio,
+            commands::license_status,
+            commands::activate_license,
+            commands::remove_license,
             commands::local_models_status,
             commands::download_local_model,
             commands::cancel_local_download,
