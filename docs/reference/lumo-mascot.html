@@ -1,0 +1,890 @@
+<!doctype html><html><head><meta charset=utf8><meta name=viewport content="width=device-width,initial-scale=1,viewport-fit=cover"><style>:root{color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}html{scroll-padding-top:env(safe-area-inset-top,0px)}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#fff;color:#000}img{max-width:100%}[hidden]:not([hidden=until-found i]){display:none!important}</style></head><body>
+<title>Lumo Mascot</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400;12..96,600;12..96,800&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: a night-sky stage owns the first screen; the rig panel and usage notes sit beneath it like a spec sheet. */
+:root {
+  --night: #090a1c;
+  --night-2: #111331;
+  --panel: #14173a;
+  --ink: #ecebff;
+  --muted: #9d9fcf;
+  --line: rgba(160, 166, 255, 0.16);
+  --lumen: #ffc65c;
+  --aurora: #7ff3ff;
+  --display: "Bricolage Grotesque", "Avenir Next", "Segoe UI", system-ui, sans-serif;
+  --mono: "IBM Plex Mono", ui-monospace, "SFMono-Regular", Menlo, monospace;
+  color-scheme: dark;
+}
+html, body { background: var(--night); color: var(--ink); }
+body { font-family: var(--display); font-size: 15px; line-height: 1.55; }
+* { box-sizing: border-box; }
+
+.wrap { max-width: 1120px; margin: 0 auto; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); }
+
+header.top { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; flex-wrap: wrap; padding-block: 18px 14px; }
+.mark { font-weight: 800; font-size: 20px; letter-spacing: -0.01em; display: flex; align-items: center; gap: 8px; }
+.mark i { width: 9px; height: 9px; border-radius: 50%; background: var(--lumen); box-shadow: 0 0 14px var(--lumen); display: inline-block; }
+.tag { font-family: var(--mono); font-size: 11.5px; color: var(--muted); letter-spacing: 0.06em; text-transform: uppercase; }
+
+.stage { position: relative; height: clamp(460px, 76vh, 760px); border-radius: 22px; overflow: hidden; border: 1px solid var(--line);
+  background: radial-gradient(ellipse 70% 60% at 50% 42%, #1c2056 0%, #10123a 45%, var(--night) 100%); touch-action: pan-y; }
+.stage canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; cursor: grab; }
+.stage canvas:active { cursor: grabbing; }
+
+.overlay { position: absolute; left: 0; right: 0; bottom: 0; padding: 18px 20px; display: flex; align-items: flex-end; justify-content: space-between; gap: 16px; flex-wrap: wrap; pointer-events: none;
+  background: linear-gradient(to top, rgba(9,10,28,0.85), rgba(9,10,28,0)); }
+.name h1 { margin: 0; font-size: clamp(44px, 8vw, 84px); line-height: 0.9; font-weight: 800; letter-spacing: -0.035em; }
+.name p { margin: 6px 0 0; color: var(--muted); font-size: 14px; }
+
+.states { display: flex; flex-wrap: wrap; gap: 6px; pointer-events: auto; padding: 5px; border-radius: 999px; background: rgba(17,19,49,0.72); border: 1px solid var(--line); backdrop-filter: blur(8px); }
+.states button { font: 500 13px/1 var(--display); color: var(--ink); background: transparent; border: 0; padding: 9px 14px; border-radius: 999px; cursor: pointer; display: flex; gap: 7px; align-items: center; }
+.states button kbd { font: 10.5px var(--mono); color: var(--muted); }
+.states button:hover { background: rgba(127,243,255,0.08); }
+.states button[aria-pressed="true"] { background: var(--lumen); color: #1a1205; }
+.states button[aria-pressed="true"] kbd { color: #5b430f; }
+.states button:focus-visible, .copy:focus-visible, input[type=range]:focus-visible { outline: 2px solid var(--aurora); outline-offset: 2px; }
+
+.hint { position: absolute; top: 14px; right: 16px; font: 11px var(--mono); color: var(--muted); letter-spacing: 0.05em; pointer-events: none; }
+
+main { display: grid; grid-template-columns: minmax(0, 5fr) minmax(0, 7fr); gap: 20px; padding-block: 22px 56px; }
+@media (max-width: 820px) { main { grid-template-columns: minmax(0, 1fr); } .overlay { flex-direction: column; align-items: flex-start; } }
+
+.card { background: var(--panel); border: 1px solid var(--line); border-radius: 18px; padding: 20px; min-width: 0; }
+.card h2 { margin: 0 0 4px; font-size: 17px; font-weight: 600; letter-spacing: -0.01em; }
+.card > p { margin: 0 0 16px; color: var(--muted); font-size: 13.5px; }
+
+.slider { display: grid; grid-template-columns: 1fr auto; gap: 4px 12px; padding-block: 10px; border-top: 1px solid var(--line); }
+.slider label { font-size: 13.5px; }
+.slider label code { font: 11px var(--mono); color: var(--muted); margin-left: 6px; }
+.slider output { font: 12px var(--mono); color: var(--aurora); font-variant-numeric: tabular-nums; }
+.slider input { grid-column: 1 / -1; width: 100%; accent-color: var(--lumen); }
+
+.code-head { display: flex; justify-content: space-between; align-items: center; gap: 10px; margin-bottom: 10px; }
+.copy { font: 500 12px var(--display); color: var(--ink); background: transparent; border: 1px solid var(--line); border-radius: 8px; padding: 6px 10px; cursor: pointer; }
+.copy:hover { border-color: var(--aurora); }
+pre { margin: 0; background: var(--night); border: 1px solid var(--line); border-radius: 12px; padding: 14px 16px; overflow-x: auto; font: 12.5px/1.65 var(--mono); color: #d7d8ff; }
+pre .c { color: #6f73a8; } pre .k { color: var(--aurora); } pre .s { color: var(--lumen); }
+
+dl.api { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 8px 16px; margin: 18px 0 0; font-size: 13.5px; }
+dl.api dt { font: 12px var(--mono); color: var(--lumen); padding-top: 2px; white-space: nowrap; }
+dl.api dd { margin: 0; color: var(--muted); min-width: 0; }
+@media (max-width: 480px) { dl.api { grid-template-columns: minmax(0, 1fr); gap: 2px; } dl.api dd { margin-bottom: 8px; } }
+
+@media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+</style>
+
+<div class="wrap">
+  <header class="top">
+    <div class="mark"><i aria-hidden="true"></i>Lumo</div>
+    <div class="tag">Mascot rig · three.js · procedural, no assets</div>
+  </header>
+
+  <section class="stage" id="stage" aria-label="Lumo, an animated owl of light">
+    <canvas id="c"></canvas>
+    <div class="hint">Drag to turn · tap to delight</div>
+    <div class="overlay">
+      <div class="name">
+        <h1>Lumo</h1>
+        <p>A celestial owl that keeps watch while you think.</p>
+      </div>
+      <div class="states" role="group" aria-label="Mood">
+        <button data-state="idle" aria-pressed="true">Idle <kbd>1</kbd></button>
+        <button data-state="think">Think <kbd>2</kbd></button>
+        <button data-state="speak">Speak <kbd>3</kbd></button>
+        <button data-state="happy">Happy <kbd>4</kbd></button>
+        <button data-state="majestic">Majestic <kbd>5</kbd></button>
+        <button data-state="sleep">Sleep <kbd>6</kbd></button>
+      </div>
+    </div>
+  </section>
+
+  <main>
+    <section class="card">
+      <h2>Rig controls</h2>
+      <p>Every value eases, so sliders feel like a puppeteer's hand. Picking a mood resets them.</p>
+      <div class="slider"><label for="s-wingSpread">Wing spread <code>wingSpread</code></label><output id="o-wingSpread">0.05</output><input id="s-wingSpread" data-key="wingSpread" type="range" min="0" max="1" step="0.01" value="0.05"></div>
+      <div class="slider"><label for="s-glow">Inner light <code>glow</code></label><output id="o-glow">0.65</output><input id="s-glow" data-key="glow" type="range" min="0" max="1.6" step="0.01" value="0.65"></div>
+      <div class="slider"><label for="s-lidTop">Eyelids <code>lidTop</code></label><output id="o-lidTop">0.10</output><input id="s-lidTop" data-key="lidTop" type="range" min="0" max="1" step="0.01" value="0.10"></div>
+      <div class="slider"><label for="s-tilt">Head tilt <code>tilt</code></label><output id="o-tilt">0.00</output><input id="s-tilt" data-key="tilt" type="range" min="-0.4" max="0.4" step="0.01" value="0"></div>
+      <div class="slider"><label for="s-haloSpeed">Halo speed <code>haloSpeed</code></label><output id="o-haloSpeed">0.35</output><input id="s-haloSpeed" data-key="haloSpeed" type="range" min="0" max="3" step="0.01" value="0.35"></div>
+      <div class="slider"><label for="s-mouth">Beak, from audio level <code>speakLevel</code></label><output id="o-mouth">off</output><input id="s-mouth" type="range" min="0" max="1" step="0.01" value="0"></div>
+    </section>
+
+    <section class="card">
+      <div class="code-head">
+        <h2>Drop it into your scene</h2>
+        <button class="copy" id="copy" type="button">Copy</button>
+      </div>
+<pre id="code"><span class="k">import</span> * <span class="k">as</span> THREE <span class="k">from</span> <span class="s">'three'</span>;
+<span class="k">import</span> { Lumo } <span class="k">from</span> <span class="s">'./lumo.js'</span>;
+
+<span class="k">const</span> lumo = <span class="k">new</span> Lumo({ pixelRatio: renderer.getPixelRatio() });
+scene.add(lumo);
+
+lumo.setState(<span class="s">'majestic'</span>);        <span class="c">// idle · think · speak · happy · majestic · sleep</span>
+lumo.gaze(0.4, 0.2);              <span class="c">// -1..1, or null to let it wander</span>
+lumo.set({ wingSpread: 0.6 });    <span class="c">// ease any rig target directly</span>
+lumo.speakLevel = analyserLevel;  <span class="c">// drive the beak from TTS audio</span>
+
+<span class="k">const</span> clock = <span class="k">new</span> THREE.Clock();
+renderer.setAnimationLoop(() =&gt; {
+  lumo.update(clock.getDelta());
+  renderer.render(scene, camera);
+});</pre>
+      <dl class="api">
+        <dt>react(state, s)</dt><dd>Play a mood for a few seconds, then return to the previous one. Tapping Lumo here calls <code>react('happy')</code>.</dd>
+        <dt>pulse() · blink()</dt><dd>One-shot beats: a ring of light, or a single blink. Blinks also happen on their own.</dd>
+        <dt>lumo.parts</dt><dd>Named rig: head, eyes.left/right (ball, lidTop, lidBottom), beak.jaw, crest, wings.left/right (primaries, coverts), tail, halo. Animate them with GSAP or your own timeline.</dd>
+        <dt>lumo.targets</dt><dd>The values each frame eases toward. Tween these for smooth, layered motion.</dd>
+        <dt>'statechange'</dt><dd>Event fired on every mood change, with <code>state</code> and <code>previous</code>.</dd>
+      </dl>
+    </section>
+  </main>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/three@0.149.0/build/three.min.js"></script>
+<script>
+function createLumoFactory(THREE) {
+  const TAU = Math.PI * 2;
+  const v3 = (hex) => new THREE.Vector3(((hex >> 16) & 255) / 255, ((hex >> 8) & 255) / 255, (hex & 255) / 255);
+  const damp = (a, b, k, dt) => a + (b - a) * (1 - Math.exp(-k * dt));
+  const clamp = (x, a, b) => Math.min(b, Math.max(a, x));
+  const mix = (a, b, t) => a + (b - a) * t;
+
+  const PALETTE = {
+    bodyTop: 0x2c3184, bodyBot: 0x0b0d2a, rim: 0x7ff3ff, gold: 0xffc65c,
+    discCenter: 0xf4f0ff, discEdge: 0x9f9de6, discRing: 0xffc65c,
+    irisIn: 0xffe9a0, irisOut: 0xff8a3d, pupil: 0x04051a, sclera: 0x0e1034, circuit: 0x8ff6ff,
+    lid: 0x262b72, beak: 0xffc65c,
+    featherRoot: 0x0d1032, featherMid: 0x2e3ca6, featherEdge: 0x7ff3ff, featherTip: 0xffd27a,
+    covertRoot: 0x171b4f, covertMid: 0x3a3f9e,
+    crystalBase: 0xffc65c, crystalTip: 0xc4fdff,
+    aura: 0x5566ff, warm: 0xffb648, spark: 0xc4fdff,
+  };
+
+  // Every state lists the full set of rig targets. Values are eased toward, never snapped.
+  const BASE = {
+    wingSpread: 0.05, flap: 0.15, lidTop: 0.1, lidBottom: 0, glow: 0.65, haloSpeed: 0.35,
+    bob: 1, breath: 1, tilt: 0, talk: 0, crest: 0.45, rise: 0, lean: 0, tailFan: 0.1,
+    dilate: 1, gazeLock: 0, gazeX: 0, gazeY: 0,
+  };
+  const STATES = {
+    idle: {},
+    think: { wingSpread: 0.12, flap: 0.08, lidTop: 0.2, lidBottom: 0.12, glow: 0.85, haloSpeed: 1.8, bob: 0.6, tilt: 0.2, crest: 1.05, rise: 0.05, tailFan: 0.2, dilate: 0.75, gazeLock: 1, gazeX: -0.5, gazeY: 0.6 },
+    speak: { wingSpread: 0.16, flap: 0.3, lidTop: 0.1, lidBottom: 0.04, glow: 0.85, haloSpeed: 0.75, bob: 0.9, tilt: 0.04, talk: 1, crest: 0.75, tailFan: 0.25, dilate: 1.05 },
+    happy: { wingSpread: 0.34, flap: 1, lidTop: 0, lidBottom: 0.45, glow: 1.05, haloSpeed: 0.95, bob: 1.5, tilt: -0.12, crest: 0.95, rise: 0.12, tailFan: 0.6, dilate: 1.15 },
+    majestic: { wingSpread: 1, flap: 0.22, lidTop: 0, glow: 1.4, haloSpeed: 0.55, bob: 0.5, crest: 1.35, rise: 0.32, lean: -0.08, tailFan: 1, dilate: 0.9 },
+    sleep: { wingSpread: 0, flap: 0, lidTop: 1, lidBottom: 0.12, glow: 0.22, haloSpeed: 0.06, bob: 0.45, breath: 0.45, tilt: 0.28, crest: 0.15, rise: -0.08, lean: 0.1, tailFan: 0, dilate: 1.3, gazeLock: 1, gazeX: 0, gazeY: -0.3 },
+  };
+  for (const k in STATES) STATES[k] = Object.assign({}, BASE, STATES[k]);
+
+  const VERT = /* glsl */`
+    varying vec3 vN; varying vec3 vV; varying vec3 vObj; varying vec3 vObjN;
+    void main(){
+      vObj = position; vObjN = normal;
+      vec4 mv = modelViewMatrix * vec4(position, 1.0);
+      vN = normalize(normalMatrix * normal);
+      vV = normalize(-mv.xyz);
+      gl_Position = projectionMatrix * mv;
+    }`;
+  const COMMON = /* glsl */`
+    varying vec3 vN; varying vec3 vV; varying vec3 vObj; varying vec3 vObjN;
+    const vec3 LDIR = vec3(-0.43, 0.72, 0.54);
+    float hash3(vec3 p){ p = fract(p * 0.3183099 + 0.1); p *= 17.0; return fract(p.x * p.y * p.z * (p.x + p.y + p.z)); }
+  `;
+
+  const BODY_FRAG = COMMON + /* glsl */`
+    uniform float uTime; uniform float uGlow;
+    uniform vec3 uTop; uniform vec3 uBot; uniform vec3 uRim; uniform vec3 uGold; uniform vec3 uSpark;
+    void main(){
+      vec3 N = normalize(vN); vec3 V = normalize(vV);
+      float h = smoothstep(-1.05, 1.0, vObj.y);
+      vec3 col = mix(uBot, uTop, h);
+      // chest: scalloped feather rows
+      float front = smoothstep(0.3, 0.85, vObjN.z) * smoothstep(0.2, -0.35, vObj.y);
+      vec2 uv = vec2(vObj.x * 5.5, vObj.y * 6.2);
+      float row = floor(uv.y); uv.x += mod(row, 2.0) * 0.5;
+      vec2 f = vec2(fract(uv.x) - 0.5, fract(uv.y));
+      float arc = 1.0 - smoothstep(0.0, 0.07, abs(length(f - vec2(0.0, 1.0)) - 0.5));
+      col += front * vec3(0.05, 0.06, 0.15);
+      col = mix(col, uGold * 0.85, arc * front * 0.32);
+      // star flecks on the back and crown
+      vec3 q = vObj * 22.0; float s = hash3(floor(q));
+      float star = smoothstep(0.28, 0.0, length(fract(q) - 0.5)) * step(0.972, s);
+      star *= 0.45 + 0.55 * sin(uTime * (1.5 + s * 3.0) + s * 60.0);
+      col += max(star, 0.0) * uSpark * 0.75 * (1.0 - front);
+      float dif = max(dot(N, normalize(LDIR)), 0.0);
+      col *= 0.5 + 0.75 * dif;
+      float fr = pow(1.0 - max(dot(N, V), 0.0), 2.6);
+      col += mix(uRim, uGold, smoothstep(0.2, 1.0, vObj.y)) * fr * (0.55 + 0.6 * uGlow);
+      gl_FragColor = vec4(col, 1.0);
+    }`;
+
+  const DISC_FRAG = COMMON + /* glsl */`
+    uniform vec3 uCenter; uniform vec3 uEdge; uniform vec3 uRing; uniform float uGlow;
+    void main(){
+      vec3 N = normalize(vN); vec3 V = normalize(vV);
+      float r = length(vObj.xy);
+      float a = atan(vObj.y, vObj.x);
+      vec3 col = mix(uCenter, uEdge, smoothstep(0.35, 0.95, r));
+      col *= 0.9 + 0.1 * sin(a * 30.0 + r * 4.0);
+      float ring = smoothstep(0.8, 0.88, r) * (1.0 - smoothstep(0.9, 0.98, r));
+      col = mix(col, uRing, ring * 0.85);
+      float dif = max(dot(N, normalize(LDIR)), 0.0);
+      col *= 0.62 + 0.5 * dif;
+      col += uRing * ring * 0.25 * uGlow;
+      gl_FragColor = vec4(col, 1.0);
+    }`;
+
+  const IRIS_FRAG = COMMON + /* glsl */`
+    uniform vec3 uIn; uniform vec3 uOut; uniform vec3 uPupil; uniform vec3 uSclera; uniform vec3 uCircuit;
+    uniform float uDilate; uniform float uGlow; uniform float uTime;
+    void main(){
+      vec3 N = normalize(vN); vec3 V = normalize(vV);
+      vec3 p = normalize(vObj);
+      float d = acos(clamp(p.z, -1.0, 1.0));
+      float a = atan(p.y, p.x);
+      float irisR = 0.78; float pupilR = 0.3 * uDilate;
+      float ti = d / irisR;
+      vec3 iris = mix(uIn, uOut, smoothstep(0.3, 1.0, ti));
+      iris *= 0.82 + 0.22 * sin(a * 26.0 + ti * 7.0) * sin(a * 9.0 - ti * 3.0 + 1.3);
+      iris += uIn * (1.0 - ti) * 0.45 * uGlow;
+      iris = mix(iris, uOut * 0.25, smoothstep(0.86, 1.0, ti));
+      // the AI tell: a slow-turning dashed ring inside the iris
+      float tick = step(0.45, fract((a + uTime * 0.35) * 18.0 / 6.2831853));
+      float band = 1.0 - smoothstep(0.0, 0.035, abs(ti - 0.6));
+      iris = mix(iris, uCircuit, tick * band * 0.7);
+      vec3 col = mix(uSclera, iris, 1.0 - smoothstep(irisR - 0.02, irisR + 0.02, d));
+      col = mix(col, uPupil, 1.0 - smoothstep(pupilR - 0.025, pupilR + 0.025, d));
+      float fr = pow(1.0 - max(dot(N, V), 0.0), 3.0);
+      col += uCircuit * fr * 0.25;
+      gl_FragColor = vec4(col, 1.0);
+    }`;
+
+  const LID_FRAG = COMMON + /* glsl */`
+    uniform vec3 uColor; uniform vec3 uLine; uniform vec3 uRim;
+    void main(){
+      vec3 N = normalize(vN); if (!gl_FrontFacing) N = -N; vec3 V = normalize(vV);
+      float dif = max(dot(N, normalize(LDIR)), 0.0);
+      vec3 col = uColor * (0.55 + 0.7 * dif);
+      float line = 1.0 - smoothstep(0.0, 0.14, abs(vObj.y));
+      col = mix(col, uLine, line * 0.9);
+      col += uRim * pow(1.0 - max(dot(N, V), 0.0), 2.5) * 0.35;
+      gl_FragColor = vec4(col, 1.0);
+    }`;
+
+  const LIT_FRAG = COMMON + /* glsl */`
+    uniform vec3 uColor; uniform vec3 uRim; uniform float uRimAmt; uniform vec3 uEmissive;
+    void main(){
+      vec3 N = normalize(vN); if (!gl_FrontFacing) N = -N; vec3 V = normalize(vV);
+      vec3 L = normalize(LDIR);
+      float dif = max(dot(N, L), 0.0);
+      float spec = pow(max(dot(reflect(-L, N), V), 0.0), 28.0);
+      float fr = pow(1.0 - max(dot(N, V), 0.0), 2.5);
+      vec3 col = uColor * (0.45 + 0.75 * dif) + spec * 0.35 + uRim * fr * uRimAmt + uEmissive;
+      gl_FragColor = vec4(col, 1.0);
+    }`;
+
+  const CRYSTAL_FRAG = COMMON + /* glsl */`
+    uniform vec3 uBase; uniform vec3 uTip; uniform float uPulse; uniform float uTime;
+    void main(){
+      vec3 N = normalize(vN); vec3 V = normalize(vV);
+      float t = clamp(vObj.y * 0.5, 0.0, 1.0);
+      vec3 col = mix(uBase, uTip, smoothstep(0.1, 0.9, t));
+      float facet = 0.55 + 0.6 * max(dot(N, normalize(LDIR)), 0.0);
+      col *= facet;
+      col += vec3(1.0) * pow(1.0 - max(dot(N, V), 0.0), 2.0) * 0.55;
+      float wave = 0.5 + 0.5 * sin(uTime * 3.0 - t * 7.0);
+      col *= 0.75 + 0.45 * uPulse * wave;
+      gl_FragColor = vec4(col, 1.0);
+    }`;
+
+  const FEATHER_VERT = /* glsl */`
+    attribute vec2 aTS;
+    varying vec2 vTS; varying vec3 vN; varying vec3 vV; varying float vPhase;
+    void main(){
+      vTS = aTS;
+      vec4 wp = modelMatrix * vec4(0.0, 0.0, 0.0, 1.0);
+      vPhase = fract(wp.x * 0.37 + wp.y * 0.21 + wp.z * 0.11);
+      vec4 mv = modelViewMatrix * vec4(position, 1.0);
+      vN = normalize(normalMatrix * normal);
+      vV = normalize(-mv.xyz);
+      gl_Position = projectionMatrix * mv;
+    }`;
+  const FEATHER_FRAG = /* glsl */`
+    uniform vec3 uRoot; uniform vec3 uMid; uniform vec3 uEdge; uniform vec3 uTip;
+    uniform float uTime; uniform float uGlow;
+    varying vec2 vTS; varying vec3 vN; varying vec3 vV; varying float vPhase;
+    void main(){
+      float t = clamp(vTS.x, 0.0, 1.0);
+      float prof = sin(3.14159265 * pow(max(t, 0.0001), 0.62));
+      float e = abs(vTS.y) / max(prof, 0.001);
+      if (e > 1.02) discard;
+      vec3 col = mix(uRoot, uMid, smoothstep(0.0, 0.8, t));
+      float barb = 0.5 + 0.5 * sin(t * 64.0 - e * 9.0);
+      col *= 0.84 + 0.16 * barb;
+      float rach = (1.0 - smoothstep(0.0, 0.05, abs(vTS.y))) * (1.0 - t * 0.6);
+      col += uTip * rach * 0.35;
+      vec3 edgeCol = mix(uEdge, uTip, smoothstep(0.45, 1.0, t));
+      float eg = smoothstep(0.55, 1.0, e);
+      col = mix(col, edgeCol, eg * 0.7);
+      col += edgeCol * eg * eg * 0.4 * uGlow;
+      col += uTip * smoothstep(0.82, 1.0, t) * 0.35 * uGlow;
+      float band = exp(-pow((t - fract(uTime * 0.22 + vPhase)) * 9.0, 2.0));
+      col += uEdge * band * 0.3 * uGlow;
+      vec3 N = normalize(vN); if (!gl_FrontFacing) N = -N; vec3 V = normalize(vV);
+      float dif = max(dot(N, normalize(vec3(-0.43, 0.72, 0.54))), 0.0);
+      col *= 0.62 + 0.5 * dif;
+      col += uEdge * pow(1.0 - abs(dot(N, V)), 3.0) * 0.2;
+      gl_FragColor = vec4(col, 1.0);
+    }`;
+
+  const RING_FRAG = COMMON + /* glsl */`
+    uniform vec3 uColor; uniform float uPhase; uniform float uIntensity; uniform float uMode;
+    void main(){
+      float a = atan(vObj.y, vObj.x);
+      float v;
+      if (uMode < 0.5) {
+        v = 0.22 + 0.9 * smoothstep(0.55, 1.0, sin(a * 3.0 + uPhase));
+      } else {
+        v = step(0.82, fract(a * 72.0 / 6.2831853)) * (0.35 + 0.65 * smoothstep(0.2, 1.0, sin(a - uPhase * 0.6)));
+      }
+      gl_FragColor = vec4(uColor * v * uIntensity, 1.0);
+    }`;
+
+  const PARTICLE_VERT = /* glsl */`
+    attribute float aSeed;
+    uniform float uTime; uniform float uSize; uniform float uPR;
+    varying float vA; varying float vSeed;
+    void main(){
+      vec3 p = position;
+      float sp = 0.1 + aSeed * 0.22;
+      p.y = mod(p.y + uTime * sp + 1.9, 4.4) - 1.9;
+      p.x += sin(uTime * 0.6 + aSeed * 20.0) * 0.12;
+      p.z += cos(uTime * 0.5 + aSeed * 13.0) * 0.12;
+      vec4 mv = modelViewMatrix * vec4(p, 1.0);
+      gl_Position = projectionMatrix * mv;
+      float tw = 0.4 + 0.6 * (0.5 + 0.5 * sin(uTime * (1.5 + aSeed * 3.0) + aSeed * 40.0));
+      float edge = smoothstep(-1.9, -1.3, p.y) * (1.0 - smoothstep(1.9, 2.5, p.y));
+      vA = tw * edge; vSeed = aSeed;
+      gl_PointSize = uSize * (0.35 + aSeed) * uPR * (8.0 / -mv.z);
+    }`;
+  const PARTICLE_FRAG = /* glsl */`
+    uniform vec3 uA; uniform vec3 uB; uniform float uOpacity;
+    varying float vA; varying float vSeed;
+    void main(){
+      float d = length(gl_PointCoord - 0.5);
+      float a = smoothstep(0.5, 0.0, d); a *= a;
+      gl_FragColor = vec4(mix(uA, uB, step(0.7, vSeed)), a * vA * uOpacity);
+    }`;
+
+  function canvasTex(draw, size = 128) {
+    const c = document.createElement('canvas'); c.width = c.height = size;
+    draw(c.getContext('2d'), size);
+    const t = new THREE.CanvasTexture(c);
+    t.needsUpdate = true;
+    return t;
+  }
+  const glowTex = () => canvasTex((g, s) => {
+    const r = s / 2, gr = g.createRadialGradient(r, r, 0, r, r, r);
+    gr.addColorStop(0, 'rgba(255,255,255,1)'); gr.addColorStop(0.22, 'rgba(255,255,255,0.5)');
+    gr.addColorStop(0.55, 'rgba(255,255,255,0.12)'); gr.addColorStop(1, 'rgba(255,255,255,0)');
+    g.fillStyle = gr; g.fillRect(0, 0, s, s);
+  });
+  const ringTex = () => canvasTex((g, s) => {
+    const r = s / 2, gr = g.createRadialGradient(r, r, 0, r, r, r);
+    gr.addColorStop(0, 'rgba(255,255,255,0)'); gr.addColorStop(0.72, 'rgba(255,255,255,0)');
+    gr.addColorStop(0.86, 'rgba(255,255,255,1)'); gr.addColorStop(1, 'rgba(255,255,255,0)');
+    g.fillStyle = gr; g.fillRect(0, 0, s, s);
+  }, 256);
+
+  function featherGeometry(len, width, bend = 0.12, segs = 28) {
+    const shape = new THREE.Shape();
+    const xs = [];
+    for (let i = 0; i <= segs; i++) {
+      const t = i / segs;
+      xs.push([width * Math.sin(Math.PI * Math.pow(t, 0.62)), -t * len]);
+    }
+    shape.moveTo(0, 0);
+    for (let i = 1; i <= segs; i++) shape.lineTo(xs[i][0], xs[i][1]);
+    for (let i = segs - 1; i >= 1; i--) shape.lineTo(-xs[i][0], xs[i][1]);
+    shape.lineTo(0, 0);
+    const g = new THREE.ShapeGeometry(shape, 1);
+    const pos = g.attributes.position;
+    const ts = new Float32Array(pos.count * 2);
+    for (let i = 0; i < pos.count; i++) {
+      const x = pos.getX(i), y = pos.getY(i), t = -y / len;
+      ts[i * 2] = t; ts[i * 2 + 1] = x / width;
+      pos.setZ(i, -bend * t * t * len);
+    }
+    g.setAttribute('aTS', new THREE.BufferAttribute(ts, 2));
+    g.computeVertexNormals();
+    return g;
+  }
+
+  class Lumo extends THREE.Group {
+    constructor(opts = {}) {
+      super();
+      this.name = 'Lumo';
+      this.opts = Object.assign({ particles: 150, pixelRatio: 1, calm: false }, opts);
+      this.state = 'idle';
+      this.targets = Object.assign({}, STATES.idle);
+      this.params = Object.assign({}, STATES.idle);
+      this.time = 0;
+      this.speakLevel = null;
+      this.parts = {};
+      this._gaze = null;
+      this._look = new THREE.Vector2();
+      this._nextBlink = 1.5 + Math.random() * 2;
+      this._blinkT = -1;
+      this._pulseT = -1;
+      this._flapPhase = 0;
+      this._haloPhase = 0;
+      this._reactT = 0;
+      this._reactPrev = 'idle';
+      this._disposables = [];
+      this._build();
+    }
+
+    _mat(frag, uniforms, extra = {}) {
+      const m = new THREE.ShaderMaterial(Object.assign({ vertexShader: VERT, fragmentShader: frag, uniforms }, extra));
+      this._disposables.push(m);
+      return m;
+    }
+
+    _build() {
+      const P = PALETTE;
+      const U = this._u = { time: { value: 0 }, glow: { value: 0.65 }, pulse: { value: 0.45 }, dilate: { value: 1 } };
+      const tex = this._tex = { glow: glowTex(), ring: ringTex() };
+      this._disposables.push(tex.glow, tex.ring);
+
+      const rig = new THREE.Group(); rig.name = 'rig'; this.add(rig);
+      const sphere = new THREE.SphereGeometry(1, 96, 64);
+      this._disposables.push(sphere);
+
+      // Aura behind everything
+      const spriteMat = (color, opacity, map = tex.glow) => {
+        const m = new THREE.SpriteMaterial({ map, color, transparent: true, opacity, blending: THREE.AdditiveBlending, depthWrite: false });
+        this._disposables.push(m); return m;
+      };
+      const aura = new THREE.Sprite(spriteMat(P.aura, 0.3)); aura.position.set(0, 0.15, -1.1); aura.scale.setScalar(6);
+      const warm = new THREE.Sprite(spriteMat(P.warm, 0.18)); warm.position.set(0, 0.55, -0.8); warm.scale.setScalar(3.2);
+      rig.add(aura, warm);
+
+      // Halo: a slow orbit ring plus a finely ticked outer ring
+      const halo = new THREE.Group(); halo.name = 'halo'; halo.position.set(0, 0.32, -0.75); halo.rotation.x = -0.1;
+      const ringMat = (color, mode) => {
+        const m = new THREE.ShaderMaterial({ vertexShader: VERT, fragmentShader: RING_FRAG, transparent: true, blending: THREE.AdditiveBlending, depthWrite: false,
+          uniforms: { uColor: { value: v3(color) }, uPhase: { value: 0 }, uIntensity: { value: 1 }, uMode: { value: mode } } });
+        this._disposables.push(m); return m;
+      };
+      const ringA = new THREE.Mesh(new THREE.TorusGeometry(1.5, 0.014, 8, 220), ringMat(P.gold, 0));
+      const ringB = new THREE.Mesh(new THREE.TorusGeometry(1.64, 0.007, 6, 260), ringMat(P.rim, 1));
+      this._disposables.push(ringA.geometry, ringB.geometry);
+      const motes = new THREE.Group();
+      for (let i = 0; i < 9; i++) {
+        const s = new THREE.Sprite(spriteMat(i % 3 ? P.spark : P.warm, 0.9));
+        const a = (i / 9) * TAU;
+        s.position.set(Math.cos(a) * 1.5, Math.sin(a) * 1.5, 0);
+        s.scale.setScalar(i % 3 ? 0.13 : 0.22);
+        motes.add(s);
+      }
+      halo.add(ringA, ringB, motes);
+      rig.add(halo);
+      this._rings = [ringA, ringB]; this._motes = motes;
+
+      // Body
+      const bodyGroup = new THREE.Group(); bodyGroup.name = 'body';
+      const body = new THREE.Mesh(sphere, this._mat(BODY_FRAG, {
+        uTime: U.time, uGlow: U.glow, uTop: { value: v3(P.bodyTop) }, uBot: { value: v3(P.bodyBot) },
+        uRim: { value: v3(P.rim) }, uGold: { value: v3(P.gold) }, uSpark: { value: v3(P.spark) },
+      }));
+      body.scale.set(1, 1.12, 0.95);
+      bodyGroup.add(body); rig.add(bodyGroup);
+
+      // Head (pivots at body centre so features glide over the surface)
+      const head = new THREE.Group(); head.name = 'head'; rig.add(head);
+      const discMat = this._mat(DISC_FRAG, { uCenter: { value: v3(P.discCenter) }, uEdge: { value: v3(P.discEdge) }, uRing: { value: v3(P.discRing) }, uGlow: U.glow });
+      const irisMat = this._mat(IRIS_FRAG, { uIn: { value: v3(P.irisIn) }, uOut: { value: v3(P.irisOut) }, uPupil: { value: v3(P.pupil) }, uSclera: { value: v3(P.sclera) }, uCircuit: { value: v3(P.circuit) }, uDilate: U.dilate, uGlow: U.glow, uTime: U.time });
+      const lidMat = this._mat(LID_FRAG, { uColor: { value: v3(P.lid) }, uLine: { value: v3(P.gold) }, uRim: { value: v3(P.rim) } }, { side: THREE.DoubleSide });
+      const shineMat = new THREE.MeshBasicMaterial({ color: 0xffffff }); this._disposables.push(shineMat);
+      const topLidGeo = new THREE.SphereGeometry(1, 40, 20, 0, TAU, 0, Math.PI / 2);
+      const botLidGeo = new THREE.SphereGeometry(1, 40, 20, 0, TAU, Math.PI / 2, Math.PI / 2);
+      const smallSphere = new THREE.SphereGeometry(1, 20, 12);
+      this._disposables.push(topLidGeo, botLidGeo, smallSphere);
+
+      const eyes = {};
+      for (const side of [-1, 1]) {
+        const disc = new THREE.Mesh(sphere, discMat);
+        disc.scale.set(0.37, 0.39, 0.16); disc.position.set(side * 0.31, 0.32, 0.79);
+        head.add(disc);
+        const socket = new THREE.Group(); socket.name = side < 0 ? 'eyeL' : 'eyeR';
+        socket.position.set(side * 0.31, 0.35, 0.85);
+        const ball = new THREE.Mesh(sphere, irisMat); ball.scale.setScalar(0.19); ball.name = 'eyeball';
+        const top = new THREE.Mesh(topLidGeo, lidMat); top.scale.setScalar(0.205); top.name = 'lidTop';
+        const bot = new THREE.Mesh(botLidGeo, lidMat); bot.scale.setScalar(0.203); bot.name = 'lidBottom';
+        const s1 = new THREE.Mesh(smallSphere, shineMat); s1.scale.setScalar(0.034); s1.position.set(-0.065, 0.085, 0.16);
+        const s2 = new THREE.Mesh(smallSphere, shineMat); s2.scale.setScalar(0.016); s2.position.set(0.07, -0.05, 0.175);
+        socket.add(ball, top, bot, s1, s2);
+        head.add(socket);
+        eyes[side < 0 ? 'left' : 'right'] = { socket, ball, lidTop: top, lidBottom: bot, shine: [s1, s2] };
+      }
+
+      // Beak
+      const beakMat = this._mat(LIT_FRAG, { uColor: { value: v3(P.beak) }, uRim: { value: v3(0xffffff) }, uRimAmt: { value: 0.3 }, uEmissive: { value: v3(0x3a2400) } });
+      const upperGeo = new THREE.ConeGeometry(0.075, 0.24, 24); const lowerGeo = new THREE.ConeGeometry(0.05, 0.13, 20);
+      this._disposables.push(upperGeo, lowerGeo);
+      const beak = new THREE.Group(); beak.name = 'beak';
+      const upper = new THREE.Mesh(upperGeo, beakMat); upper.position.set(0, 0.11, 0.96); upper.rotation.x = Math.PI + 0.32; upper.scale.z = 0.8;
+      const jaw = new THREE.Group(); jaw.position.set(0, 0.06, 0.93);
+      const lower = new THREE.Mesh(lowerGeo, beakMat); lower.position.set(0, -0.05, 0); lower.rotation.x = Math.PI + 0.2; lower.scale.z = 0.8;
+      jaw.add(lower); beak.add(upper, jaw); head.add(beak);
+
+      // Crest: crystal ear-tufts and a floating crown gem
+      const shardGeo = new THREE.OctahedronGeometry(1, 0); shardGeo.translate(0, 1, 0); this._disposables.push(shardGeo);
+      const crystalMat = this._mat(CRYSTAL_FRAG, { uBase: { value: v3(P.crystalBase) }, uTip: { value: v3(P.crystalTip) }, uPulse: U.pulse, uTime: U.time });
+      const crest = new THREE.Group(); crest.name = 'crest';
+      const tufts = [];
+      for (const side of [-1, 1]) {
+        const tuft = new THREE.Group(); tuft.position.set(side * 0.4, 0.9, 0.18); tuft.rotation.z = -side * 0.5; tuft.rotation.x = -0.18;
+        [[-0.07, 0.3, 0.32], [0, 0.52, 0], [0.07, 0.36, -0.36]].forEach(([x, L, rz]) => {
+          const m = new THREE.Mesh(shardGeo, crystalMat);
+          m.position.x = side * x; m.rotation.z = side * rz; m.scale.set(0.07, L / 2, 0.07);
+          m.userData.baseL = L / 2;
+          tuft.add(m);
+        });
+        crest.add(tuft); tufts.push(tuft);
+      }
+      const gem = new THREE.Mesh(shardGeo, crystalMat); gem.scale.set(0.07, 0.085, 0.07); gem.position.set(0, 1.3, 0.05);
+      crest.add(gem); head.add(crest);
+
+      // Wings
+      const featherMat = (root, mid) => {
+        const m = new THREE.ShaderMaterial({ vertexShader: FEATHER_VERT, fragmentShader: FEATHER_FRAG, side: THREE.DoubleSide,
+          uniforms: { uRoot: { value: v3(root) }, uMid: { value: v3(mid) }, uEdge: { value: v3(P.featherEdge) }, uTip: { value: v3(P.featherTip) }, uTime: U.time, uGlow: U.glow } });
+        this._disposables.push(m); return m;
+      };
+      const primMat = featherMat(P.featherRoot, P.featherMid);
+      const covMat = featherMat(P.covertRoot, P.covertMid);
+      const wings = {};
+      const NP = 8, NC = 6;
+      for (const side of [1, -1]) { // +1 = left (screen-left), -1 = right
+        const wing = new THREE.Group(); wing.name = side > 0 ? 'wingL' : 'wingR';
+        wing.position.set(-side * 0.86, 0.16, -0.02);
+        const primaries = [], coverts = [];
+        for (let i = 0; i < NP; i++) {
+          const L = 0.95 + 0.42 * Math.sin(Math.PI * (i + 0.6) / NP);
+          const g = featherGeometry(L, 0.135); this._disposables.push(g);
+          const f = new THREE.Mesh(g, primMat); f.position.z = -i * 0.006; f.userData.i = i;
+          wing.add(f); primaries.push(f);
+        }
+        for (let i = 0; i < NC; i++) {
+          const L = 0.5 + 0.12 * Math.sin(Math.PI * (i + 0.5) / NC);
+          const g = featherGeometry(L, 0.16, 0.06); this._disposables.push(g);
+          const f = new THREE.Mesh(g, covMat); f.position.z = 0.03 + i * 0.004; f.userData.i = i;
+          wing.add(f); coverts.push(f);
+        }
+        rig.add(wing);
+        wings[side > 0 ? 'left' : 'right'] = { group: wing, primaries, coverts, side };
+      }
+
+      // Tail
+      const tail = new THREE.Group(); tail.name = 'tail'; tail.position.set(0, -0.78, -0.5);
+      const tailFeathers = [];
+      for (let i = 0; i < 5; i++) {
+        const L = 0.78 + 0.16 * Math.sin(Math.PI * (i + 0.5) / 5);
+        const g = featherGeometry(L, 0.12, 0.2); this._disposables.push(g);
+        const f = new THREE.Mesh(g, primMat); f.position.z = -Math.abs(i - 2) * 0.01;
+        tail.add(f); tailFeathers.push(f);
+      }
+      rig.add(tail);
+
+      // Pulse ring (majestic burst)
+      const pulse = new THREE.Sprite(spriteMat(P.spark, 0, tex.ring)); pulse.position.set(0, 0.3, 0.2); pulse.visible = false;
+      rig.add(pulse);
+
+      // Ground glow
+      const groundMat = new THREE.MeshBasicMaterial({ map: tex.glow, color: P.aura, transparent: true, opacity: 0.3, blending: THREE.AdditiveBlending, depthWrite: false });
+      const plane = new THREE.PlaneGeometry(1, 1); this._disposables.push(groundMat, plane);
+      const ground = new THREE.Mesh(plane, groundMat); ground.rotation.x = -Math.PI / 2; ground.position.y = -1.85; ground.scale.set(3.6, 3.6, 1);
+      this.add(ground);
+
+      // Drifting motes of light
+      const n = this.opts.particles;
+      const pg = new THREE.BufferGeometry();
+      const pos = new Float32Array(n * 3), seed = new Float32Array(n);
+      for (let i = 0; i < n; i++) {
+        const a = Math.random() * TAU, r = 0.9 + Math.random() * 1.7;
+        pos[i * 3] = Math.cos(a) * r * 1.2; pos[i * 3 + 1] = -1.9 + Math.random() * 4.4; pos[i * 3 + 2] = Math.sin(a) * r * 0.7 - 0.3;
+        seed[i] = Math.random();
+      }
+      pg.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+      pg.setAttribute('aSeed', new THREE.BufferAttribute(seed, 1));
+      const pm = new THREE.ShaderMaterial({ vertexShader: PARTICLE_VERT, fragmentShader: PARTICLE_FRAG, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending,
+        uniforms: { uTime: U.time, uSize: { value: 7 }, uPR: { value: this.opts.pixelRatio }, uA: { value: v3(P.spark) }, uB: { value: v3(P.warm) }, uOpacity: { value: 0.8 } } });
+      const points = new THREE.Points(pg, pm); points.frustumCulled = false; points.name = 'particles';
+      this.add(points);
+      this._disposables.push(pg, pm);
+
+      Object.assign(this.parts, { rig, body: bodyGroup, bodyMesh: body, head, eyes, beak: { group: beak, upper, jaw }, crest: { group: crest, tufts, gem },
+        wings, tail: { group: tail, feathers: tailFeathers }, halo, aura: { cool: aura, warm }, ground, particles: points, pulse });
+    }
+
+    /** Switch to a named state: idle, think, speak, happy, majestic, sleep. */
+    setState(name) {
+      if (!STATES[name]) return this;
+      this._reactT = 0;
+      this._apply(name);
+      return this;
+    }
+    _apply(name) {
+      const prev = this.state;
+      this.state = name;
+      Object.assign(this.targets, STATES[name]);
+      if (name === 'majestic' && prev !== 'majestic') this.pulse();
+      this.dispatchEvent({ type: 'statechange', state: name, previous: prev });
+    }
+    /** Play a state for `seconds`, then return to the one before. */
+    react(name, seconds = 1.6) {
+      if (!STATES[name]) return this;
+      if (this._reactT <= 0) this._reactPrev = this.state;
+      this._apply(name);
+      this._reactT = seconds;
+      return this;
+    }
+    /** Override any rig target, e.g. set({ wingSpread: 0.6, glow: 1.2 }). Eased like everything else. */
+    set(values) { Object.assign(this.targets, values); return this; }
+    /** Point the eyes and head. x, y in -1..1 (screen-like). Pass null to let Lumo wander. */
+    gaze(x, y) { this._gaze = x == null ? null : new THREE.Vector2(clamp(x, -1, 1), clamp(y, -1, 1)); return this; }
+    blink() { this._blinkT = 0; this._nextBlink = 2.2 + Math.random() * 4; return this; }
+    pulse() { this._pulseT = 0; this.parts.pulse.visible = true; return this; }
+    setPixelRatio(pr) { this.parts.particles.material.uniforms.uPR.value = pr; }
+
+    update(dt) {
+      dt = Math.min(Math.max(dt, 0), 0.05);
+      this.time += dt;
+      const t = this.time, P = this.params, T = this.targets, parts = this.parts;
+      const calm = this.opts.calm ? 0.4 : 1;
+
+      for (const k in T) {
+        const rate = (k === 'lidTop' || k === 'lidBottom') ? 9 : k === 'flap' ? 3 : k === 'wingSpread' ? 2.6 : 3.6;
+        P[k] = damp(P[k], T[k], rate, dt);
+      }
+      if (this._reactT > 0) { this._reactT -= dt; if (this._reactT <= 0) this._apply(this._reactPrev); }
+
+      // blink
+      this._nextBlink -= dt;
+      if (this._nextBlink <= 0 && P.lidTop < 0.7) this.blink();
+      let blinkAmt = 0;
+      if (this._blinkT >= 0) {
+        this._blinkT += dt;
+        const b = this._blinkT / 0.17;
+        if (b >= 1) this._blinkT = -1; else blinkAmt = Math.sin(b * Math.PI);
+      }
+
+      // gaze
+      let lx, ly;
+      if (this._gaze && P.gazeLock < 0.5) { lx = this._gaze.x; ly = this._gaze.y; }
+      else { lx = Math.sin(t * 0.37) * 0.45 + Math.sin(t * 0.91) * 0.18; ly = Math.sin(t * 0.29 + 1.3) * 0.22; }
+      lx = mix(lx, T.gazeX, P.gazeLock); ly = mix(ly, T.gazeY, P.gazeLock);
+      this._look.x = damp(this._look.x, lx, 5, dt); this._look.y = damp(this._look.y, ly, 5, dt);
+      const lk = this._look;
+
+      // shared uniforms
+      const talkWave = Math.max(0, Math.sin(t * 11) * 0.6 + Math.sin(t * 4.3) * 0.5 + Math.sin(t * 23) * 0.2);
+      const mouth = this.speakLevel != null ? clamp(this.speakLevel, 0, 1) : Math.min(1, talkWave) * P.talk;
+      this._u.time.value = t;
+      this._u.glow.value = P.glow + mouth * 0.25;
+      this._u.pulse.value = P.crest;
+      this._u.dilate.value = P.dilate;
+
+      // rig motion
+      this._flapPhase += dt * (2.4 + P.flap * 7.5);
+      const bounce = Math.abs(Math.sin(t * 5.5)) * 0.07 * Math.max(0, P.flap - 0.5) * 2;
+      parts.rig.position.y = (Math.sin(t * 1.3 * P.breath) * 0.07 + bounce) * P.bob * calm + P.rise;
+      parts.rig.rotation.x = P.lean + Math.sin(t * 0.8) * 0.02 * calm;
+      parts.rig.rotation.z = Math.sin(t * 0.7) * 0.03 * calm;
+      parts.rig.rotation.y = lk.x * 0.12;
+      const br = Math.sin(t * 1.6 * P.breath) * 0.018;
+      parts.body.scale.set(1 + br * 0.5, 1 + br, 1 + br * 0.5);
+
+      // head & eyes
+      parts.head.rotation.y = lk.x * 0.36;
+      parts.head.rotation.x = -lk.y * 0.2;
+      parts.head.rotation.z = P.tilt + Math.sin(t * 0.6) * 0.02 * calm;
+      const top = clamp(P.lidTop + blinkAmt, 0, 1);
+      for (const k of ['left', 'right']) {
+        const e = parts.eyes[k];
+        e.ball.rotation.y = lk.x * 0.42;
+        e.ball.rotation.x = -lk.y * 0.38;
+        e.lidTop.rotation.x = mix(-0.85, 1.52, top);
+        e.lidBottom.rotation.x = mix(0.78, -0.95, clamp(P.lidBottom + blinkAmt * 0.15, 0, 1));
+        e.shine[0].visible = e.shine[1].visible = top < 0.82;
+      }
+      parts.beak.jaw.rotation.x = -mouth * 0.75;
+
+      // crest
+      parts.crest.tufts.forEach((tuft, i) => {
+        tuft.children.forEach((m, j) => { m.scale.y = m.userData.baseL * (0.92 + 0.12 * P.crest + Math.sin(t * 2.2 + j + i) * 0.03); });
+        tuft.rotation.z = (i ? -1 : 1) * (0.5 + Math.sin(t * 1.4 + i) * 0.04 * calm);
+      });
+      parts.crest.gem.rotation.y += dt * (0.6 + P.haloSpeed * 1.5);
+      parts.crest.gem.position.y = 1.3 + Math.sin(t * 1.8) * 0.04 + P.crest * 0.06;
+
+      // wings
+      const flap = Math.sin(this._flapPhase) * P.flap * 0.28 * calm;
+      for (const k of ['left', 'right']) {
+        const w = parts.wings[k], s = w.side, g = w.group;
+        g.rotation.y = -s * (1.15 - P.wingSpread * 0.88);
+        g.rotation.z = -s * (0.05 + P.wingSpread * 0.78 + flap);
+        g.rotation.x = -0.05 + P.wingSpread * 0.08;
+        const fan = 0.035 + P.wingSpread * 0.205;
+        w.primaries.forEach((f, i) => { f.rotation.z = -s * (i * fan + Math.sin(t * 2 + i * 0.5) * 0.012 * calm); });
+        w.coverts.forEach((f, i) => { f.rotation.z = -s * (0.05 + i * fan * 1.15); });
+      }
+
+      // tail
+      parts.tail.group.rotation.x = 0.5 + P.lean * 0.5 + P.tailFan * 0.25;
+      parts.tail.feathers.forEach((f, i) => { f.rotation.z = (i - 2) * (0.1 + P.tailFan * 0.22) + Math.sin(t * 1.7 + i) * 0.035 * calm; });
+
+      // halo & light
+      this._haloPhase += dt * P.haloSpeed * 1.5;
+      parts.halo.rotation.z = this._haloPhase * 0.08;
+      this._motes.rotation.z = this._haloPhase * 0.45;
+      this._rings[0].material.uniforms.uPhase.value = this._haloPhase * 2;
+      this._rings[1].material.uniforms.uPhase.value = this._haloPhase;
+      this._rings[0].material.uniforms.uIntensity.value = 0.25 + 0.6 * P.glow;
+      this._rings[1].material.uniforms.uIntensity.value = 0.2 + 0.55 * P.glow;
+      this._motes.children.forEach((m, i) => { m.material.opacity = (0.35 + 0.5 * P.glow) * (0.6 + 0.4 * Math.sin(t * 2 + i * 1.7)); });
+      parts.aura.cool.material.opacity = 0.24 * P.glow;
+      parts.aura.warm.material.opacity = 0.16 * P.glow;
+      parts.aura.cool.scale.setScalar(6 * (1 + br * 2));
+      parts.ground.material.opacity = 0.32 * P.glow * clamp(1 - P.rise * 1.2, 0.2, 1.2);
+      parts.particles.material.uniforms.uOpacity.value = 0.45 + 0.45 * P.glow;
+
+      if (this._pulseT >= 0) {
+        this._pulseT += dt;
+        const k = this._pulseT / 1.3;
+        const p = parts.pulse;
+        if (k >= 1) { this._pulseT = -1; p.visible = false; }
+        else { p.scale.setScalar(1 + k * 7); p.material.opacity = Math.pow(1 - k, 2) * 0.9; }
+      }
+    }
+
+    dispose() {
+      this._disposables.forEach((d) => d.dispose && d.dispose());
+      this._disposables.length = 0;
+      this.removeFromParent();
+    }
+  }
+
+  Lumo.STATES = STATES;
+  Lumo.PALETTE = PALETTE;
+  return { Lumo, STATES, PALETTE };
+}
+
+</script>
+<script>
+(function () {
+  if (!window.THREE) return;
+  const { Lumo } = createLumoFactory(THREE);
+  const stage = document.getElementById('stage');
+  const canvas = document.getElementById('c');
+  const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+  const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true });
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+  const scene = new THREE.Scene();
+  const camera = new THREE.PerspectiveCamera(32, 1, 0.1, 100);
+  const lumo = new Lumo({ pixelRatio: renderer.getPixelRatio(), calm: reduce });
+  scene.add(lumo);
+  window.lumo = lumo;
+
+  function resize() {
+    const w = stage.clientWidth, h = stage.clientHeight;
+    renderer.setSize(w, h, false);
+    camera.aspect = w / h;
+    const tanH = Math.tan(THREE.MathUtils.degToRad(camera.fov / 2));
+    const dist = Math.max(5.5 / (2 * tanH), 5.9 / (2 * tanH * camera.aspect));
+    camera.position.set(0, 0.35, dist);
+    camera.lookAt(0, 0.2, 0);
+    camera.updateProjectionMatrix();
+  }
+  new ResizeObserver(resize).observe(stage);
+  resize();
+
+  // gaze + drag-to-turn + tap
+  let dragging = false, moved = 0, lastX = 0, spin = 0, vel = 0;
+  const toLocal = (e) => { const r = canvas.getBoundingClientRect(); return [((e.clientX - r.left) / r.width) * 2 - 1, -(((e.clientY - r.top) / r.height) * 2 - 1)]; };
+  canvas.addEventListener('pointerdown', (e) => { dragging = true; moved = 0; lastX = e.clientX; vel = 0; try { canvas.setPointerCapture(e.pointerId); } catch (_) {} });
+  window.addEventListener('pointermove', (e) => {
+    const [x, y] = toLocal(e);
+    if (Math.abs(x) < 1.3 && Math.abs(y) < 1.3) lumo.gaze(x * 1.3, y * 1.4 - 0.1); else lumo.gaze(null);
+    if (dragging) { const dx = e.clientX - lastX; lastX = e.clientX; moved += Math.abs(dx); vel = dx * 0.008; spin += dx * 0.008; }
+  });
+  const end = () => { if (!dragging) return; dragging = false; if (moved < 6) lumo.react('happy', 1.8); };
+  canvas.addEventListener('pointerup', end); canvas.addEventListener('pointercancel', end);
+  document.addEventListener('pointerleave', () => lumo.gaze(null));
+
+  // moods
+  const buttons = [...document.querySelectorAll('.states button')];
+  const sliders = [...document.querySelectorAll('input[data-key]')];
+  const mouth = document.getElementById('s-mouth');
+  function syncSliders() {
+    sliders.forEach((s) => { const v = lumo.targets[s.dataset.key]; s.value = v; document.getElementById('o-' + s.dataset.key).value = v.toFixed(2); });
+  }
+  lumo.addEventListener('statechange', (e) => {
+    buttons.forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.state === e.state)));
+    syncSliders();
+  });
+  function choose(state) {
+    lumo.speakLevel = null; mouth.value = 0; document.getElementById('o-mouth').value = 'off';
+    lumo.setState(state);
+  }
+  buttons.forEach((b) => b.addEventListener('click', () => choose(b.dataset.state)));
+  window.addEventListener('keydown', (e) => {
+    if (e.target.closest && e.target.closest('input, textarea')) return;
+    const i = Number(e.key) - 1;
+    if (i >= 0 && i < buttons.length) choose(buttons[i].dataset.state);
+  });
+  sliders.forEach((s) => s.addEventListener('input', () => {
+    const v = parseFloat(s.value);
+    lumo.set({ [s.dataset.key]: v });
+    document.getElementById('o-' + s.dataset.key).value = v.toFixed(2);
+  }));
+  mouth.addEventListener('input', () => {
+    const v = parseFloat(mouth.value);
+    lumo.speakLevel = v > 0 ? v : null;
+    document.getElementById('o-mouth').value = v > 0 ? v.toFixed(2) : 'off';
+  });
+
+  // copy
+  const copyBtn = document.getElementById('copy');
+  copyBtn.addEventListener('click', () => {
+    const text = document.getElementById('code').innerText;
+    const done = () => { copyBtn.textContent = 'Copied'; setTimeout(() => (copyBtn.textContent = 'Copy'), 1500); };
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(text).then(done, () => selectCode());
+    } else selectCode();
+  });
+  function selectCode() { const r = document.createRange(); r.selectNodeContents(document.getElementById('code')); const sel = getSelection(); sel.removeAllRanges(); sel.addRange(r); copyBtn.textContent = 'Press ⌘C'; }
+
+  // loop
+  const clock = new THREE.Clock();
+  let visible = true;
+  new IntersectionObserver((en) => { visible = en[0].isIntersecting; }).observe(stage);
+  renderer.setAnimationLoop(() => {
+    const dt = clock.getDelta();
+    if (!visible) return;
+    if (!dragging) { spin += vel; vel *= 0.9; spin += (0 - spin) * (1 - Math.exp(-0.9 * dt)); }
+    lumo.rotation.y = spin;
+    lumo.update(dt);
+    renderer.render(scene, camera);
+  });
+})();
+</script>
+
+</body></html>
