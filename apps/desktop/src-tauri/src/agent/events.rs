@@ -98,6 +98,10 @@ pub enum AgentEvent {
         project_id: String,
         url: String,
     },
+    /// The mascot's expression for the conversation's emotional tone.
+    Mood {
+        mood: String,
+    },
     /// Something privacy-relevant happened (screen captured, clipboard read).
     Privacy {
         kind: String,

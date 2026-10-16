@@ -24,8 +24,22 @@ function stillRoutes() {
   };
 }
 
+/**
+ * The site is a single download page. Every page that used to exist redirects, so old links keep
+ * working: product pages go to the download page, the legal pages to their new short paths.
+ */
+const redirects = {
+  ...Object.fromEntries(
+    ['/features', '/how-it-works', '/integrations', '/pricing', '/docs', '/support', '/security', '/download', '/legal'].map((from) => [from, '/']),
+  ),
+  '/legal/privacy': '/privacy/',
+  '/legal/terms': '/terms/',
+  '/legal/licenses': '/licenses/',
+};
+
 export default defineConfig({
   site,
+  redirects,
   output: 'static',
   devToolbar: { enabled: false },
   trailingSlash: 'ignore',

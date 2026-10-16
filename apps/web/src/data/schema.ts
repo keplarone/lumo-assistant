@@ -1,11 +1,9 @@
 import { SITE } from './site';
-import { release } from './downloads';
-import { planOffers } from './plans';
+import { RELEASE } from './release';
 
 /**
- * JSON-LD for the app. Deliberately has no rating or review fields: there are none to report.
- * Offers come from plans.ts.
- * softwareVersion is only included once a version is released.
+ * JSON-LD for the app. No offers, ratings or reviews: there are none to report.
+ * softwareVersion is only included once a version is published in release.ts.
  */
 export function softwareApplication(site: URL | undefined) {
   const origin = site?.href ?? `${SITE.url}/`;
@@ -18,9 +16,8 @@ export function softwareApplication(site: URL | undefined) {
     applicationCategory: 'ProductivityApplication',
     operatingSystem: 'Windows, macOS, Linux',
     url: origin,
-    downloadUrl: new URL('/download/', origin).href,
+    downloadUrl: origin,
     image: new URL('/og.png', origin).href,
-    offers: planOffers(),
-    ...(release.released && release.version ? { softwareVersion: release.version } : {}),
+    ...(RELEASE.version ? { softwareVersion: RELEASE.version } : {}),
   };
 }

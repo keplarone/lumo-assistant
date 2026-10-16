@@ -104,7 +104,7 @@ pub fn prepare(
             let mut client: Vec<String> =
                 if agent_tools.is_empty() { all } else { agent_tools.into_iter().filter(|t| all.contains(t)).collect() };
             // Conversation tools are always available; they have no side effects.
-            for t in ["update_plan", "ask_user", "present_options"] {
+            for t in ["update_plan", "ask_user", "present_options", "set_mood"] {
                 if !client.iter().any(|c| c == t) {
                     client.push(t.into());
                 }

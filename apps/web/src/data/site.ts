@@ -5,10 +5,9 @@ export const SITE = {
   url: 'https://lumo.keplar.one',
   tagline: 'Tell Lumo what you want. Lumo figures out how to make it happen.',
   description:
-    'Lumo is a desktop AI assistant that understands what you want, plans the steps, uses real tools with your permission and reports back. Local-first, with permission checks on every action.',
+    'Download Lumo, the desktop AI assistant for Windows, macOS and Linux. Tell Lumo what you want: it plans the steps, uses real tools with your permission and reports back.',
   repo: 'https://github.com/keplarone/lumo-assistant',
   issues: 'https://github.com/keplarone/lumo-assistant/issues',
-  releases: 'https://github.com/keplarone/lumo-assistant/releases',
 } as const;
 
 export interface NavItem {
@@ -16,40 +15,11 @@ export interface NavItem {
   label: string;
 }
 
-export const PRIMARY_NAV: NavItem[] = [
-  { href: '/features/', label: 'Features' },
-  { href: '/how-it-works/', label: 'How it works' },
-  { href: '/integrations/', label: 'Integrations' },
-  { href: '/security/', label: 'Security' },
-  { href: '/pricing/', label: 'Pricing' },
-  { href: '/docs/', label: 'Docs' },
-];
-
-export const FOOTER_NAV: { title: string; items: NavItem[] }[] = [
-  {
-    title: 'Product',
-    items: [
-      { href: '/features/', label: 'Features' },
-      { href: '/how-it-works/', label: 'How Lumo works' },
-      { href: '/integrations/', label: 'Integrations' },
-      { href: '/pricing/', label: 'Pricing' },
-      { href: '/download/', label: 'Download' },
-    ],
-  },
-  {
-    title: 'Help',
-    items: [
-      { href: '/docs/', label: 'Getting started' },
-      { href: '/support/', label: 'Support' },
-      { href: '/security/', label: 'Security & privacy' },
-    ],
-  },
-  {
-    title: 'Legal',
-    items: [
-      { href: '/legal/terms/', label: 'Terms' },
-      { href: '/legal/privacy/', label: 'Privacy policy' },
-      { href: '/legal/licenses/', label: 'Open-source licenses' },
-    ],
-  },
+/** Footer links: the legal pages (the only pages besides the download page) and the source. */
+export const FOOTER_NAV: NavItem[] = [
+  { href: '/privacy/', label: 'Privacy' },
+  { href: '/terms/', label: 'Terms' },
+  { href: '/licenses/', label: 'Licenses' },
+  { href: SITE.repo, label: 'GitHub' },
+  { href: SITE.issues, label: 'Report an issue' },
 ];

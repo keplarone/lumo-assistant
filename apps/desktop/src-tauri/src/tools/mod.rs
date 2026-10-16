@@ -166,6 +166,7 @@ impl Registry {
             Arc::new(Typed(ui::UpdatePlan)),
             Arc::new(Typed(ui::AskUser)),
             Arc::new(Typed(ui::PresentOptions)),
+            Arc::new(Typed(ui::SetMood)),
             Arc::new(Typed(files::ListFiles)),
             Arc::new(Typed(files::SearchFiles)),
             Arc::new(Typed(files::ReadFile)),

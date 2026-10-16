@@ -10,7 +10,7 @@ import { fileURLToPath } from 'node:url';
 import { chromium } from '@playwright/test';
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
-const PAGES = ['/', '/features/', '/how-it-works/', '/download/', '/integrations/', '/pricing/', '/security/', '/docs/', '/support/', '/legal/', '/legal/terms/', '/legal/privacy/', '/legal/licenses/', '/404.html'];
+const PAGES = ['/', '/privacy/', '/terms/', '/licenses/', '/404.html'];
 const port = 4398;
 
 function exe() {

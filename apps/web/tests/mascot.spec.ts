@@ -13,11 +13,8 @@ test.describe('hero mascot', () => {
     // The still is hidden from assistive tech once the live mascot is up; the live host is labelled.
     await expect(stage.locator('img.stage-still')).toHaveAttribute('alt', '');
     await expect(stage.locator('[role="img"][aria-label^="Lumo"]')).toHaveCount(1);
-    // A click on the "wave" control triggers a reaction without errors.
+    // The "wave" control triggers a reaction without errors.
     await stage.getByRole('button', { name: 'Wave at Lumo' }).click();
-    // Hovering a call to action makes Lumo listen (exposed in the host's label).
-    await page.getByRole('link', { name: 'Get Lumo' }).first().hover();
-    await page.locator('[data-lumo-target="cta-get"]').hover();
     await page.waitForTimeout(600);
     expect(errors).toEqual([]);
   });
@@ -31,11 +28,6 @@ test.describe('hero mascot', () => {
     expect(await still.getAttribute('alt')).toMatch(/Lumo/);
     expect(await still.evaluate((img: HTMLImageElement) => img.complete && img.naturalWidth > 0)).toBe(true);
     await expect(page.locator('canvas')).toHaveCount(0);
-    // Content is all there without JS.
-    await expect(page.locator('#in-action .ia-step')).toHaveCount(5);
-    await expect(page.locator('.wf-panel')).toHaveCount(5);
-    for (const p of await page.locator('.wf-panel').all()) await expect(p).toBeVisible();
-    await expect(page.locator('.companion-item')).toHaveCount(5);
     await ctx.close();
   });
 
@@ -54,19 +46,6 @@ test.describe('hero mascot', () => {
     await page.waitForTimeout(1500);
     await expect(page.locator('canvas')).toHaveCount(0);
     await expect(stage.locator('img.stage-still')).toBeVisible();
-    // Companion switcher still works by swapping stills.
-    await page.locator('.companion').scrollIntoViewIfNeeded();
-    await page.getByRole('button', { name: /Sleeping/ }).click();
-    await expect(page.locator('.companion-stage img.stage-still')).toHaveAttribute('src', '/stills/sleeping.jpg');
-  });
-
-  test('only one WebGL canvas is live at a time on the homepage', async ({ page }) => {
-    await page.goto('/');
-    await expect(page.locator('.hero-stage canvas')).toHaveCount(1, { timeout: 30_000 });
-    await page.locator('.companion-stage').scrollIntoViewIfNeeded();
-    await expect(page.locator('.companion-stage canvas')).toHaveCount(1, { timeout: 30_000 });
-    await expect(page.locator('.hero-stage canvas')).toHaveCount(0);
-    await expect(page.locator('canvas')).toHaveCount(1);
   });
 });
 
@@ -80,9 +59,6 @@ test.describe('prefers-reduced-motion', () => {
     await page.waitForTimeout(1500);
     await expect(page.locator('canvas')).toHaveCount(0);
     await expect(stage.locator('img.stage-still')).toBeVisible();
-    // Scroll-linked build sequence is not enhanced.
-    expect(await page.locator('[data-build]').getAttribute('data-enhanced')).toBeNull();
-    // Opting in shows the calm live mascot.
     await stage.getByRole('button', { name: /Show Lumo live/ }).click();
     await expect(stage.locator('canvas')).toHaveCount(1, { timeout: 30_000 });
   });

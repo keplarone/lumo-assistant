@@ -212,3 +212,53 @@ impl TypedTool for PresentOptions {
         ))
     }
 }
+
+pub struct SetMood;
+
+pub const MOODS: &[&str] = &["neutral", "warm", "happy", "calm", "concerned", "celebrating"];
+
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct MoodInput {
+    pub mood: String,
+}
+
+#[async_trait]
+impl TypedTool for SetMood {
+    type Input = MoodInput;
+    const NAME: &'static str = "set_mood";
+    const DESCRIPTION: &'static str = "Set the Lumo mascot's expression to match the emotional tone of the conversation: warm for friendly chat, happy for good news, calm for stressful moments, concerned when the user is hurting, celebrating for wins, neutral otherwise. It only changes the mascot; it does nothing else.";
+    fn schema(&self) -> Value {
+        object_schema(json!({"mood": {"type": "string", "enum": MOODS}}), &["mood"])
+    }
+    fn risk(&self, _ctx: &ToolCtx, _: &MoodInput) -> Risk {
+        Risk::Ui
+    }
+    fn label(&self, i: &MoodInput) -> String {
+        format!("Feeling {}", i.mood)
+    }
+    async fn run(&self, ctx: &ToolCtx, input: MoodInput) -> Result<ToolOutput> {
+        if !MOODS.contains(&input.mood.as_str()) {
+            return Err(invalid(format!("unknown mood {}", input.mood)));
+        }
+        ctx.sink.emit(AgentEvent::Mood { mood: input.mood.clone() });
+        Ok(ToolOutput::text(format!("Mascot mood set to {}.", input.mood), format!("Mood: {}", input.mood)))
+    }
+}
+
+#[cfg(test)]
+mod mood_tests {
+    use super::*;
+    use crate::core::testing::{core_with, FakePlatform};
+    use crate::tools::tests::ctx;
+    use std::sync::Arc;
+
+    #[tokio::test]
+    async fn sets_only_known_moods() {
+        let (core, _dir) = core_with(Arc::new(FakePlatform::default()));
+        let (c, sink) = ctx(core, Origin::User);
+        SetMood.run(&c, MoodInput { mood: "concerned".into() }).await.unwrap();
+        assert!(sink.0.lock().iter().any(|e| matches!(e, AgentEvent::Mood { mood } if mood == "concerned")));
+        assert!(SetMood.run(&c, MoodInput { mood: "furious".into() }).await.is_err());
+    }
+}

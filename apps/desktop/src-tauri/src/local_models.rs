@@ -1,4 +1,5 @@
-//! On-device models ("Lumo Local"): open-weight models that run on the user's computer through a local
+//! On-device models: Lumo's own model configurations (Orbit 3.8, Nebula 4.2, Solar 5.4, Nova 5.5, the
+//! same product names Keplar uses in Space Studio), each running an open-weight model that run on the user's computer through a local
 //! Ollama runtime, so requests cost nothing and never leave the machine.
 //!
 //! Lumo does not ship the runtime or the weights. It checks for a running runtime, shows which models fit
@@ -12,8 +13,8 @@ use serde::Serialize;
 use serde_json::json;
 use std::time::Duration;
 
-/// Product name shown for on-device models. Placeholder until the owner picks the final name.
-pub const BRAND: &str = "Lumo Local";
+/// Label for the on-device engine as a whole.
+pub const BRAND: &str = "Lumo on-device models";
 pub const RUNTIME_DOWNLOAD_URL: &str = "https://ollama.com/download";
 
 #[derive(Debug, Clone, Serialize, PartialEq)]
@@ -21,7 +22,7 @@ pub const RUNTIME_DOWNLOAD_URL: &str = "https://ollama.com/download";
 pub struct CatalogEntry {
     /// Runtime model tag, e.g. "qwen3:8b".
     pub id: &'static str,
-    /// Tier name shown after the brand, e.g. "Balanced".
+    /// Product name shown to the user, e.g. "Nebula 4.2".
     pub tier: &'static str,
     /// The underlying open model, always shown for attribution.
     pub base_model: &'static str,
@@ -35,7 +36,7 @@ pub struct CatalogEntry {
 pub const CATALOG: &[CatalogEntry] = &[
     CatalogEntry {
         id: "qwen3:4b",
-        tier: "Fast",
+        tier: "Orbit 3.8",
         base_model: "Qwen3 4B",
         license: "Apache-2.0",
         license_url: "https://www.apache.org/licenses/LICENSE-2.0",
@@ -45,7 +46,7 @@ pub const CATALOG: &[CatalogEntry] = &[
     },
     CatalogEntry {
         id: "qwen3:8b",
-        tier: "Balanced",
+        tier: "Nebula 4.2",
         base_model: "Qwen3 8B",
         license: "Apache-2.0",
         license_url: "https://www.apache.org/licenses/LICENSE-2.0",
@@ -55,7 +56,7 @@ pub const CATALOG: &[CatalogEntry] = &[
     },
     CatalogEntry {
         id: "gpt-oss:20b",
-        tier: "Strong",
+        tier: "Solar 5.4",
         base_model: "gpt-oss 20B",
         license: "Apache-2.0",
         license_url: "https://www.apache.org/licenses/LICENSE-2.0",
@@ -65,7 +66,7 @@ pub const CATALOG: &[CatalogEntry] = &[
     },
     CatalogEntry {
         id: "qwen3:30b",
-        tier: "Max",
+        tier: "Nova 5.5",
         base_model: "Qwen3 30B-A3B",
         license: "Apache-2.0",
         license_url: "https://www.apache.org/licenses/LICENSE-2.0",
@@ -80,7 +81,7 @@ pub const CATALOG: &[CatalogEntry] = &[
 pub struct LocalModel {
     #[serde(flatten)]
     pub entry: CatalogEntry,
-    /// "Lumo Local Balanced".
+    /// "Nebula 4.2".
     pub display_name: String,
     pub installed: bool,
     pub fits: bool,
@@ -156,7 +157,7 @@ pub async fn status_with_memory(core: &Core, memory_gb: u32) -> LocalStatus {
         .iter()
         .map(|e| LocalModel {
             entry: e.clone(),
-            display_name: format!("{BRAND} {}", e.tier),
+            display_name: e.tier.to_string(),
             installed: names.iter().any(|n| same_tag(n, e.id)),
             fits: memory_gb == 0 || memory_gb >= e.min_memory_gb,
             selected: s.provider == "local" && same_tag(&s.local_model, e.id),
@@ -289,7 +290,7 @@ mod tests {
         assert_eq!(st.runtime_version.as_deref(), Some("0.12.0"));
         let balanced = st.models.iter().find(|m| m.entry.id == "qwen3:8b").unwrap();
         assert!(balanced.installed && balanced.fits && !balanced.selected);
-        assert_eq!(balanced.display_name, "Lumo Local Balanced");
+        assert_eq!(balanced.display_name, "Nebula 4.2");
         assert!(!st.models.iter().find(|m| m.entry.id == "qwen3:30b").unwrap().fits);
         assert_eq!(st.other_installed, vec!["phi4:latest".to_string()]);
 

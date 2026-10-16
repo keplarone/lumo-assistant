@@ -1,12 +1,12 @@
 /**
- * Renders the static mascot stills (fallbacks for the 3D islands) and the Open Graph card from the
- * real @lumo/mascot, using the dev-only /__still and /__og routes.
+ * Renders the static hero mascot still (the fallback for the 3D hero) from the real @lumo/mascot, and
+ * the Open Graph card (owl app icon and download line), using the dev-only /__still and /__og routes.
  *
  *   pnpm --filter @lumo/web render:stills          (stills and OG card)
- *   pnpm --filter @lumo/web render:stills --og     (OG card only, from the existing hero still)
+ *   pnpm --filter @lumo/web render:stills --og     (OG card only)
  *
  * Starts `astro dev` with LUMO_STILLS=1, captures with headless Chromium (SwiftShader WebGL), writes
- * into public/stills/*.jpg and public/og.png. Output is committed; the site build does not run this.
+ * into public/stills/hero.jpg and public/og.png. Output is committed; the site build does not run this.
  */
 import { spawn } from 'node:child_process';
 import { existsSync, mkdirSync, readdirSync } from 'node:fs';
@@ -31,18 +31,8 @@ function chromiumExecutable() {
 }
 
 const SHOTS = [
-  // name, mood, size, extra params
+  // name, mood, size, extra params. Only the hero still is used by the site now.
   { name: 'hero', mood: 'idle', w: 760, h: 820, q: 'framing=5.2&gx=0.15&gy=0.05' },
-  { name: 'listening', mood: 'listen', w: 640, h: 640, q: 'framing=5.6' },
-  { name: 'thinking', mood: 'think', w: 640, h: 640, q: 'framing=5.6' },
-  { name: 'working', mood: 'work', w: 640, h: 640, q: 'framing=5.6' },
-  { name: 'celebrating', mood: 'happy', w: 640, h: 640, q: 'framing=5.6' },
-  { name: 'sleeping', mood: 'sleep', w: 640, h: 640, q: 'framing=5.6&wait=4200' },
-  // Thumbnails for the companion state list.
-  ...['listen:listening', 'think:thinking', 'work:working', 'happy:celebrating', 'sleep:sleeping'].map((p) => {
-    const [mood, name] = p.split(':');
-    return { name: `${name}-thumb`, mood, w: 72, h: 72, q: `framing=4.4&particles=0&wait=${mood === 'sleep' ? 4200 : 2600}` };
-  }),
 ];
 
 async function waitFor(url, ms = 60_000) {

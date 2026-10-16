@@ -47,8 +47,8 @@ never ship inside the app. To turn it on:
 4. macOS: confirm the Screen Recording, Accessibility and Microphone prompts appear when the matching feature
    is first used, and that denying them gives a clear message rather than a crash.
 5. Computer use: start a task that uses the mouse, press Alt+Shift+Escape and confirm control stops at once.
-6. Check that the website's capability statuses (`apps/web/src/data/capabilities.ts`) match this build. Only
-   mark something available once it is in a published release.
+6. Set `version` in `apps/web/src/data/release.ts` to the published version so the download page links the
+   installers, then deploy the site.
 7. Plans: Whop checkout links open real purchases. Confirm license activation works against the deployed
    license server before announcing paid plans.
 8. Write release notes, then publish the draft. Untick "pre-release" only for a stable release.

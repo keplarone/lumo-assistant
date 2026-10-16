@@ -15,7 +15,8 @@ test('every internal link and in-page anchor resolves', async ({ page, request }
       if (url.hash) seen.get(target)!.add(url.hash.slice(1));
     }
   }
-  expect(seen.size).toBeGreaterThan(10);
+  // The download page and the three legal pages are all linked from somewhere.
+  expect([...seen.keys()].sort()).toEqual(expect.arrayContaining(['/', '/licenses/', '/privacy/', '/terms/']));
   const broken: string[] = [];
   for (const [target, anchors] of seen) {
     const res = await request.get(target);
@@ -23,6 +24,8 @@ test('every internal link and in-page anchor resolves', async ({ page, request }
       broken.push(`${target} -> ${res.status()}`);
       continue;
     }
+    // Internal links must point at real pages, not at redirect stubs.
+    if ((await res.text()).includes('http-equiv="refresh"')) broken.push(`${target} (redirect stub)`);
     if (anchors.size) {
       await page.goto(target);
       for (const id of anchors) {
@@ -33,9 +36,11 @@ test('every internal link and in-page anchor resolves', async ({ page, request }
   expect(broken).toEqual([]);
 });
 
-test('primary navigation links resolve', async ({ page, request }) => {
-  await page.goto('/');
-  const hrefs = await page.$$eval('header a[href]', (as) => as.map((a) => (a as HTMLAnchorElement).getAttribute('href')!));
-  expect(hrefs.length).toBeGreaterThanOrEqual(8);
-  for (const h of hrefs) expect((await request.get(h)).status(), h).toBe(200);
+test('footer links the privacy policy and terms on every page', async ({ page }) => {
+  for (const path of PAGES) {
+    await page.goto(path);
+    const footer = page.locator('footer.site-footer');
+    await expect(footer.getByRole('link', { name: 'Privacy' }), path).toHaveAttribute('href', '/privacy/');
+    await expect(footer.getByRole('link', { name: 'Terms' }), path).toHaveAttribute('href', '/terms/');
+  }
 });

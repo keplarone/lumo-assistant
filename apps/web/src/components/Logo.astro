@@ -1,12 +1,9 @@
 ---
+/** The owl app icon (public/logo-80.png, rendered from docs/brand/app-icon-512.png). Decorative next to the name. */
 interface Props {
   size?: number;
 }
-const { size = 22 } = Astro.props;
+const { size = 36 } = Astro.props;
 ---
 
-<svg class="logo-mark" width={size} height={size} viewBox="0 0 24 24" aria-hidden="true" focusable="false">
-  <circle cx="12" cy="12" r="11" fill="var(--lu-lumen-subtle)"></circle>
-  <circle cx="12" cy="12" r="6.5" fill="none" stroke="var(--lu-lumen)" stroke-opacity="0.45" stroke-width="1"></circle>
-  <circle cx="12" cy="12" r="3.6" fill="var(--lu-lumen)"></circle>
-</svg>
+<img class="logo-mark" src="/logo-80.png" width={size} height={size} alt="" decoding="async" />

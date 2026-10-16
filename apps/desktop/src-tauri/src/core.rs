@@ -150,10 +150,9 @@ impl Core {
         match s.provider.as_str() {
             "local" => {
                 if s.local_model.is_empty() {
-                    return Err(crate::error::LumoError::Unavailable(format!(
-                        "Download a {} model in Settings → Model to start.",
-                        crate::local_models::BRAND
-                    )));
+                    return Err(crate::error::LumoError::Unavailable(
+                        "Download an on-device model (Orbit, Nebula, Solar or Nova) in Settings → Model to start.".into(),
+                    ));
                 }
                 Ok(Arc::new(crate::model::openai::OpenAiCompatible::new(
                     self.http.clone(),
