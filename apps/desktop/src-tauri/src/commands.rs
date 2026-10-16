@@ -390,7 +390,16 @@ pub async fn grant_folder(state: S<'_>) -> ApiResult<Option<policy::Grant>> {
 }
 
 #[tauri::command]
-pub fn grant_capability(state: S, capability: String) -> ApiResult<policy::Grant> {
+pub async fn grant_capability(state: S<'_>, capability: String) -> ApiResult<policy::Grant> {
+    // Standing permissions lower what later runs must ask for, so they need the native dialog.
+    let preview = crate::agent::events::ActionPreview {
+        title: format!("Give Lumo standing permission: {capability}"),
+        details: vec![("Permission".into(), capability.clone())],
+        warning: Some("Lumo will use this without asking each time. You can revoke it in Settings.".into()),
+    };
+    if !state.core.platform.native_confirm(&preview).await {
+        return Err(LumoError::Denied("Permission not granted.".into()).into());
+    }
     let g = policy::add_capability_grant(&state.core.db, &capability)?;
     crate::audit::record(&state.core.db, "user", "grant_capability", Some(&capability), None, "ok");
     Ok(g)

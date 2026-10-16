@@ -39,7 +39,12 @@ export async function validate(licenseKey, env, fetchImpl = fetch) {
   if (res.status === 404) return { status: 200, body: { valid: false, error: 'License key not found.' } };
   if (!res.ok)
     return { status: 502, body: { valid: false, error: `Whop answered with HTTP ${res.status}.` } };
-  const m = await res.json();
+  let m;
+  try {
+    m = await res.json();
+  } catch {
+    return { status: 502, body: { valid: false, error: 'Whop sent an unreadable answer.' } };
+  }
   const planId = m?.plan?.id ?? null;
   const tier = list(env.WHOP_PLANS_PRO || DEFAULT_PLANS.pro).includes(planId)
     ? 'pro'

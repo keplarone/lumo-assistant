@@ -126,8 +126,13 @@ impl TypedTool for Remember {
             &["content"],
         )
     }
-    fn risk(&self, _ctx: &ToolCtx, _: &RememberInput) -> Risk {
-        Risk::Ui
+    fn risk(&self, ctx: &ToolCtx, _: &RememberInput) -> Risk {
+        // Unattended runs read untrusted content; they must not plant lasting memories.
+        if ctx.origin == super::Origin::Automation {
+            Risk::Write
+        } else {
+            Risk::Ui
+        }
     }
     fn label(&self, i: &RememberInput) -> String {
         format!("Remembering \"{}\"", crate::util::preview(&i.content, 50))
