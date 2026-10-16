@@ -113,10 +113,43 @@ deltas to a sink and returns the complete, replayable content blocks. Implementa
   `retry-after` for 429/5xx before any output; optional beta features are dropped automatically if the API
   rejects them. Mouse and keyboard control is Lumo's own typed `control_computer` tool (see Computer use below), not
   the Anthropic computer-use beta toolset.
-- **OpenAI-compatible** (`/v1/chat/completions` streaming with function tools) for local models (Ollama,
-  LM Studio) and other vendors. Server tools are unavailable there, so web search uses the `search_web` tool
+- **On-device** (`model/local/`): Lumo's built-in llama.cpp engine runs the downloaded catalog model
+  itself; see 4.1.1. Nothing else needs to be installed.
+- **OpenAI-compatible** (`/v1/chat/completions` streaming with function tools) for model servers the user
+  runs themselves (LM Studio, Ollama, a llama.cpp server) and other vendors. Server tools are unavailable there, so web search uses the `search_web` tool
   (Brave Search, when the user adds a key) and the local `fetch_url` tool. Thinking blocks are dropped when
   converting history for these endpoints.
+
+### 4.1.1 On-device models
+
+Lumo runs its on-device models (Orbit 3.8, Nebula 4.2, Solar 5.4, Nova 5.5) itself, with llama.cpp
+(MIT) linked into the Rust core through the `llama-cpp-2` bindings. There is no separate runtime to install.
+
+- **Catalog and downloads** (`local_models.rs`). Each catalog entry pins one GGUF file on Hugging Face: the
+  repository, a commit revision, the file name, its size and its SHA-256 (Hugging Face's LFS object id).
+  Qwen3 4B/8B/30B-A3B use the official `Qwen/*-GGUF` Q4_K_M files; gpt-oss 20B uses
+  `ggml-org/gpt-oss-20b-GGUF` in its native MXFP4 quantization. Downloads stream over https (every redirect
+  must be https too) into `<app data>/models/<file>.part`, continue with a range request after a cancel or a
+  dropped connection, and are renamed into place only when the size and SHA-256 match. Progress is broadcast
+  as `local-model-progress`. The webview sees catalog ids only, never paths or URLs it could change; only
+  catalog files can be downloaded.
+- **Engine** (`model/local/engine.rs`). One worker thread owns the loaded model and its context, so the
+  model stays loaded between requests and the prompt prefix already in the KV cache is reused (an agent
+  run re-sends the same history every step). Choosing another model or deleting one unloads it, and an
+  idle model is unloaded after 15 minutes. All layers go to the GPU when the build has a GPU backend (Metal
+  on macOS; Vulkan on Windows/Linux when built with the `vulkan` feature), falling back to the CPU if the
+  GPU load fails. Cancelling a run stops generation between tokens.
+- **Prompts and tool calls** (`model/local/format.rs`). Qwen3 turns are rendered the way Qwen3's own
+  template does (`<tools>` JSON in the system turn, `<tool_call>` blocks, `<tool_response>` blocks) and
+  formatted with the model's built-in chat template from its GGUF metadata; an empty `<think></think>`
+  opens the answer, which is Qwen3's non-thinking mode. gpt-oss uses the harmony format, rendered by Lumo
+  (tools as a TypeScript `functions` namespace, calls on the commentary channel, Lumo's effort setting as
+  the reasoning level); only the `final` channel is shown. Tool calls are parsed out of the generated text
+  into the same `tool_use` blocks the cloud adapters return, so the agent loop is unchanged. Markers that
+  structure the prompt (`<|...`, `<tool_call>`, `<tool_response>`, `<think>`) are broken with a zero-width
+  space inside content, so web pages, files or tool output cannot open a turn or forge a tool call.
+- **Context**. Each model gets a fixed context window (16k tokens; 32k for gpt-oss). When a conversation
+  outgrows it, the oldest whole turns are left out of the prompt (history itself is unchanged).
 
 ### 4.2 Conversation history is append-only
 

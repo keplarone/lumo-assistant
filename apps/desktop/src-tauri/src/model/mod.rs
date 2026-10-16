@@ -5,6 +5,7 @@
 //! sends it verbatim, which keeps history append-only. Other adapters convert it.
 
 pub mod anthropic;
+pub mod local;
 pub mod openai;
 pub mod sse;
 

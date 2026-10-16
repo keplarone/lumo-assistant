@@ -1,10 +1,10 @@
 /**
- * On-device models: the catalog the Rust core offers, with real runtime state. Nothing here is
- * inferred: whether the runtime is running, what is installed and what fits all come from
+ * On-device models: the catalog the Rust core offers, run by Lumo's built-in engine. Nothing here is
+ * inferred: what is downloaded, what fits and what runs the models all come from
  * local_models_status, and progress comes from 'local-model-progress' events.
  */
 import { Badge, Button, Callout, Dialog, ProgressBar, Spinner } from '@lumo/ui';
-import { Check, Download, ExternalLink, RefreshCw, Trash2, X } from 'lucide-react';
+import { Check, Cpu, Download, RefreshCw, Trash2, X } from 'lucide-react';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   api,
@@ -15,7 +15,7 @@ import {
   type LocalModelProgress,
   type LocalStatus,
 } from '../lib/ipc';
-import { formatGb, memoryWarning, progressFraction, progressText } from '../lib/localModels';
+import { acceleratorText, formatGb, memoryWarning, progressFraction, progressText } from '../lib/localModels';
 import { planName, planShortName } from '../lib/plans';
 import { routeHref } from '../lib/router';
 import { useApp } from '../state/app';
@@ -163,50 +163,23 @@ export function LocalModels({
         and there is no cost per request. They are less capable than Claude on hard, multi-step tasks.
       </p>
 
-      {!status.runtimeRunning ? (
-        <Callout tone="neutral" title="On-device models need the free Ollama app">
-          <p>Install Ollama and open it, then check again. Lumo uses it to run models on this computer.</p>
-          <div className="lm-row-actions lm-local-runtime-actions">
-            <Button
-              variant="primary"
-              size="sm"
-              icon={<ExternalLink />}
-              onClick={() =>
-                api
-                  .openExternal(status.runtimeDownloadUrl)
-                  .catch((e) => app.reportError(e, `Couldn’t open ${status.runtimeDownloadUrl}`))
-              }
-            >
-              Get Ollama
-            </Button>
-            <Button
-              variant="secondary"
-              size="sm"
-              icon={<RefreshCw />}
-              loading={checking}
-              onClick={() => void reload()}
-            >
-              Check again
-            </Button>
-          </div>
-        </Callout>
-      ) : (
-        <div className="lm-local-runtime">
-          <Badge tone="success">Ollama {status.runtimeVersion ?? ''} running</Badge>
-          {status.memoryGb > 0 && (
-            <span className="lm-row-meta">This computer has {status.memoryGb} GB of memory</span>
-          )}
-          <Button
-            variant="ghost"
-            size="sm"
-            icon={<RefreshCw />}
-            loading={checking}
-            onClick={() => void reload()}
-          >
-            Refresh
-          </Button>
-        </div>
-      )}
+      <div className="lm-local-runtime">
+        <Badge tone="success" icon={<Cpu />}>
+          Built in · {acceleratorText(status.accelerator)}
+        </Badge>
+        {status.memoryGb > 0 && (
+          <span className="lm-row-meta">This computer has {status.memoryGb} GB of memory</span>
+        )}
+        <Button
+          variant="ghost"
+          size="sm"
+          icon={<RefreshCw />}
+          loading={checking}
+          onClick={() => void reload()}
+        >
+          Refresh
+        </Button>
+      </div>
       {error && <p className="lm-inline-error">{error}</p>}
 
       <ul className="lm-local-list">
@@ -237,6 +210,9 @@ export function LocalModels({
                   </ExternalAnchor>
                   {' · '}
                   {formatGb(m.downloadGb)} download
+                  {m.partialBytes > 0 && !m.installed && !isDownloading && (
+                    <> · {formatGb(m.partialBytes / 1e9)} already downloaded</>
+                  )}
                 </div>
                 <p className="lm-local-model-summary">{m.summary}</p>
                 {warn && !locked && <p className="lm-local-model-warn">{warn}</p>}
@@ -279,7 +255,6 @@ export function LocalModels({
                         variant="primary"
                         size="sm"
                         loading={busy === `select:${m.id}`}
-                        disabled={!status.runtimeRunning}
                         onClick={() => void select(m)}
                       >
                         Use this model
@@ -290,7 +265,7 @@ export function LocalModels({
                       size="sm"
                       icon={<Trash2 />}
                       aria-label={`Delete ${m.displayName}`}
-                      disabled={!status.runtimeRunning || !!busy}
+                      disabled={!!busy}
                       onClick={() => setConfirm({ kind: 'delete', model: m })}
                     >
                       Delete
@@ -301,11 +276,11 @@ export function LocalModels({
                     variant="secondary"
                     size="sm"
                     icon={<Download />}
-                    disabled={!status.runtimeRunning || otherDownloading}
+                    disabled={otherDownloading}
                     title={otherDownloading ? 'One download at a time' : undefined}
                     onClick={() => (m.fits ? void download(m) : setConfirm({ kind: 'download', model: m }))}
                   >
-                    Download
+                    {m.partialBytes > 0 ? 'Resume download' : 'Download'}
                   </Button>
                 )}
               </div>
@@ -313,13 +288,6 @@ export function LocalModels({
           );
         })}
       </ul>
-
-      {status.otherInstalled.length > 0 && (
-        <p className="lm-row-meta lm-local-other">
-          Also in Ollama: <span className="lm-mono">{status.otherInstalled.join(', ')}</span>. To use one of
-          these, choose “Local or compatible” and enter its name.
-        </p>
-      )}
 
       <Dialog
         open={confirm?.kind === 'download'}

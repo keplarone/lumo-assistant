@@ -331,7 +331,8 @@ mod tests {
             {"type": "node", "id": 3, "lat": 40.7, "lon": -74.0, "tags": {"amenity": "restaurant"}}
         ]}))).mount(&server).await;
         let (core, _d) = core_with(Arc::new(FakePlatform::default()));
-        *core.endpoints.lock() = crate::core::Endpoints { nominatim: server.uri(), overpass: format!("{}/overpass", server.uri()) };
+        *core.endpoints.lock() =
+            crate::core::Endpoints { nominatim: server.uri(), overpass: format!("{}/overpass", server.uri()), ..Default::default() };
         let (ctx, _) = ctx(core, Origin::User);
         let r = Registry::standard();
         let names: Vec<String> = r.names().into_iter().map(String::from).collect();

@@ -1,0 +1,67 @@
+name: On-device models
+
+# Checks the built-in engine against real models: every pinned Hugging Face download must match its
+# size and SHA-256, and Orbit (Qwen3 4B) must chat and call a tool on each OS. Runs when the engine or
+# catalog changes, and on demand.
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - apps/desktop/src-tauri/src/model/local/**
+      - apps/desktop/src-tauri/src/local_models.rs
+      - apps/desktop/src-tauri/Cargo.toml
+      - .github/workflows/model-smoke.yml
+      - .github/scripts/check_model_pins.py
+
+concurrency:
+  group: models-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  LINUX_DEPS: libwebkit2gtk-4.1-dev libayatana-appindicator3-dev librsvg2-dev libxdo-dev libssl-dev libpipewire-0.3-dev libgbm-dev libxcb1-dev libxrandr-dev libdbus-1-dev libvulkan-dev glslc spirv-headers
+
+jobs:
+  pins:
+    name: Model downloads match their pins
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - run: python3 .github/scripts/check_model_pins.py
+
+  smoke:
+    name: Orbit chats and calls a tool (${{ matrix.os }})
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-24.04, macos-14, windows-2022]
+    runs-on: ${{ matrix.os }}
+    defaults:
+      run:
+        working-directory: apps/desktop/src-tauri
+    steps:
+      - uses: actions/checkout@v4
+      - if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y $LINUX_DEPS
+        working-directory: .
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: apps/desktop/src-tauri
+      - run: mkdir -p ../dist && echo '<!doctype html>' > ../dist/index.html
+        shell: bash
+      - name: Download Orbit from its pinned URL and check its SHA-256
+        shell: bash
+        working-directory: .
+        run: |
+          # tr: Python on Windows ends the line with \r\n.
+          read -r url sha < <(python3 .github/scripts/check_model_pins.py qwen3:4b | tr -d '\r')
+          curl -fL --retry 3 -o "$RUNNER_TEMP/orbit.gguf" "$url"
+          python3 -c "import hashlib,sys;h=hashlib.sha256();f=open(sys.argv[1],'rb');[h.update(b) for b in iter(lambda:f.read(1<<20),b'')];sys.exit(h.hexdigest()!=sys.argv[2])" "$RUNNER_TEMP/orbit.gguf" "$sha"
+          echo "LUMO_SMOKE_GGUF=$RUNNER_TEMP/orbit.gguf" >> "$GITHUB_ENV"
+      # Default shell on purpose: under Git Bash, Windows picks up MSYS perl, which can't build OpenSSL.
+      - name: Chat and tool call through the engine
+        # GitHub's Macs only have a paravirtual GPU, on which llama.cpp's Metal kernels return garbage
+        # (no simdgroup support), so test the CPU path there. Real Apple silicon Macs use Metal.
+        env:
+          LUMO_GPU: ${{ runner.os == 'macOS' && 'off' || '' }}
+        run: cargo test --lib ${{ runner.os == 'Linux' && '--features vulkan' || '' }} smoke -- --ignored --nocapture --test-threads=1

@@ -198,7 +198,7 @@ function ModelStep({ onBack, onNext }: { onBack: () => void; onNext: () => void 
         <>
           <Field
             label="Server address"
-            description="For example Ollama at http://localhost:11434/v1 or LM Studio at http://localhost:1234/v1. Remote servers must use https."
+            description="A model server you run yourself, for example LM Studio at http://localhost:1234/v1 or Ollama at http://localhost:11434/v1. Remote servers must use https."
           >
             <Input value={baseUrl} onChange={(e) => setBaseUrl(e.target.value)} spellCheck={false} />
           </Field>

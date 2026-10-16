@@ -2208,9 +2208,6 @@ a.lm-row-main:hover .lm-row-title {
   align-items: center;
   gap: var(--lu-space-2);
 }
-.lm-local-runtime-actions {
-  margin-top: var(--lu-space-2);
-}
 .lm-local-list {
   display: grid;
   gap: var(--lu-space-2);
@@ -2272,9 +2269,6 @@ a.lm-row-main:hover .lm-row-title {
   flex-wrap: wrap;
   justify-content: flex-end;
   gap: var(--lu-space-1);
-}
-.lm-local-other {
-  white-space: normal;
 }
 
 /* ── Plans, help, privacy, about ──────────────────────────────────────────────────────────────── */

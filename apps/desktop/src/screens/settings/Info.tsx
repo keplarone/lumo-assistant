@@ -359,6 +359,8 @@ export function PrivacySection() {
 
 export const OPEN_SOURCE: [string, string][] = [
   ['Tauri', 'Apache-2.0 or MIT'],
+  ['llama.cpp and ggml (the on-device engine)', 'MIT'],
+  ['llama-cpp-rs bindings', 'MIT or Apache-2.0'],
   ['React', 'MIT'],
   ['three.js and React Three Fiber', 'MIT'],
   ['Radix UI', 'MIT'],
