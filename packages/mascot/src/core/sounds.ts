@@ -1,6 +1,6 @@
 /**
  * Lumo's little noises, synthesized on the fly with Web Audio (no sound files): chirps, giggles, a
- * sleepy yawn, a jetpack whoosh. Quiet by default, rate limited so they never pile up, and silent
+ * sleepy yawn, a wing whoosh. Quiet by default, rate limited so they never pile up, and silent
  * until the page has had a user gesture (browsers block audio before that anyway).
  */
 
@@ -143,22 +143,54 @@ interface NoiseSpec {
 }
 
 const SOUNDS: Record<Chirp, (p: number) => (ToneSpec | NoiseSpec)[]> = {
-  boop: (p) => [{ steps: [[0, 620 * p], [0.08, 1180 * p]], dur: 0.11, gain: 0.45 }],
+  boop: (p) => [
+    {
+      steps: [
+        [0, 620 * p],
+        [0.08, 1180 * p],
+      ],
+      dur: 0.11,
+      gain: 0.45,
+    },
+  ],
   giggle: (p) =>
     [0, 1, 2, 3].map((i) => ({
-      steps: [[0, (i % 2 ? 1250 : 980) * p], [0.05, (i % 2 ? 1100 : 1180) * p]] as Step[],
+      steps: [
+        [0, (i % 2 ? 1250 : 980) * p],
+        [0.05, (i % 2 ? 1100 : 1180) * p],
+      ] as Step[],
       dur: 0.07,
       at: i * 0.075,
       gain: 0.32 - i * 0.04,
       vibrato: 30,
     })),
   hello: (p) => [
-    { steps: [[0, 700 * p], [0.09, 1040 * p]], dur: 0.12, gain: 0.4 },
-    { steps: [[0, 880 * p], [0.12, 1320 * p], [0.2, 1250 * p]], dur: 0.22, at: 0.13, gain: 0.4, vibrato: 18 },
+    {
+      steps: [
+        [0, 700 * p],
+        [0.09, 1040 * p],
+      ],
+      dur: 0.12,
+      gain: 0.4,
+    },
+    {
+      steps: [
+        [0, 880 * p],
+        [0.12, 1320 * p],
+        [0.2, 1250 * p],
+      ],
+      dur: 0.22,
+      at: 0.13,
+      gain: 0.4,
+      vibrato: 18,
+    },
   ],
   happy: (p) =>
     [1047, 1319, 1568, 2093].map((f, i) => ({
-      steps: [[0, f * p], [0.06, f * p * 1.01]] as Step[],
+      steps: [
+        [0, f * p],
+        [0.06, f * p * 1.01],
+      ] as Step[],
       dur: 0.1,
       at: i * 0.07,
       gain: 0.3,
@@ -168,20 +200,89 @@ const SOUNDS: Record<Chirp, (p: number) => (ToneSpec | NoiseSpec)[]> = {
     { steps: [[0, 1319 * p]], dur: 0.12, gain: 0.3, type: 'sine' },
     { steps: [[0, 1976 * p]], dur: 0.25, at: 0.1, gain: 0.3, type: 'sine' },
   ],
-  think: (p) => [{ steps: [[0, 330 * p], [0.2, 300 * p], [0.4, 340 * p]], dur: 0.45, gain: 0.2, type: 'sine', vibrato: 6 }],
-  question: (p) => [{ steps: [[0, 600 * p], [0.16, 980 * p]], dur: 0.2, gain: 0.35, vibrato: 10 }],
+  think: (p) => [
+    {
+      steps: [
+        [0, 330 * p],
+        [0.2, 300 * p],
+        [0.4, 340 * p],
+      ],
+      dur: 0.45,
+      gain: 0.2,
+      type: 'sine',
+      vibrato: 6,
+    },
+  ],
+  question: (p) => [
+    {
+      steps: [
+        [0, 600 * p],
+        [0.16, 980 * p],
+      ],
+      dur: 0.2,
+      gain: 0.35,
+      vibrato: 10,
+    },
+  ],
   uhoh: (p) => [
-    { steps: [[0, 620 * p], [0.1, 560 * p]], dur: 0.13, gain: 0.35 },
-    { steps: [[0, 480 * p], [0.16, 360 * p]], dur: 0.2, at: 0.15, gain: 0.35 },
+    {
+      steps: [
+        [0, 620 * p],
+        [0.1, 560 * p],
+      ],
+      dur: 0.13,
+      gain: 0.35,
+    },
+    {
+      steps: [
+        [0, 480 * p],
+        [0.16, 360 * p],
+      ],
+      dur: 0.2,
+      at: 0.15,
+      gain: 0.35,
+    },
   ],
   yawn: (p) => [
-    { steps: [[0, 420 * p], [0.25, 560 * p], [0.75, 240 * p]], dur: 0.8, gain: 0.18, type: 'sine', vibrato: 4 },
+    {
+      steps: [
+        [0, 420 * p],
+        [0.25, 560 * p],
+        [0.75, 240 * p],
+      ],
+      dur: 0.8,
+      gain: 0.18,
+      type: 'sine',
+      vibrato: 4,
+    },
     { noise: true, from: 900, to: 300, dur: 0.6, gain: 0.03, at: 0.1 },
   ],
   whoosh: () => [{ noise: true, from: 300, to: 2400, dur: 0.38, gain: 0.12 }],
-  pop: (p) => [{ steps: [[0, 1400 * p], [0.05, 220 * p]], dur: 0.06, gain: 0.35, type: 'sine' }],
+  pop: (p) => [
+    {
+      steps: [
+        [0, 1400 * p],
+        [0.05, 220 * p],
+      ],
+      dur: 0.06,
+      gain: 0.35,
+      type: 'sine',
+    },
+  ],
   tap: (p) => [{ steps: [[0, 2100 * p]], dur: 0.025, gain: 0.08, type: 'square' }],
-  love: (p) => [{ steps: [[0, 520 * p], [0.15, 760 * p], [0.4, 640 * p]], dur: 0.45, gain: 0.32, type: 'sine', vibrato: 14 }],
+  love: (p) => [
+    {
+      steps: [
+        [0, 520 * p],
+        [0.15, 760 * p],
+        [0.4, 640 * p],
+      ],
+      dur: 0.45,
+      gain: 0.32,
+      type: 'sine',
+      vibrato: 14,
+    },
+  ],
 };
 
 /** One shared voice per page. */

@@ -1,27 +1,64 @@
+/**
+ * First run: a swift, motion-blurred tour (each step whooshes in), then the few things Lumo needs.
+ * Sign-in (owned by the accounts work) gets the first slot when it is enabled.
+ */
 import { Button, Callout, Field, Input, SegmentedControl, Switch } from '@lumo/ui';
-import { ArrowLeft, ArrowRight, Check, FolderPlus, KeyRound } from 'lucide-react';
-import { useEffect, useState } from 'react';
+import { ArrowLeft, ArrowRight, Check, ChevronDown, FolderPlus, KeyRound, ShieldCheck } from 'lucide-react';
+import { useEffect, useRef, useState } from 'react';
+import { Backdrop } from '../components/Backdrop';
 import { LocalModels } from '../components/LocalModels';
-import { Mascot } from '../components/Mascot';
+import { LumoMark, Mascot } from '../components/Mascot';
+import { PageTransition } from '../components/PageTransition';
+import { signIn } from '../components/SignInSlot';
 import { api, errorMessage, type Grant, type Provider } from '../lib/ipc';
 import { useApp } from '../state/app';
-import { mascotBus } from '../state/mascot';
+import { party } from '../state/companion';
+import { chirp, mascotBus } from '../state/mascot';
 
-type Step = 'welcome' | 'model' | 'you' | 'done';
-const STEPS: Step[] = ['welcome', 'model', 'you', 'done'];
+type Step = 'signin' | 'welcome' | 'ask' | 'safe' | 'desktop' | 'model' | 'you' | 'done';
+const STEPS: Step[] = [
+  ...(signIn.enabled ? (['signin'] as const) : []),
+  'welcome',
+  'ask',
+  'safe',
+  'desktop',
+  'model',
+  'you',
+  'done',
+];
 
 export function Onboarding() {
   const app = useApp();
-  const [step, setStep] = useState<Step>('welcome');
+  const [step, setStepRaw] = useState<Step>(STEPS[0]!);
+  const dir = useRef(1);
   const index = STEPS.indexOf(step);
+  const setStep = (s: Step) => {
+    dir.current = STEPS.indexOf(s) >= index ? 1 : -1;
+    chirp('whoosh');
+    setStepRaw(s);
+  };
+  const next = () => setStep(STEPS[Math.min(STEPS.length - 1, index + 1)]!);
+  const back = () => setStep(STEPS[Math.max(0, index - 1)]!);
 
   useEffect(() => {
     if (step === 'welcome') mascotBus.send({ type: 'boot' });
-    if (step === 'done') mascotBus.send({ type: 'agent', phase: 'done' });
+    if (step === 'ask') mascotBus.send({ type: 'agent', phase: 'listening' });
+    if (step === 'safe') mascotBus.send({ type: 'agent', phase: 'awaiting_approval' });
+    if (step === 'desktop') {
+      mascotBus.send({ type: 'agent', phase: 'idle' });
+      mascotBus.act({ kind: 'celebrate' });
+    }
+    if (step === 'model') mascotBus.send({ type: 'agent', phase: 'thinking' });
+    if (step === 'you') mascotBus.send({ type: 'react', reaction: 'love' });
+    if (step === 'done') {
+      mascotBus.send({ type: 'agent', phase: 'done' });
+      party();
+    }
   }, [step]);
 
   return (
     <main className="lm-onboarding" id="main">
+      <Backdrop />
       <div className="lm-onboarding-card">
         <Mascot size="hero" className="lm-onboarding-mascot" />
         <ol className="lm-steps" aria-label="Setup progress">
@@ -35,26 +72,31 @@ export function Onboarding() {
             </li>
           ))}
         </ol>
-        {step === 'welcome' && <Welcome onNext={() => setStep('model')} />}
-        {step === 'model' && <ModelStep onBack={() => setStep('welcome')} onNext={() => setStep('you')} />}
-        {step === 'you' && <YouStep onBack={() => setStep('model')} onNext={() => setStep('done')} />}
-        {step === 'done' && (
-          <div className="lm-onboarding-body">
-            <h1 className="lm-onboarding-title">
-              You’re all set{app.settings.userName ? `, ${app.settings.userName}` : ''}.
-            </h1>
-            <p className="lm-onboarding-text">
-              Ask for something in your own words. Lumo shows its plan, asks before it changes anything, and
-              you can stop or undo its work at any time.
-            </p>
-            <div className="lm-onboarding-actions">
-              <Button variant="ghost" icon={<ArrowLeft />} onClick={() => setStep('you')}>
-                Back
-              </Button>
-              <FinishButton />
+        <PageTransition routeKey={step} direction={dir.current} className="lm-onboarding-slide">
+          {step === 'signin' && <signIn.Component onDone={next} />}
+          {step === 'welcome' && <Welcome onNext={next} />}
+          {step === 'ask' && <TourAsk onBack={back} onNext={next} />}
+          {step === 'safe' && <TourSafe onBack={back} onNext={next} />}
+          {step === 'desktop' && <TourDesktop onBack={back} onNext={next} />}
+          {step === 'model' && <ModelStep onBack={back} onNext={next} />}
+          {step === 'you' && <YouStep onBack={back} onNext={next} />}
+          {step === 'done' && (
+            <div className="lm-onboarding-body">
+              <h1 className="lm-onboarding-title">
+                You’re all set{app.settings.userName ? `, ${app.settings.userName}` : ''}.
+              </h1>
+              <p className="lm-onboarding-text">
+                Ask me anything in your own words, or just talk. I’ll be right here, and on your desktop too.
+              </p>
+              <div className="lm-onboarding-actions">
+                <Button variant="ghost" icon={<ArrowLeft />} onClick={back}>
+                  Back
+                </Button>
+                <FinishButton />
+              </div>
             </div>
-          </div>
-        )}
+          )}
+        </PageTransition>
       </div>
     </main>
   );
@@ -87,10 +129,10 @@ function FinishButton() {
 function Welcome({ onNext }: { onNext: () => void }) {
   return (
     <div className="lm-onboarding-body">
-      <h1 className="lm-onboarding-title">Hi, I’m Lumo.</h1>
+      <h1 className="lm-onboarding-title">Hi, I’m Lumo!</h1>
       <p className="lm-onboarding-text">
-        Tell me what you want done on your computer, like tidying a folder, finding a place to eat or building
-        a small website, and I’ll figure out how to make it happen. You stay in charge of every change.
+        Your personal AI assistant. I can chat, help you think, and get things done on your computer. Let me
+        show you around. It takes about a minute.
       </p>
       <div className="lm-onboarding-actions">
         <span />
@@ -98,6 +140,111 @@ function Welcome({ onNext }: { onNext: () => void }) {
           Get started
         </Button>
       </div>
+    </div>
+  );
+}
+
+function TourNav({
+  onBack,
+  onNext,
+  label = 'Next',
+}: {
+  onBack: () => void;
+  onNext: () => void;
+  label?: string;
+}) {
+  return (
+    <div className="lm-onboarding-actions">
+      <Button variant="ghost" icon={<ArrowLeft />} onClick={onBack}>
+        Back
+      </Button>
+      <Button variant="primary" size="lg" iconRight={<ArrowRight />} onClick={onNext} autoFocus>
+        {label}
+      </Button>
+    </div>
+  );
+}
+
+/** Tour 1: just ask. A little demo types itself and Lumo answers. */
+function TourAsk({ onBack, onNext }: { onBack: () => void; onNext: () => void }) {
+  return (
+    <div className="lm-onboarding-body">
+      <h1 className="lm-onboarding-title">Just ask, like you’d ask a friend</h1>
+      <div className="lm-demo lm-demo-ask" aria-hidden="true">
+        <div className="lm-demo-composer">
+          <span className="lm-demo-typed">Find a cozy café near me that’s open now</span>
+        </div>
+        <div className="lm-demo-reply">
+          <LumoMark size={22} />
+          <span>Found three! The closest is a 6 minute walk…</span>
+        </div>
+      </div>
+      <p className="lm-onboarding-text">
+        Use your own words. I can also just listen when you want to talk something through.
+      </p>
+      <TourNav onBack={onBack} onNext={onNext} />
+    </div>
+  );
+}
+
+/** Tour 2: you're in charge. An approval card gets an Allow. */
+function TourSafe({ onBack, onNext }: { onBack: () => void; onNext: () => void }) {
+  return (
+    <div className="lm-onboarding-body">
+      <h1 className="lm-onboarding-title">You’re always in charge</h1>
+      <div className="lm-demo lm-demo-safe" aria-hidden="true">
+        <div className="lm-demo-card">
+          <ShieldCheck />
+          <div>
+            <strong>Move 24 files into folders?</strong>
+            <span>You can undo this later.</span>
+          </div>
+          <span className="lm-demo-allow">Allow</span>
+        </div>
+        <span className="lm-demo-cursor" />
+      </div>
+      <p className="lm-onboarding-text">
+        I show my plan and ask before I change anything. Anything big, like sending, paying or using your
+        mouse, needs your OK on your computer itself. You can stop or undo my work any time.
+      </p>
+      <TourNav onBack={onBack} onNext={onNext} />
+    </div>
+  );
+}
+
+/** Tour 3: Lumo can fly around the desktop. The switch is the real setting. */
+function TourDesktop({ onBack, onNext }: { onBack: () => void; onNext: () => void }) {
+  const app = useApp();
+  return (
+    <div className="lm-onboarding-body">
+      <h1 className="lm-onboarding-title">I can fly anywhere on your screen</h1>
+      <div className="lm-demo lm-demo-desktop" aria-hidden="true">
+        <div className="lm-demo-screen">
+          <span className="lm-demo-window" />
+          <span className="lm-demo-window lm-demo-window-2" />
+          <span className="lm-demo-flyer">
+            <LumoMark size={30} />
+          </span>
+        </div>
+      </div>
+      <div className="lm-setting-row">
+        <div>
+          <div className="lm-setting-label" id="buddy-label">
+            Lumo on your desktop
+          </div>
+          <div className="lm-setting-desc" id="buddy-desc">
+            I float on top of your other apps, say hi now and then, and show you where I’m working. Click me
+            to boop me, double-click to ask me something, or drag me anywhere.
+          </div>
+        </div>
+        <Switch
+          checked={app.settings.buddyEnabled}
+          onCheckedChange={(v) => void app.updateSettings({ buddyEnabled: v }).catch(() => {})}
+          aria-labelledby="buddy-label"
+          aria-describedby="buddy-desc"
+        />
+      </div>
+      <TourNav onBack={onBack} onNext={onNext} />
     </div>
   );
 }
@@ -115,6 +262,8 @@ function ModelStep({ onBack, onNext }: { onBack: () => void; onNext: () => void 
   const [model, setModel] = useState(app.settings.openaiModel);
   const [busy, setBusy] = useState(false);
   const [result, setResult] = useState<{ ok: boolean; text: string } | null>(null);
+  // The built-in model is the simple path; other providers stay out of the way until asked for.
+  const [more, setMore] = useState(provider !== 'local');
   const keychainError = app.info.keychain;
   const keySaved =
     app.secrets.find(
@@ -151,20 +300,28 @@ function ModelStep({ onBack, onNext }: { onBack: () => void; onNext: () => void 
 
   return (
     <div className="lm-onboarding-body">
-      <h1 className="lm-onboarding-title">Choose the model Lumo thinks with</h1>
-      <SegmentedControl<Provider>
-        label="Model provider"
-        value={provider}
-        onValueChange={(v) => {
-          setProvider(v);
-          setResult(null);
-        }}
-        options={[
-          { value: 'local', label: 'Free, on this computer' },
-          { value: 'anthropic', label: 'Add an Anthropic API key' },
-          { value: 'openai_compatible', label: 'Other server' },
-        ]}
-      />
+      <h1 className="lm-onboarding-title">Give me a brain</h1>
+      {!more && (
+        <p className="lm-onboarding-text">
+          I run on a free AI model that lives right on your computer, so your chats stay private. Download it
+          once and you’re set.
+        </p>
+      )}
+      {more && (
+        <SegmentedControl<Provider>
+          label="Model provider"
+          value={provider}
+          onValueChange={(v) => {
+            setProvider(v);
+            setResult(null);
+          }}
+          options={[
+            { value: 'local', label: 'Free, on this computer' },
+            { value: 'anthropic', label: 'Anthropic API key' },
+            { value: 'openai_compatible', label: 'Other server' },
+          ]}
+        />
+      )}
       {keychainError && (
         <Callout tone="danger" title="Keys can’t be saved on this computer">
           {keychainError}
@@ -222,6 +379,11 @@ function ModelStep({ onBack, onNext }: { onBack: () => void; onNext: () => void 
             />
           </Field>
         </>
+      )}
+      {!more && (
+        <button type="button" className="lm-more-options" onClick={() => setMore(true)}>
+          <ChevronDown aria-hidden /> More options
+        </button>
       )}
       {result && provider !== 'local' && (
         <Callout tone={result.ok ? 'success' : 'danger'} title={result.ok ? 'Connected' : 'Couldn’t connect'}>
@@ -299,6 +461,9 @@ function YouStep({ onBack, onNext }: { onBack: () => void; onNext: () => void })
   return (
     <div className="lm-onboarding-body">
       <h1 className="lm-onboarding-title">A little about you</h1>
+      <p className="lm-onboarding-text">
+        So I can be a better companion. All of this stays on your computer.
+      </p>
       <Field label="What should Lumo call you?" description="Optional.">
         <Input value={name} onChange={(e) => setName(e.target.value)} maxLength={60} autoFocus />
       </Field>
@@ -329,8 +494,8 @@ function YouStep({ onBack, onNext }: { onBack: () => void; onNext: () => void })
             Remember things between conversations
           </div>
           <div className="lm-setting-desc" id="mem-desc">
-            Off by default. When on, Lumo saves only what you ask it to remember, and you can see, edit or
-            delete every memory in Settings.
+            Off by default. When on, I can remember the things that matter to you, like names, plans and what
+            you like, so I don’t ask twice. You can see, edit or delete every memory in Settings.
           </div>
         </div>
         <Switch

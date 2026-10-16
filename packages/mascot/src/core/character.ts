@@ -1,22 +1,23 @@
 /**
- * Lumo: a small, round moon-bunny with floppy ears, a star on an antenna and a blue jetpack.
+ * Lumo: a small, round moon-bunny with floppy ears, a star on an antenna and two short blue wings.
  *
  * Everything is procedural three.js (no model files). The character is a THREE.Group that a host
  * adds to a scene and advances with update(dt). Motion is layered:
  *
  * - a mood (see moods.ts) sets pose targets that every part eases or springs toward;
  * - secondary motion: ears, antenna and feet are damped springs driven by the body's acceleration,
- *   so every hop, turn and burst of thrust ripples through them;
+ *   so every hop, turn and wingbeat ripples through them;
  * - one-shots (blink, wave, boop, celebration backflip, shake-off, pulse) add to the pose and decay;
- * - flight: walkTo() jetpacks him sideways; setFlight() lets a host that moves the whole window
- *   (the desktop overlay) tell him how fast he is really going, so he banks, burns harder and
- *   leaves an exhaust trail.
+ * - wings: a fast hummingbird flutter while hovering, big strokes when he climbs or takes off, a
+ *   held glide on fast flights, folded flat when he lands or sleeps. The body bobs with each beat.
+ * - flight: walkTo() flies him sideways; setFlight() lets a host that moves the whole window
+ *   (the desktop overlay) tell him how fast he is really going, so he banks, beats harder or glides,
+ *   and leaves a sparkly wind trail from his wingtips.
  *
  * Deterministic for a given seed and sequence of update() steps, so screenshots are reproducible.
  * `calm` (reduced motion) damps every amplitude and skips flips and spins.
  */
 import * as THREE from 'three';
-import { RoundedBoxGeometry } from 'three/examples/jsm/geometries/RoundedBoxGeometry.js';
 import { BASE_POSE, moodOf, type Effect, type Mood, type Pose } from './moods';
 import { makeTextures, type LumoTextures } from './textures';
 
@@ -66,14 +67,12 @@ export const PALETTE = {
   eyeShine: 0x6fb6ff,
   mouth: 0x3b2440,
   tongue: 0xff8fae,
-  pack: 0x2f6bff,
-  packLight: 0x8db6ff,
-  nozzle: 0x1d3d99,
+  wing: 0xeef4ff,
+  feather: 0x8db6ff,
+  featherDeep: 0x2f6bff,
   star: 0xffd257,
-  flameCore: 0xf4fbff,
-  flameMid: 0x7cc4ff,
-  flameTip: 0x3a62ff,
-  exhaust: 0xa9cbff,
+  trail: 0xa9cbff,
+  trailBright: 0x7cc4ff,
   dots: [0x5b9cff, 0x8ab8ff, 0xb9d3ff],
   sparkles: [0xffd257, 0x5b9cff, 0xff9cc0, 0x7fe0ff],
 } as const;
@@ -190,42 +189,6 @@ void main() {
   #include <colorspace_fragment>
 }`;
 
-const FLAME_VERT = /* glsl */ `
-uniform float uTime;
-uniform float uSeed;
-varying vec2 vUv;
-varying float vFres;
-void main() {
-  vUv = uv;
-  vec3 p = position;
-  float t = uv.y;
-  p.x += sin(uTime * 31.0 + uSeed + t * 9.0) * 0.025 * t;
-  p.z += cos(uTime * 27.0 + uSeed * 1.7 + t * 7.0) * 0.025 * t;
-  vec4 mv = modelViewMatrix * vec4(p, 1.0);
-  vec3 n = normalize(normalMatrix * normal);
-  vFres = abs(dot(n, normalize(-mv.xyz)));
-  gl_Position = projectionMatrix * mv;
-}`;
-const FLAME_FRAG = /* glsl */ `
-uniform vec3 uCore;
-uniform vec3 uMid;
-uniform vec3 uTip;
-uniform float uPower;
-uniform float uTime;
-uniform float uSeed;
-varying vec2 vUv;
-varying float vFres;
-void main() {
-  float t = vUv.y;
-  vec3 c = mix(uCore, uMid, smoothstep(0.0, 0.35, t));
-  c = mix(c, uTip, smoothstep(0.35, 0.95, t));
-  float flick = 0.82 + 0.18 * sin(uTime * 40.0 + uSeed + t * 14.0);
-  float a = pow(1.0 - t, 1.35) * pow(vFres, 1.2) * uPower * flick;
-  if (a < 0.004) discard;
-  gl_FragColor = vec4(c, clamp(a, 0.0, 1.0));
-  #include <colorspace_fragment>
-}`;
-
 export class Lumo extends THREE.Group {
   readonly opts: LumoOptions;
   /** Anchor at the middle of his face (for gaze math in the host). */
@@ -253,10 +216,13 @@ export class Lumo extends THREE.Group {
   private starMat!: THREE.MeshStandardMaterial;
   private arms: Record<ArmSide, THREE.Group> = { left: new THREE.Group(), right: new THREE.Group() };
   private feet: THREE.Mesh[] = [];
-  private pack = new THREE.Group();
-  private nozzles: THREE.Object3D[] = [];
-  private flames: { outer: THREE.Mesh; inner: THREE.Mesh; mat: THREE.ShaderMaterial[] }[] = [];
-  private nozzleGlows: THREE.Sprite[] = [];
+  /** Shoulder pivots (left, right); each holds a wing and a tip marker for the trail. */
+  private wings: { pivot: THREE.Group; tip: THREE.Object3D; side: number }[] = [];
+  private flapPhase = 0;
+  private flapAmp = 0;
+  private flapRate = 0;
+  private glideK = 0;
+  private foldK = 0;
   private shadow: THREE.Mesh | null = null;
   private ring!: THREE.Mesh;
   private bubble!: THREE.Mesh;
@@ -274,7 +240,15 @@ export class Lumo extends THREE.Group {
   private _mood = 'idle';
   private moodDef: Mood = moodOf('idle');
   private pose: Pose = { ...BASE_POSE };
-  private fx: Record<Effect, number> = { dots: 0, scan: 0, panel: 0, zzz: 0, question: 0, sparkles: 0, hearts: 0 };
+  private fx: Record<Effect, number> = {
+    dots: 0,
+    scan: 0,
+    panel: 0,
+    zzz: 0,
+    question: 0,
+    sparkles: 0,
+    hearts: 0,
+  };
   private hands: Record<NonNullable<Mood['hands']>, number> = { chin: 0, type: 0, wave: 0, hug: 0, shrug: 0 };
   private t = 0;
   private stateT = 0;
@@ -389,14 +363,19 @@ export class Lumo extends THREE.Group {
     this.buildEars(bodyMat);
     this.buildAntenna();
     this.buildLimbs(bodyMat);
-    this.buildPack();
+    this.buildWings();
     this.buildFx();
   }
 
   private buildFace() {
     const P = PALETTE;
     const eyeMat = this.m(
-      new THREE.MeshPhysicalMaterial({ color: P.eye, roughness: 0.2, clearcoat: 1, clearcoatRoughness: 0.06 }),
+      new THREE.MeshPhysicalMaterial({
+        color: P.eye,
+        roughness: 0.2,
+        clearcoat: 1,
+        clearcoatRoughness: 0.06,
+      }),
     );
     const white = this.m(new THREE.MeshBasicMaterial({ color: 0xffffff, toneMapped: false }));
     const shine = this.m(
@@ -438,7 +417,12 @@ export class Lumo extends THREE.Group {
     }
 
     const blushMat = this.m(
-      new THREE.MeshBasicMaterial({ map: this.tex.blush, transparent: true, depthWrite: false, toneMapped: false }),
+      new THREE.MeshBasicMaterial({
+        map: this.tex.blush,
+        transparent: true,
+        depthWrite: false,
+        toneMapped: false,
+      }),
     );
     const blushGeo = this.g(new THREE.PlaneGeometry(0.34, 0.22));
     for (const side of [-1, 1]) {
@@ -497,7 +481,15 @@ export class Lumo extends THREE.Group {
       seg1.add(seg2);
       root.add(seg1);
       this.squashG.add(root);
-      this.ears.push({ root, seg1, seg2, roll: new Spring(0), pitch: new Spring(0), roll2: new Spring(0), sign });
+      this.ears.push({
+        root,
+        seg1,
+        seg2,
+        roll: new Spring(0),
+        pitch: new Spring(0),
+        roll2: new Spring(0),
+        sign,
+      });
     }
   }
 
@@ -509,7 +501,7 @@ export class Lumo extends THREE.Group {
     );
     const stalk = new THREE.Mesh(
       this.g(new THREE.TubeGeometry(curve, 16, 0.024, 8, false)),
-      this.m(new THREE.MeshStandardMaterial({ color: PALETTE.packLight, roughness: 0.4 })),
+      this.m(new THREE.MeshStandardMaterial({ color: PALETTE.feather, roughness: 0.4 })),
     );
     this.antenna.position.set(0, 0.86, 0.02);
     this.antenna.add(stalk);
@@ -578,110 +570,78 @@ export class Lumo extends THREE.Group {
     }
   }
 
-  private buildPack() {
+  private buildWings() {
     const P = PALETTE;
-    const plastic = this.m(
-      new THREE.MeshPhysicalMaterial({ color: P.pack, roughness: 0.32, clearcoat: 0.9, clearcoatRoughness: 0.15 }),
-    );
-    const light = this.m(
-      new THREE.MeshPhysicalMaterial({ color: P.packLight, roughness: 0.3, clearcoat: 0.8, clearcoatRoughness: 0.2 }),
-    );
-    const dark = this.m(new THREE.MeshStandardMaterial({ color: P.nozzle, roughness: 0.4, metalness: 0.3 }));
-    const box = new THREE.Mesh(this.g(new RoundedBoxGeometry(1.0, 0.95, 0.5, 4, 0.17)), plastic);
-    this.pack.add(box);
-    const cap = new THREE.Mesh(this.g(new RoundedBoxGeometry(0.78, 0.2, 0.44, 3, 0.08)), light);
-    cap.position.y = 0.5;
-    this.pack.add(cap);
-    const stripe = new THREE.Mesh(
-      this.g(new RoundedBoxGeometry(0.14, 0.6, 0.06, 2, 0.03)),
-      this.m(new THREE.MeshBasicMaterial({ color: 0xffffff })),
-    );
-    stripe.position.set(0, 0.0, -0.26);
-    this.pack.add(stripe);
-    // Little side wings so the pack peeks out from behind him.
-    const finGeo = this.g(new RoundedBoxGeometry(0.62, 0.2, 0.12, 3, 0.06));
-    for (const sx of [-1, 1]) {
-      const fin = new THREE.Mesh(finGeo, light);
-      fin.position.set(sx * 0.78, 0.12, 0.1);
-      fin.rotation.z = sx * -0.42;
-      this.pack.add(fin);
-    }
-    const tGeo = this.g(new THREE.CylinderGeometry(0.12, 0.155, 0.36, 24));
-    const rGeo = this.g(new THREE.TorusGeometry(0.15, 0.04, 10, 24));
-    const outerGeo = this.g(new THREE.ConeGeometry(0.135, 1, 20, 6, true));
-    outerGeo.rotateX(PI);
-    outerGeo.translate(0, -0.5, 0);
-    const innerGeo = this.g(new THREE.ConeGeometry(0.07, 1, 16, 4, true));
-    innerGeo.rotateX(PI);
-    innerGeo.translate(0, -0.5, 0);
-    const glowMat = this.m(
-      new THREE.SpriteMaterial({
-        map: this.tex.glow,
-        color: P.flameMid,
-        transparent: true,
-        depthWrite: false,
-        opacity: 0.6,
-        toneMapped: false,
+    // A short, round wing: rounded leading edge up top, three soft feather scallops along the back.
+    const outline = (k: number) => {
+      const sh = new THREE.Shape();
+      sh.moveTo(0, -0.1 * k);
+      sh.bezierCurveTo(0.05 * k, 0.28 * k, 0.4 * k, 0.46 * k, 0.78 * k, 0.36 * k);
+      sh.bezierCurveTo(0.9 * k, 0.32 * k, 0.88 * k, 0.16 * k, 0.76 * k, 0.12 * k);
+      sh.bezierCurveTo(0.8 * k, 0.0, 0.66 * k, -0.1 * k, 0.56 * k, -0.06 * k);
+      sh.bezierCurveTo(0.56 * k, -0.18 * k, 0.4 * k, -0.24 * k, 0.32 * k, -0.16 * k);
+      sh.bezierCurveTo(0.26 * k, -0.28 * k, 0.08 * k, -0.28 * k, 0, -0.1 * k);
+      return sh;
+    };
+    const extrude = (k: number, depth: number) => {
+      const geo = new THREE.ExtrudeGeometry(outline(k), {
+        depth,
+        bevelEnabled: true,
+        bevelThickness: depth * 0.6,
+        bevelSize: 0.035,
+        bevelSegments: 4,
+        curveSegments: 18,
+      });
+      geo.translate(0, 0, -depth / 2);
+      return this.g(geo);
+    };
+    const wingGeo = extrude(1, 0.04);
+    const featherGeo = extrude(0.66, 0.03);
+    const wingMat = this.m(
+      new THREE.MeshPhysicalMaterial({
+        color: P.wing,
+        roughness: 0.45,
+        sheen: 1,
+        sheenColor: new THREE.Color(P.sheen),
+        clearcoat: 0.3,
       }),
     );
-    [-1, 1].forEach((sx, i) => {
-      const thr = new THREE.Group();
-      thr.position.set(sx * 0.27, -0.58, 0);
-      thr.add(new THREE.Mesh(tGeo, light));
-      const ring = new THREE.Mesh(rGeo, dark);
-      ring.rotation.x = PI / 2;
-      ring.position.y = -0.18;
-      thr.add(ring);
-      const nozzle = new THREE.Object3D();
-      nozzle.position.y = -0.2;
-      thr.add(nozzle);
-      this.nozzles.push(nozzle);
-      const mk = (core: number, mid: number, tip: number) =>
-        this.m(
-          new THREE.ShaderMaterial({
-            vertexShader: FLAME_VERT,
-            fragmentShader: FLAME_FRAG,
-            transparent: true,
-            depthWrite: false,
-            side: THREE.DoubleSide,
-            uniforms: {
-              uTime: { value: 0 },
-              uSeed: { value: i * 3.7 },
-              uPower: { value: 0 },
-              uCore: { value: new THREE.Color(core) },
-              uMid: { value: new THREE.Color(mid) },
-              uTip: { value: new THREE.Color(tip) },
-            },
-          }),
-        );
-      const outerMat = mk(P.flameMid, P.flameMid, P.flameTip);
-      const innerMat = mk(P.flameCore, P.flameCore, P.flameMid);
-      const outer = new THREE.Mesh(outerGeo, outerMat);
-      const inner = new THREE.Mesh(innerGeo, innerMat);
-      outer.renderOrder = 2;
-      inner.renderOrder = 3;
-      nozzle.add(outer, inner);
-      this.flames.push({ outer, inner, mat: [outerMat, innerMat] });
-      const glow = new THREE.Sprite(glowMat);
-      glow.scale.setScalar(0.5);
-      glow.position.y = -0.05;
-      nozzle.add(glow);
-      this.nozzleGlows.push(glow);
-      this.pack.add(thr);
-    });
-    this.pack.position.set(0, -0.02, -0.8);
-    this.squashG.add(this.pack);
-    // Shoulder straps: from the pack, over his shoulders, ending high on his chest.
-    const strapGeo = this.g(new THREE.TorusGeometry(0.73, 0.04, 8, 40, (167 * PI) / 180));
-    for (const sx of [-1, 1]) {
-      const g = new THREE.Group();
-      g.position.x = sx * 0.66;
-      g.rotation.y = PI / 2;
-      g.scale.set(1.0, 0.98, 1);
-      const strap = new THREE.Mesh(strapGeo, plastic);
-      strap.rotation.z = (-30 * PI) / 180;
-      g.add(strap);
-      this.squashG.add(g);
+    const featherMat = this.m(
+      new THREE.MeshPhysicalMaterial({
+        color: P.feather,
+        roughness: 0.35,
+        clearcoat: 0.6,
+        clearcoatRoughness: 0.2,
+      }),
+    );
+    const tipMat = this.m(new THREE.MeshStandardMaterial({ color: P.featherDeep, roughness: 0.4 }));
+    const dotGeo = this.g(new THREE.SphereGeometry(0.045, 12, 10));
+    for (const side of [-1, 1]) {
+      const pivot = new THREE.Group();
+      pivot.position.set(side * 0.42, 0.2, -0.8);
+      const wing = new THREE.Group();
+      wing.scale.set(side * 1.45, 1.45, 1.45);
+      const main = new THREE.Mesh(wingGeo, wingMat);
+      const feather = new THREE.Mesh(featherGeo, featherMat);
+      feather.position.set(0.04, 0.02, 0.045);
+      // Three little blue feather dots along the scallops.
+      [
+        [0.66, 0.0],
+        [0.45, -0.12],
+        [0.24, -0.17],
+      ].forEach(([x, y]) => {
+        const d = new THREE.Mesh(dotGeo, tipMat);
+        d.position.set(x!, y!, 0.05);
+        d.scale.set(1, 1, 0.5);
+        wing.add(d);
+      });
+      wing.add(main, feather);
+      pivot.add(wing);
+      const tip = new THREE.Object3D();
+      tip.position.set(side * 1.16, 0.4, 0);
+      pivot.add(tip);
+      this.squashG.add(pivot);
+      this.wings.push({ pivot, tip, side });
     }
   }
 
@@ -726,7 +686,9 @@ export class Lumo extends THREE.Group {
     P.dots.forEach((c) => {
       const d = new THREE.Mesh(
         dotGeo,
-        this.m(new THREE.MeshStandardMaterial({ color: c, emissive: c, emissiveIntensity: 0.35, roughness: 0.3 })),
+        this.m(
+          new THREE.MeshStandardMaterial({ color: c, emissive: c, emissiveIntensity: 0.35, roughness: 0.3 }),
+        ),
       );
       this.dotsG.add(d);
       this.dots.push(d);
@@ -774,7 +736,14 @@ export class Lumo extends THREE.Group {
 
     // Question mark
     this.question = new THREE.Sprite(
-      this.m(new THREE.SpriteMaterial({ map: this.tex.question, transparent: true, depthWrite: false, opacity: 0 })),
+      this.m(
+        new THREE.SpriteMaterial({
+          map: this.tex.question,
+          transparent: true,
+          depthWrite: false,
+          opacity: 0,
+        }),
+      ),
     );
     this.question.position.set(0.95, 1.25, 0.2);
     this.question.visible = false;
@@ -938,7 +907,7 @@ export class Lumo extends THREE.Group {
     return this.xSpring.x;
   }
 
-  /** Turn to a yaw angle (0 = facing the viewer, PI = showing the jetpack). Skipped in calm mode. */
+  /** Turn to a yaw angle (0 = facing the viewer, PI = showing his wings). Skipped in calm mode. */
   turnTo(yaw: number) {
     if (this.opts.calm) return this;
     this._yawTarget = yaw;
@@ -1027,7 +996,7 @@ export class Lumo extends THREE.Group {
     const vx = this.xSpring.v + fvx;
     const speed = Math.hypot(vx, fvy);
 
-    // Thrust: mood + movement + climbing + flips.
+    // Effort (how hard the wings work): mood + movement + climbing + flips.
     let thrust = p.thrust + Math.min(0.7, speed * 0.25) + Math.max(0, fvy) * 0.25;
     if (flip >= 0) thrust += Math.sin(flip * PI) * 1.0;
     if (boop >= 0 && this.boopKind === 'jump') thrust += (1 - boop) * 0.6;
@@ -1037,7 +1006,22 @@ export class Lumo extends THREE.Group {
     let hoverT = p.hover + moving * 0.15;
     if (flip >= 0) hoverT += Math.sin(flip * PI) * 0.9;
     this.hoverSpring.step(hoverT, 30, 9, dt);
-    const bob = Math.sin(t * 1.9 * p.bobSpeed) * 0.07 * p.bob * amp + Math.sin(t * 23) * 0.004 * thrust;
+    // Wings: flutter while hovering, beat harder with effort, glide on fast level flight, fold when landed.
+    const power = clamp(thrust, 0, 1.6);
+    this.foldK = damp(this.foldK, p.thrust < 0.05 && speed < 0.2 && flip < 0 ? 1 : 0, 5, dt);
+    this.glideK = damp(this.glideK, clamp((speed - 1.2) * 0.8, 0, 1) * (fvy > 0.6 ? 0.3 : 1), 3, dt);
+    const rateT = calm ? 2.2 + power * 1.5 : 5.5 + power * 6.5;
+    this.flapRate = damp(this.flapRate, rateT * (1 - this.glideK * 0.7), 4, dt);
+    this.flapAmp = damp(
+      this.flapAmp,
+      (0.32 + power * 0.42) * (1 - this.glideK * 0.8) * (1 - this.foldK) * amp,
+      6,
+      dt,
+    );
+    this.flapPhase += dt * this.flapRate * TAU;
+    const beat = Math.sin(this.flapPhase);
+    const bob =
+      Math.sin(t * 1.9 * p.bobSpeed) * 0.07 * p.bob * amp - Math.cos(this.flapPhase) * 0.012 * this.flapAmp;
     const rigY = this.hoverSpring.x + bob;
     this.rig.position.y = rigY;
     const vy = (rigY - this.lastRigY) / Math.max(dt, 1e-4);
@@ -1047,7 +1031,11 @@ export class Lumo extends THREE.Group {
 
     // Gaze: mood lock > explicit target > glances.
     if (!this.gazeTarget && !calm && t > this.nextGlance) {
-      this.glance = { x: (this.rng() - 0.5) * 1.4, y: (this.rng() - 0.4) * 0.6, until: t + 0.7 + this.rng() * 0.6 };
+      this.glance = {
+        x: (this.rng() - 0.5) * 1.4,
+        y: (this.rng() - 0.4) * 0.6,
+        until: t + 0.7 + this.rng() * 0.6,
+      };
       this.nextGlance = t + 2.5 + this.rng() * 4;
     }
     if (this.glance && t > this.glance.until) this.glance = null;
@@ -1105,7 +1093,8 @@ export class Lumo extends THREE.Group {
       }
     }
     let eyeSmile = p.eyeSmile;
-    if (boop >= 0 && this.boopKind === 'giggle') eyeSmile = Math.max(eyeSmile, Math.sin(Math.min(1, boop * 1.4) * PI));
+    if (boop >= 0 && this.boopKind === 'giggle')
+      eyeSmile = Math.max(eyeSmile, Math.sin(Math.min(1, boop * 1.4) * PI));
     let eyeOpen = p.eyeOpen;
     if (boop >= 0 && this.boopKind === 'jump') eyeOpen = Math.max(eyeOpen, 1.2 * (1 - boop) + eyeOpen * boop);
     const round = clamp(eyeOpen * clamp(blinkF, 0, 1), 0, 1.2) * (1 - clamp(eyeSmile, 0, 1));
@@ -1128,7 +1117,8 @@ export class Lumo extends THREE.Group {
     let smile = p.smile;
     let mouthOpen = p.mouth;
     if (this._mood === 'speak') {
-      mouthOpen += this.speakLevel ?? Math.max(0, Math.sin(t * 13.5) * 0.5 + Math.sin(t * 8.7 + 1) * 0.45) * 0.6;
+      mouthOpen +=
+        this.speakLevel ?? Math.max(0, Math.sin(t * 13.5) * 0.5 + Math.sin(t * 8.7 + 1) * 0.45) * 0.6;
     }
     if (boop >= 0 && this.boopKind === 'jump') mouthOpen = Math.max(mouthOpen, (1 - boop) * 0.8);
     if (boop >= 0 && this.boopKind === 'giggle') {
@@ -1162,7 +1152,13 @@ export class Lumo extends THREE.Group {
     this.antennaSpring.kick(-bank * dt * 3 + ay * 0.0006);
     this.antennaSpring.step(0, 55, 4, dt);
     this.antenna.rotation.z = this.antennaSpring.x;
-    const starPow = p.star * (this._mood === 'process' ? 0.8 + 0.4 * Math.sin(t * 8) : this._mood === 'think' ? 0.85 + 0.25 * Math.sin(t * 3) : 1);
+    const starPow =
+      p.star *
+      (this._mood === 'process'
+        ? 0.8 + 0.4 * Math.sin(t * 8)
+        : this._mood === 'think'
+          ? 0.85 + 0.25 * Math.sin(t * 3)
+          : 1);
     this.starMat.emissiveIntensity = 0.25 + starPow * 0.6;
     (this.starGlow.material as THREE.SpriteMaterial).opacity = clamp(starPow * 0.55, 0, 0.9);
     this.starGlow.scale.setScalar(0.45 + starPow * 0.45);
@@ -1180,23 +1176,15 @@ export class Lumo extends THREE.Group {
       f.position.y = -0.88 - fh * 0.03 + (i ? 1 : -1) * Math.sin(t * 3 + i) * 0.015 * fh;
     });
 
-    // Flames
-    const power = clamp(thrust, 0, 1.6);
-    this.flames.forEach((f, i) => {
-      const flick = 0.9 + 0.1 * Math.sin(t * 37 + i * 2) + 0.06 * Math.sin(t * 61 + i);
-      const len = (0.15 + power * 0.75) * flick;
-      f.outer.scale.set(0.8 + power * 0.25, len, 0.8 + power * 0.25);
-      f.inner.scale.set(0.8 + power * 0.2, len * 0.6, 0.8 + power * 0.2);
-      f.outer.visible = f.inner.visible = power > 0.02;
-      for (const m of f.mat) {
-        m.uniforms.uTime!.value = t;
-        m.uniforms.uPower!.value = clamp(power * 1.3, 0, 1);
-      }
-      const gl = this.nozzleGlows[i]!;
-      gl.visible = power > 0.02;
-      gl.scale.setScalar(0.25 + power * 0.45);
-      (gl.material as THREE.SpriteMaterial).opacity = clamp(power * 0.5, 0, 0.7);
-    });
+    // Wing pose: z raises/lowers (the beat), y sweeps them back (folded), x tilts them in a glide.
+    for (const w of this.wings) {
+      const spread = 0.3 - this.foldK * 0.7 + this.glideK * 0.1;
+      w.pivot.rotation.set(
+        this.glideK * 0.25,
+        w.side * (0.32 + this.foldK * 0.95 - this.glideK * 0.2),
+        w.side * (spread + beat * this.flapAmp),
+      );
+    }
 
     // Shadow
     if (this.shadow) {
@@ -1213,7 +1201,7 @@ export class Lumo extends THREE.Group {
       (this.ring.material as THREE.MeshBasicMaterial).opacity = (1 - pulse) * 0.4;
     }
 
-    this.updateEffects(dt, power, fvx, fvy);
+    this.updateEffects(dt, power, fvx, fvy, vx, speed, beat);
   }
 
   /** Advance a one-shot timer; returns progress 0..1, or -1 when not playing. */
@@ -1237,7 +1225,8 @@ export class Lumo extends THREE.Group {
       if (this.tapT <= 0) {
         this.tapSide = 1 - this.tapSide;
         this.tapT = this.rng() < 0.08 ? 0.45 : 0.09 + this.rng() * 0.08;
-        if (this.fx.panel > 0.5 && this.rng() < 0.35) this.spawnSparkle(this.tapSide ? 0.35 : -0.35, -0.55, 1.2, 0.12);
+        if (this.fx.panel > 0.5 && this.rng() < 0.35)
+          this.spawnSparkle(this.tapSide ? 0.35 : -0.35, -0.55, 1.2, 0.12);
       }
     }
     for (const side of ['left', 'right'] as const) {
@@ -1249,7 +1238,8 @@ export class Lumo extends THREE.Group {
       // Hands layers (weights blend smoothly between moods).
       rx += h.type * -1.2;
       rz = mix(rz, sx * 0.35, h.type);
-      const tap = h.type * (this.tapSide === (sx > 0 ? 1 : 0) ? Math.sin(clamp(this.tapT / 0.12, 0, 1) * PI) : 0);
+      const tap =
+        h.type * (this.tapSide === (sx > 0 ? 1 : 0) ? Math.sin(clamp(this.tapT / 0.12, 0, 1) * PI) : 0);
       rx += tap * 0.35 * amp;
       if (side === 'right') {
         // Paw to chin
@@ -1270,7 +1260,15 @@ export class Lumo extends THREE.Group {
     }
   }
 
-  private updateEffects(dt: number, power: number, fvx: number, fvy: number) {
+  private updateEffects(
+    dt: number,
+    power: number,
+    fvx: number,
+    fvy: number,
+    vx: number,
+    speed: number,
+    beat: number,
+  ) {
     const t = this.t;
     const fx = this.fx;
 
@@ -1317,26 +1315,27 @@ export class Lumo extends THREE.Group {
       this.bubble.scale.setScalar(Math.max(0.001, sc * fx.zzz));
     }
 
-    // Exhaust
+    // Wind trail from the wingtips: a few puffs on strong downstrokes, a streak when flying fast.
     const ex = this.exhaust;
-    if (power > 0.05) {
-      this.emitAcc += dt * (10 + power * 70) * (ex.n / 110);
+    const trail = clamp(speed * 0.5, 0, 1.5) + (beat < -0.7 ? power * 0.6 : 0);
+    if (trail > 0.12 && this.foldK < 0.5) {
+      this.emitAcc += dt * (6 + trail * 40) * (ex.n / 110);
       while (this.emitAcc >= 1) {
         this.emitAcc -= 1;
-        for (const nz of this.nozzles) {
-          nz.getWorldPosition(_v);
+        for (const w of this.wings) {
+          w.tip.getWorldPosition(_v);
           this.worldToLocal(_v);
           const i = this.spawn(ex);
-          ex.pos[i * 3] = _v.x + (this.rng() - 0.5) * 0.06;
-          ex.pos[i * 3 + 1] = _v.y - 0.1 - power * 0.2;
-          ex.pos[i * 3 + 2] = _v.z + (this.rng() - 0.5) * 0.06;
-          ex.vel[i * 3] = (this.rng() - 0.5) * 0.5 - fvx * 0.8;
-          ex.vel[i * 3 + 1] = -1.2 - power * 1.6 - fvy * 0.8;
-          ex.vel[i * 3 + 2] = (this.rng() - 0.5) * 0.5;
-          ex.max[i] = 0.45 + this.rng() * 0.4;
-          ex.size[i] = 0.1 + this.rng() * 0.06;
-          ex.grow[i] = 0.5 + this.rng() * 0.4;
-          _col.setHex(this.rng() < 0.5 ? PALETTE.exhaust : PALETTE.flameMid);
+          ex.pos[i * 3] = _v.x + (this.rng() - 0.5) * 0.05;
+          ex.pos[i * 3 + 1] = _v.y + (this.rng() - 0.5) * 0.05;
+          ex.pos[i * 3 + 2] = _v.z + (this.rng() - 0.5) * 0.05;
+          ex.vel[i * 3] = (this.rng() - 0.5) * 0.3 - fvx * 0.7 - (vx - fvx) * 0.6;
+          ex.vel[i * 3 + 1] = -0.25 - power * 0.35 - fvy * 0.6;
+          ex.vel[i * 3 + 2] = (this.rng() - 0.5) * 0.3;
+          ex.max[i] = 0.35 + this.rng() * 0.35;
+          ex.size[i] = 0.05 + this.rng() * 0.05;
+          ex.grow[i] = 0.3 + this.rng() * 0.3;
+          _col.setHex(this.rng() < 0.75 ? PALETTE.trail : PALETTE.sparkles[Math.floor(this.rng() * 4)]!);
           ex.color.set([_col.r, _col.g, _col.b], i * 3);
         }
       }

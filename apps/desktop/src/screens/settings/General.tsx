@@ -85,7 +85,7 @@ export function GeneralSection() {
       </SettingRow>
       <SettingRow
         label="Animated Lumo"
-        description="Show the animated owl. When off, a small mark takes its place."
+        description="Show Lumo in 3D. When off, a small mark takes its place."
       >
         <Switch
           checked={s.mascotEnabled}
@@ -94,8 +94,25 @@ export function GeneralSection() {
         />
       </SettingRow>
       <SettingRow
+        label="Lumo on your desktop"
+        description="Lumo flies around your screen, points at what he is doing, and says hi now and then."
+      >
+        <Switch
+          checked={s.buddyEnabled}
+          onCheckedChange={(v) => void save({ buddyEnabled: v })}
+          aria-label="Lumo on your desktop"
+        />
+      </SettingRow>
+      <SettingRow label="Sounds" description="Little chirps and boops when Lumo reacts.">
+        <Switch
+          checked={s.soundsEnabled}
+          onCheckedChange={(v) => void save({ soundsEnabled: v })}
+          aria-label="Sounds"
+        />
+      </SettingRow>
+      <SettingRow
         label="Reduce motion"
-        description="Calmer animation for the owl, in addition to your system setting."
+        description="Calmer animation everywhere, in addition to your system setting."
       >
         <Switch
           checked={s.reducedMotion}

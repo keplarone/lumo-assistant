@@ -45,7 +45,7 @@ const STEPS: Step[] = [
   { label: 'Happy', run: () => lumo.setState('happy') },
   { label: 'Backflip', run: () => (lumo.setState('happy'), lumo.celebrate()) },
   { label: 'Fly over', run: () => (lumo.setState('idle'), lumo.walkTo(lumo.walkTarget > 0 ? -1.6 : 1.6)) },
-  { label: 'Show jetpack', run: () => lumo.turnAround() },
+  { label: 'Show wings', run: () => lumo.turnAround() },
   { label: 'Oops', run: () => lumo.setState('recover') },
   { label: 'Sleep', run: () => lumo.setState('sleep') },
 ];
@@ -85,7 +85,10 @@ stage.addEventListener('pointermove', (e) => {
 stage.addEventListener('pointerleave', () => lumo.gaze(null));
 stage.addEventListener('click', (e) => {
   const r = stage.getBoundingClientRect();
-  ray.setFromCamera(new THREE.Vector2(((e.clientX - r.left) / r.width) * 2 - 1, -(((e.clientY - r.top) / r.height) * 2 - 1)), camera);
+  ray.setFromCamera(
+    new THREE.Vector2(((e.clientX - r.left) / r.width) * 2 - 1, -(((e.clientY - r.top) / r.height) * 2 - 1)),
+    camera,
+  );
   if (ray.intersectObject(lumo, true).length) lumo.boop();
 });
 

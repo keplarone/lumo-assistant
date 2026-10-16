@@ -7,7 +7,7 @@
 export interface Pose {
   /** Height above the resting spot, in body radii. 0 = standing on the ground. */
   hover: number;
-  /** Jetpack power, 0 (off) to ~1.4 (full burn). */
+  /** Wing effort, 0 (folded, landed) to ~1.4 (beating hard). */
   thrust: number;
   /** Idle float amplitude and speed multipliers. */
   bob: number;
@@ -98,26 +98,69 @@ export const MOODS: Record<string, Mood> = {
   listen: mood({ ears: 1, earSplay: 0.08, eyeOpen: 1.1, pupil: 1.15, tilt: 0.14, lean: 0.06, smile: 0.7 }),
   /** Thinking: eyes up and to the side, paw on chin, thought dots orbiting. */
   think: mood(
-    { ears: 0.7, eyeOpen: 0.92, pupil: 0.9, tilt: 0.2, smile: 0.1, star: 1.1, gazeLock: 1, gazeX: -0.55, gazeY: 0.7 },
+    {
+      ears: 0.7,
+      eyeOpen: 0.92,
+      pupil: 0.9,
+      tilt: 0.2,
+      smile: 0.1,
+      star: 1.1,
+      gazeLock: 1,
+      gazeX: -0.55,
+      gazeY: 0.7,
+    },
     ['dots'],
     'chin',
   ),
   /** Processing a request: dots spin fast, the star pulses. */
   process: mood(
-    { ears: 0.8, eyeOpen: 0.95, pupil: 0.85, tilt: 0.08, smile: 0.3, star: 1.35, gazeLock: 1, gazeX: 0.2, gazeY: 0.6 },
+    {
+      ears: 0.8,
+      eyeOpen: 0.95,
+      pupil: 0.85,
+      tilt: 0.08,
+      smile: 0.3,
+      star: 1.35,
+      gazeLock: 1,
+      gazeX: 0.2,
+      gazeY: 0.6,
+    },
     ['dots'],
   ),
   /** Searching: the star sweeps a beam while his eyes scan. */
-  search: mood({ ears: 0.95, earSplay: 0.3, eyeOpen: 1.08, pupil: 0.85, smile: 0.35, star: 1.3, lean: 0.05 }, ['scan']),
+  search: mood(
+    { ears: 0.95, earSplay: 0.3, eyeOpen: 1.08, pupil: 0.85, smile: 0.35, star: 1.3, lean: 0.05 },
+    ['scan'],
+  ),
   /** Heads-down work at his holographic keyboard. */
   work: mood(
-    { ears: 0.6, eyeOpen: 0.85, smile: 0.4, lean: 0.12, star: 1, arms: 0.2, gazeLock: 1, gazeX: 0.05, gazeY: -0.65 },
+    {
+      ears: 0.6,
+      eyeOpen: 0.85,
+      smile: 0.4,
+      lean: 0.12,
+      star: 1,
+      arms: 0.2,
+      gazeLock: 1,
+      gazeX: 0.05,
+      gazeY: -0.65,
+    },
     ['panel'],
     'type',
   ),
   /** Typing: leaning in, tapping fast. */
   type: mood(
-    { ears: 0.7, eyeOpen: 0.9, smile: 0.5, lean: 0.16, star: 1.05, arms: 0.22, gazeLock: 1, gazeX: 0, gazeY: -0.75 },
+    {
+      ears: 0.7,
+      eyeOpen: 0.9,
+      smile: 0.5,
+      lean: 0.16,
+      star: 1.05,
+      arms: 0.22,
+      gazeLock: 1,
+      gazeX: 0,
+      gazeY: -0.75,
+    },
     ['panel'],
     'type',
   ),
@@ -131,20 +174,76 @@ export const MOODS: Record<string, Mood> = {
   ),
   /** Delighted: smiling eyes, arms up, sparkles. */
   happy: mood(
-    { hover: 0.42, thrust: 0.75, bob: 1.6, bobSpeed: 1.6, ears: 0.95, earSplay: 0.3, eyeSmile: 1, smile: 1, mouth: 0.35, blush: 0.9, star: 1.4, arms: 0.85, squash: 0.02 },
+    {
+      hover: 0.42,
+      thrust: 0.75,
+      bob: 1.6,
+      bobSpeed: 1.6,
+      ears: 0.95,
+      earSplay: 0.3,
+      eyeSmile: 1,
+      smile: 1,
+      mouth: 0.35,
+      blush: 0.9,
+      star: 1.4,
+      arms: 0.85,
+      squash: 0.02,
+    },
     ['sparkles'],
   ),
   /** Something went wrong: ears droop, a sad little face; then he shakes it off. */
-  recover: mood({ hover: 0.16, thrust: 0.22, bob: 0.5, ears: 0.12, earSplay: 0.4, eyeOpen: 0.78, pupil: 1.2, smile: -0.6, blush: 0.25, star: 0.35, tilt: -0.1, lean: 0.08 }),
+  recover: mood({
+    hover: 0.16,
+    thrust: 0.22,
+    bob: 0.5,
+    ears: 0.12,
+    earSplay: 0.4,
+    eyeOpen: 0.78,
+    pupil: 1.2,
+    smile: -0.6,
+    blush: 0.25,
+    star: 0.35,
+    tilt: -0.1,
+    lean: 0.08,
+  }),
   /** Hello: big smile and a wave. */
   greet: mood(
-    { hover: 0.36, thrust: 0.6, bob: 1.3, ears: 1, earSplay: 0.2, eyeSmile: 0.85, smile: 1, mouth: 0.25, blush: 0.8, star: 1.2, tilt: -0.12 },
+    {
+      hover: 0.36,
+      thrust: 0.6,
+      bob: 1.3,
+      ears: 1,
+      earSplay: 0.2,
+      eyeSmile: 0.85,
+      smile: 1,
+      mouth: 0.25,
+      blush: 0.8,
+      star: 1.2,
+      tilt: -0.12,
+    },
     ['sparkles'],
     'wave',
   ),
-  /** Asleep: landed, jetpack off, eyes closed, Zs and a nose bubble. */
+  /** Asleep: landed, wings folded, eyes closed, Zs and a nose bubble. */
   sleep: mood(
-    { hover: 0, thrust: 0, bob: 0.25, bobSpeed: 0.5, breath: 1.8, ears: 0.05, earSplay: 0.5, eyeOpen: 0, smile: 0.25, blush: 0.55, star: 0.2, tilt: 0.22, lean: 0.12, arms: 0, gazeLock: 1, gazeY: -0.3 },
+    {
+      hover: 0,
+      thrust: 0,
+      bob: 0.25,
+      bobSpeed: 0.5,
+      breath: 1.8,
+      ears: 0.05,
+      earSplay: 0.5,
+      eyeOpen: 0,
+      smile: 0.25,
+      blush: 0.55,
+      star: 0.2,
+      tilt: 0.22,
+      lean: 0.12,
+      arms: 0,
+      gazeLock: 1,
+      gazeY: -0.3,
+    },
     ['zzz'],
   ),
   /** Warmth: hugging himself, hearts floating up. */
@@ -154,7 +253,21 @@ export const MOODS: Record<string, Mood> = {
     'hug',
   ),
   /** Gentle concern: soft eyes, ears lowered, close and quiet. */
-  concern: mood({ hover: 0.22, thrust: 0.3, bob: 0.6, bobSpeed: 0.7, ears: 0.3, earSplay: 0.3, eyeOpen: 0.95, pupil: 1.25, smile: -0.2, blush: 0.4, star: 0.6, tilt: 0.18, lean: 0.06 }),
+  concern: mood({
+    hover: 0.22,
+    thrust: 0.3,
+    bob: 0.6,
+    bobSpeed: 0.7,
+    ears: 0.3,
+    earSplay: 0.3,
+    eyeOpen: 0.95,
+    pupil: 1.25,
+    smile: -0.2,
+    blush: 0.4,
+    star: 0.6,
+    tilt: 0.18,
+    lean: 0.06,
+  }),
 };
 
 export const MOOD_NAMES = Object.keys(MOODS);

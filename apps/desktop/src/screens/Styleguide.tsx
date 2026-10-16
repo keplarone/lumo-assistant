@@ -1,5 +1,5 @@
 /** Development aid: every @lumo/ui component and the mascot moods, rendered with the live tokens. */
-import { MascotMachine, STATES, type MascotOutput } from '@lumo/mascot';
+import { MascotMachine, MOOD_NAMES, type MascotOutput } from '@lumo/mascot';
 import {
   Badge,
   Button,
@@ -44,7 +44,7 @@ const LumoMascot = lazy(() => import('@lumo/mascot/react').then((m) => ({ defaul
 
 /** One canvas (browsers cap WebGL contexts), switched between every registered mood. */
 function MoodViewer() {
-  const moods = Object.keys(STATES);
+  const moods = MOOD_NAMES;
   const [mood, setMood] = useState(moods[0] ?? 'idle');
   const behavior = useMemo<MascotOutput>(() => ({ ...new MascotMachine().output, mood }), [mood]);
   return (

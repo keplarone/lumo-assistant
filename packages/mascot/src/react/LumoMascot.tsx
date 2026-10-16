@@ -47,7 +47,7 @@ export interface LumoMascotHandle {
   /** The live character, for anything not covered below. */
   readonly lumo: Lumo | null;
   readonly renderer: THREE.WebGLRenderer | null;
-  /** Jetpack to x in -1..1 across the canvas (same units as the machine's locomotion.x). */
+  /** Fly to x in -1..1 across the canvas (same units as the machine's locomotion.x). */
   walkTo(x: number): void;
   turnAround(): void;
   pulse(): void;
@@ -230,7 +230,6 @@ function Character({
       if (holder.lumo === lumo) holder.lumo = null;
     };
   }, [lumo, gl, shared]);
-
 
   // Mood
   useEffect(() => {

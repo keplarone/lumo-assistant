@@ -1,6 +1,6 @@
 /**
  * Lumo as the chat's icon. He sits in a little round nest in the conversation header; when something
- * needs you (an approval, a question) or a task finishes, he jetpacks out of the icon to it, hovers
+ * needs you (an approval, a question) or a task finishes, he flies out of the icon to it, hovers
  * there a moment looking at it, and flies back. In flight he banks into the turn and is drawn with
  * motion blur (blur plus a stretch along his direction of travel).
  *
@@ -25,7 +25,9 @@ interface P {
 }
 
 function prefersReduced(setting: boolean) {
-  return setting || (typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches);
+  return (
+    setting || (typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches)
+  );
 }
 
 const ease = (t: number) => (t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2);
