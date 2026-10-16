@@ -52,6 +52,11 @@ The same server runs Lumo's model gateway (`api/chat.js`, `api/usage.js`, `api/m
 3. In OpenRouter's privacy settings, allow the free models' data policy, or free models return "no
    endpoints found". Buy at least $10 of credits once: OpenRouter raises the free-model limit for the
    whole account from 50 to 1,000 requests a day.
+4. Turn on **auto top-up** in OpenRouter (Settings → Credits): when the balance drops below a threshold,
+   OpenRouter charges the saved card and adds credits, so Lumo never stops for everyone at once. Size it
+   to about a week of usage (for example: below $50, add $100) and keep the key's credit limit above
+   it. If credits do run out, OpenRouter answers 402 and the gateway logs
+   `OpenRouter is out of credits` and tells users the models are paused.
 
 Plan models, budgets and limits are in `services/license/catalog.js`; run
 `pnpm --filter @lumo/license check-models` after changing them.

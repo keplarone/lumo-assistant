@@ -221,6 +221,16 @@ test('a busy model releases the reservation; a stopped answer keeps it', async (
   const spendKey = () => [...store.data.keys()].find((k) => k.startsWith('spend:'));
   assert.equal(store.data.get(spendKey()), '0');
 
+  const broke = network({ chatStatus: 402 });
+  const paused = await chat(request(hello, { license: 'mem_ABC123' }), env, {
+    store,
+    fetchImpl: broke.fetchImpl,
+    now,
+  });
+  assert.equal(paused.status, 503, 'out of OpenRouter credits');
+  assert.match((await paused.json()).error, /paused/);
+  assert.equal(store.data.get(spendKey()), '0');
+
   const ok = network({ usageBlock: false });
   const streaming = await chat(request(hello, { license: 'mem_ABC123' }), env, {
     store,

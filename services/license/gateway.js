@@ -363,6 +363,10 @@ export async function chat(request, env, overrides = {}) {
           : 'The model is busy right now. Try again in a minute.',
         { retryAfter: 30 },
       );
+    if (status === 402) {
+      console.error('OpenRouter is out of credits: top up, or check auto top-up and the key limit');
+      return fail(503, 'unavailable', 'Lumo’s models are paused for a moment. Try again shortly.');
+    }
     if (status === 400) {
       const text = await upstream.text().catch(() => '');
       return fail(400, 'invalid', `The model could not read this request. ${text.slice(0, 300)}`);
