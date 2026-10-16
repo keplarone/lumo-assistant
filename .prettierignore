@@ -1,0 +1,5 @@
+pnpm-lock.yaml
+docs/reference/
+**/target/
+**/dist/
+**/gen/

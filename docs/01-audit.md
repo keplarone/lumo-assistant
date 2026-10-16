@@ -1,87 +1,98 @@
-# Lumo Assistant: Phase 1 architecture and implementation audit
+# Phase 1: Repository and implementation audit
 
-Date: 2026-10-16 · Repository: github.com/keplarone/lumo-assistant · Branch: `claude/lumo-foundation-uj82xg`
+Date: 2026-10-16 · Repository: github.com/keplarone/lumo-assistant · Branch: `claude/lumo-foundation-high-xepcvo`
 
-## 1. What exists today
+This audit restarts the build at high effort. It reviews everything that existed before this branch: the
+repository, an earlier attempt's audit and work-in-progress commit, the mascot reference, and the build
+environment.
+
+## 1. What exists
 
 | Item | Finding | Evidence |
 |---|---|---|
-| Repository | **Empty.** No commits, no branches, no files. Nothing can be overwritten, and no prior architecture constrains us. | `git ls-remote origin` returns nothing; local clone reports "No commits yet". |
-| Space Studio | **Not found.** It is not in this repository, not in the project's shared files, and not in project memory. No Space Studio code, tokens, screenshots or components were available to inspect. | Searched repo, `/mnt/project-files/`, project memory. |
-| Mascot reference | **Found:** `Lumo Mascot.html` (47.9 KB) uploaded by Keder. Committed verbatim as `docs/reference/lumo-mascot.html` so it is versioned with the code. | See section 2. |
-| Build environment | Node 22, pnpm 10, Rust 1.97, WebKitGTK 4.1 (installed), Xvfb and Chromium/Playwright available. Linux desktop builds and headless UI testing are possible here. macOS and Windows installers need CI runners on those OSes (planned via GitHub Actions). | Tool version checks. |
+| Repository | Two commits from an earlier attempt: the mascot reference plus an audit (`0e0213c`), and a WIP pnpm monorepo with `packages/mascot` (`adb311b`). No desktop app, website, backend, or CI. Nothing unrelated to overwrite. | `git log origin/claude/lumo-foundation-uj82xg` |
+| Space Studio | **Not available.** Not in this repository, the project's shared files, or project memory. No code, tokens, screenshots or components to inspect. | Searched repo, `/mnt/project-files/`, project memory. |
+| Mascot reference | `docs/reference/lumo-mascot.html` (47,900 bytes), byte-identical to Keder's upload "Lumo Mascot.html". | `diff` against the upload. |
+| Build environment | Linux x86-64, 4 cores, 15 GB RAM. Node 22.22, pnpm 10.28, Rust 1.97. WebKitGTK 4.1 + `webkit2gtk-driver` installed from apt, so the Tauri app builds, runs under Xvfb, and can be driven end to end with `tauri-driver`. Chromium for Playwright is preinstalled. macOS and Windows builds need CI runners on those OSes. | Tool version checks. |
 
-**Open question for Keder:** where does Space Studio live (repo, folder, or exported design)? Until it is available, the Lumo design system (Phase 3) is built on its own merits from the brief: neutral surfaces, restrained blue accent, Linear/Raycast-level discipline. When Space Studio turns up, I will audit it and fold its strongest ideas into the tokens rather than starting over.
+## 2. The mascot: what must be preserved
 
-## 2. Mascot audit (the established identity to preserve)
+The reference is a single procedural three.js r149 file; there are no models or textures to load.
+`createLumoFactory(THREE)` returns a `Lumo` class (a `THREE.Group`).
 
-**What it is:** a fully procedural three.js "celestial owl": no models or textures to load. `createLumoFactory(THREE)` returns a `Lumo` class that extends `THREE.Group`.
+**Identity (do not change):** night-blue body (#2c3184 to #0b0d2a) with a cyan rim light (#7ff3ff); gold
+chest scallops and twinkling star flecks on the back; pale facial discs with gold rings; amber irises with a
+slowly turning cyan "circuit" ring (the AI tell); gold beak with an animated jaw; crystal ear tufts and a
+floating crown gem; layered glowing feathers (8 primaries and 6 coverts per wing, 5 tail feathers); a halo
+of a gold orbit ring, a ticked cyan ring and 9 motes; warm and cool aura sprites, ground glow, 150 drifting
+particles.
 
-**Identity elements that must not change:** night-blue body (#2c3184 → #0b0d2a) with cyan rim light (#7ff3ff); gold chest scallops and star flecks on the back; large pale facial discs with gold rings; amber irises with the slowly turning cyan "circuit" ring (the AI tell); gold beak with an animated jaw; crystal ear-tufts and a floating crown gem; layered glowing feathers (8 primaries + 6 coverts per wing, 5 tail feathers); the halo (gold orbit ring, ticked cyan ring, 9 motes); warm and cool aura, ground glow, drifting particles.
+**Animation system:** six moods (`idle, think, speak, happy, majestic, sleep`), each a complete set of 18 rig
+targets. Every frame the live parameters ease toward the targets with frame-rate-independent exponential
+damping and per-channel rates. Blinking, wandering gaze, `gaze(x, y)`, `react()` for timed moods, `pulse()`,
+`speakLevel` for audio-driven beak motion, `statechange` events, a `calm` option for reduced motion, and a
+`dispose()` that frees every GPU resource. This design is sound and is kept as is; new product states are
+new presets and motion layers on the same rig.
 
-**Animation system (well designed, reused as is):**
-- Six moods (`idle, think, speak, happy, majestic, sleep`), each a full set of 18 rig targets.
-- Every frame, parameters ease toward targets with frame-rate-independent exponential damping (`damp`), with per-channel rates (lids fast, wings slow). This is already "animation blending": any number of target sets can be layered by writing targets.
-- Autonomous blinking, wandering gaze, `gaze(x, y)` for look-at, `react()` for timed moods that return to the previous one, `pulse()` burst, `speakLevel` to drive the beak from real TTS audio, `statechange` events.
-- `calm` option already damps motion amplitude for reduced motion.
-- `dispose()` releases every geometry, material and texture it created.
+## 3. Review of the earlier work-in-progress
 
-**Technical findings:**
-1. Written against three r149 (2022, global build from a CDN). Current three is r186. Custom `ShaderMaterial`s still compile in r186 (three maps `gl_FragColor` for GLSL3). Color management changed in r152: to keep colors pixel-identical the port renders with linear output and legacy color management, verified by a side-by-side screenshot test.
-2. Draw calls: ~70 (33 feather meshes each with its own geometry, 9 mote sprites each with its own material, rings, sprites, body parts). Fine for one mascot; the 33 feather geometries can be merged or instanced later if profiling on low-end hardware shows a need. Shared 96×64 sphere (~12k triangles) is reused for body, discs and eyeballs.
-3. The demo's render loop already pauses when off-screen (`IntersectionObserver`), but it never stops the loop or throttles frame rate when idle; the product version adds on-demand rendering, frame-rate caps while idle or sleeping, and `visibilitychange` pausing.
-4. No product states yet for listening, searching, working, walking, turning, uncertainty, error recovery or greeting. These are added as new **target presets and scripted gaze/motion layered on the same rig**, never as a new character.
+The earlier attempt's audit and `packages/mascot` were reviewed line by line against the reference.
 
-**Port plan:** keep the `Lumo` class as a framework-agnostic TypeScript module (`packages/mascot/src/core`) translated line for line, wrap it in a React Three Fiber component, and drive it from a typed, unit-tested behavior state machine that maps real agent status to mascot behavior.
+| Part | Verdict | Notes |
+|---|---|---|
+| Phase 1 audit (`docs/01-audit.md` at `0e0213c`) | Mostly sound; superseded by this document. | Its integration research (section 6 below) holds up and is kept. |
+| `core/lumo.ts`, `core/shaders.ts` | **Keep.** Faithful line-for-line port; geometry, shaders, palette, targets and easing match. | One real defect: on three r152+ with color management on, `SpriteMaterial`/`MeshBasicMaterial` colors given as hex are converted from sRGB to linear, so the aura, motes, ground glow and pulse render darker than the reference. Fixed in Phase 6 by building those colors as raw linear values and rendering with linear output and no tone mapping, then proving parity with a screenshot diff against the r149 reference. |
+| `core/companion.ts` (product moods, walk, turn) | **Keep, extend.** | Covers listen, process, search, work, unsure, recover, greet. Missing: distinct typing/coding motion, a one-wing greeting wave, celebrating beyond `happy`, look-at-element helper. |
+| `behavior/machine.ts` + 8 tests | **Keep.** Pure, deterministic, tested. | Extended in Phase 6 with typing, attention-to-element and locomotion outputs. |
+| `react/LumoMascot.tsx` | **Rework.** Never run in a browser. | The frame driver ignores its `fps` prop; the pointer listener runs on every move even when hidden; color management not set for parity; no test that GPU memory returns to zero after unmount. |
+| Root tooling | **Keep, extend.** | No lint config, no CI, no formatting check yet. |
 
-## 3. Proposed architecture
+## 4. Decisions carried into Phase 2
 
-```
-lumo-assistant/
-  apps/desktop/        Tauri 2 app: React + TS UI (webview) + Rust core (src-tauri)
-  apps/web/            Marketing site (static generation, R3F islands)    [Phase 8]
-  packages/mascot/     Lumo core (three.js), R3F component, behavior state machine
-  packages/ui/         Design tokens + shared components
-  packages/agent/      Provider-agnostic agent engine (plan → act → verify), tool schemas
-  docs/                Architecture decisions, design system, reference mascot
-```
+1. **Monorepo** (pnpm): `apps/desktop` (Tauri 2), `apps/web` (marketing site), `packages/mascot`, `packages/ui`.
+2. **The Rust core is the agent runtime.** The earlier plan ran orchestration in the webview. That is moved
+   into Rust: the agent loop, model gateway, tool registry, permission policy, approvals, scheduler,
+   database and secrets all live in the native process. The webview only renders state and sends user
+   intents. Reasons: background tasks and automations must keep running with every window closed; a
+   compromised webview (for example through rendered model output) must not be able to drive tools; and
+   model-generated plans stay separated from privileged execution.
+3. **Anthropic Messages API first, provider-agnostic interface.** Native Messages API adapter (streaming,
+   tools, web search and fetch server tools, vision, computer use toolset) plus an OpenAI-compatible adapter
+   for local or other models (Ollama, LM Studio, other vendors).
+4. **Three risk tiers enforced in Rust:** `read` runs automatically; `write` (reversible, inside a folder the
+   user granted) needs an in-app approval; `sensitive` (money, deletion, sending messages, controlling the
+   computer, running commands) needs a native OS dialog the webview cannot forge.
 
-**Security boundaries (the core decision).**
-- The webview is treated as untrusted. It renders UI and runs the orchestration loop, but **holds no secrets and cannot perform privileged actions on its own**.
-- The Rust core owns: API keys (OS keychain via `keyring`), all model HTTP calls (the key is attached in Rust, responses streamed back), the SQLite database, and every tool that touches the OS.
-- Tool calls cross the boundary as **typed, schema-validated requests** (`serde` enums in Rust, `zod` in TS). Rust re-validates arguments, checks the permission policy (e.g. a path must be inside a folder the user granted), and for sensitive or destructive actions shows a **native OS confirmation dialog** that the webview cannot forge or auto-approve. Every execution is written to an audit log.
-- Model output is never executed as a shell command. There is no generic "run command" tool; code execution, when added, runs in a sandbox (Phase 5+).
-- Content from web pages, files and tool results is wrapped and labelled as untrusted data in the model context (prompt-injection defense), and cannot widen permissions, since permissions live in Rust.
+## 5. What "done" means for the first slice
 
-**Agent engine.** `Understand → Plan → Select tools → Execute → Verify → Report`, implemented as a loop over a model with tool use. Each run is a persisted Task with visible steps (plan, tool calls, results, verification). Tools declare a risk tier (`read`, `write`, `sensitive`), which drives confirmation. Provider-agnostic gateway with Anthropic as the first provider; OpenAI-compatible endpoints (including local models) behind the same interface.
+A complete, secure, working assistant rather than many partial features: shell (windows, tray, shortcut,
+notifications), conversations with a real model, file tools on granted folders, web research, honest
+handoffs for ordering and shopping, the mascot wired to real agent state, memory, automations, a project
+workspace that can build and preview static websites, and the marketing site. Computer use, voice, and
+OAuth integrations follow, each behind explicit permissions.
 
-**Desktop shell.** Main window, compact floating assistant window (always-on-top, opened by global shortcut), tray/menu bar, notifications, single-instance, autostart off by default, structured logging, crash-safe SQLite (WAL), updater plugin with signed releases (needs a signing key from Keder).
-
-## 4. Integration reality check (affects Phase 7)
+## 6. Integration reality check (feeds Phase 7)
 
 | Provider | What is actually available | Plan |
 |---|---|---|
-| DoorDash | Public "Drive" APIs are for merchants dispatching deliveries, not consumer ordering. In July 2026 DoorDash announced `dd-cli`, a limited beta for US/Canada macOS developers by preregistration, that can place orders through an AI agent. | Ship a legitimate deep-link/browser handoff now. Apply to the dd-cli beta (needs Keder). |
-| Uber Eats | "Consumer Delivery" APIs (browse stores, carts, orders, tracking, with the user linking their Uber account) are in early access, case by case, and may require written approval from Uber. | Handoff now; submit Uber's interest form (needs Keder). |
-| Google (Calendar, Gmail, Drive) | Standard OAuth; sensitive/restricted scopes require Google app verification before public release. | Implement with PKCE loopback OAuth; needs a Google Cloud OAuth client from Keder. |
-| GitHub | OAuth/device flow, freely available. | Good first real integration. |
-| Shopping | No universal checkout API. Product search can use web search; checkout is a handoff to the merchant with explicit approval. | Research + compare + handoff; never auto-purchase. |
+| DoorDash | Public "Drive" APIs dispatch deliveries for merchants; they are not consumer ordering. DoorDash announced `dd-cli` in July 2026, a limited preregistration beta for US/Canada developers that lets an AI agent place orders. | Legitimate handoff now (restaurant found from real map data, deep link to DoorDash search). Adapter slot for dd-cli once Keder is accepted. |
+| Uber Eats | Consumer Delivery APIs (browse, cart, order, tracking with the user's linked account) are early access, case by case, with written approval. | Handoff now; adapter slot after approval. |
+| Restaurants | No universal ordering API. OpenStreetMap (Nominatim geocoding, Overpass search) gives real nearby restaurants with websites and phone numbers, free with a fair-use policy. | Real nearby search; order on the restaurant's own site or by phone. |
+| Shopping | No universal checkout API. | Real research and comparison via web search; checkout is a handoff to the merchant after explicit approval of merchant, item, quantity and price. Never auto-purchase. |
+| Google Calendar, Gmail, Drive | Standard OAuth 2 for installed apps (PKCE + loopback). Restricted scopes need Google verification before public release. | Implement; needs Keder's Google Cloud OAuth client. |
+| GitHub | Personal access tokens work today; OAuth device flow needs an OAuth app. | Implement with a token now, device flow when an app exists. |
+| Deployment | Netlify and Vercel deploy APIs accept a personal token. | Implement deploy-to-Netlify with confirmation; needs the user's token. |
 
-Sources: [DoorDash dd-cli beta](https://mezha.net/eng/bukvy/588bb4d0_doordash_launches_dd-cli/), [Uber Consumer Delivery APIs](https://developer.uber.com/docs/consumer-delivery/introduction), [Uber Eats Marketplace APIs](https://developer.uber.com/docs/eats/introduction).
+Sources: [DoorDash dd-cli](https://mezha.net/eng/bukvy/588bb4d0_doordash_launches_dd-cli/),
+[Uber Consumer Delivery](https://developer.uber.com/docs/consumer-delivery/introduction),
+[Uber Eats Marketplace](https://developer.uber.com/docs/eats/introduction),
+[Nominatim usage policy](https://operations.osmfoundation.org/policies/nominatim/).
 
-## 5. Build order and what "done" means for the first slice
+## 7. Needs Keder (approvals and credentials)
 
-The first vertical slice is a complete, secure, working desktop assistant rather than many partial features:
-1. Design system tokens and core components (Phase 3).
-2. Tauri shell: windows, tray, global shortcut, notifications, keychain, SQLite (Phase 4).
-3. Agent engine with real model calls and a small set of real tools: authorized-folder file tools (list, search, read, organize with confirmation), clipboard, notifications, web fetch (read-only, untrusted), open-URL handoff (Phase 5).
-4. Mascot port + state machine wired to real agent status (Phase 6).
-Then integrations (7), website (8), QA (9), release (10).
-
-## 6. Requires Keder (third-party approval or credentials)
-
-- Location of Space Studio.
-- An Anthropic API key (entered in the app's settings; stored in the OS keychain, never in the repo).
-- Apple Developer ID + notarization credentials (macOS installers), a Windows code-signing certificate, and an updater signing key.
-- Google Cloud OAuth client; GitHub OAuth app.
+- Where Space Studio lives.
+- An Anthropic API key (entered in Lumo's settings, stored in the OS keychain, never in the repository).
+- Apple Developer ID and notarization credentials, a Windows code-signing certificate, and a Tauri updater
+  signing key (for signed installers and verified updates).
+- A Google Cloud OAuth client; a GitHub OAuth app (optional, tokens work meanwhile).
 - DoorDash dd-cli beta and Uber Consumer Delivery early-access applications.
