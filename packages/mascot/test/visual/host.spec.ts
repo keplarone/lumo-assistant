@@ -6,11 +6,34 @@
 import { expect, test, type Page } from '@playwright/test';
 import { writeResult } from './util';
 
-interface Stats { mounted: boolean; frames: number; calls: number; triangles: number; points: number; geometries: number; textures: number; rate: number; programs?: number }
-type HostWindow = { __host: { mount(m?: string, p?: object, size?: [number, number]): void; setMood(m: string, p?: object): void; unmount(): void; stats(): Stats; rafCalls(): number; canvases(): number } };
+interface Stats {
+  mounted: boolean;
+  frames: number;
+  calls: number;
+  triangles: number;
+  points: number;
+  geometries: number;
+  textures: number;
+  rate: number;
+  programs?: number;
+}
+type HostWindow = {
+  __host: {
+    mount(m?: string, p?: object, size?: [number, number]): void;
+    setMood(m: string, p?: object): void;
+    unmount(): void;
+    stats(): Stats;
+    rafCalls(): number;
+    canvases(): number;
+  };
+};
 
-const host = <T,>(page: Page, fn: (h: HostWindow['__host'], arg: any) => T, arg?: unknown) =>
-  page.evaluate(({ src, arg }) => new Function('h', 'arg', `return (${src})(h, arg)`)((window as unknown as HostWindow).__host, arg), { src: fn.toString(), arg }) as Promise<T>;
+const host = <T>(page: Page, fn: (h: HostWindow['__host'], arg: any) => T, arg?: unknown) =>
+  page.evaluate(
+    ({ src, arg }) =>
+      new Function('h', 'arg', `return (${src})(h, arg)`)((window as unknown as HostWindow).__host, arg),
+    { src: fn.toString(), arg },
+  ) as Promise<T>;
 
 async function open(page: Page) {
   page.on('pageerror', (e) => console.error('pageerror', e));
@@ -27,9 +50,13 @@ async function framesOver(page: Page, ms: number) {
 test('mounts, renders, and frees all GPU memory and its rAF loop on unmount', async ({ page }) => {
   await open(page);
   await host(page, (h) => h.mount('think'));
-  await page.waitForFunction(() => (window as unknown as HostWindow).__host.stats().frames > 10, null, { timeout: 30_000 });
+  await page.waitForFunction(() => (window as unknown as HostWindow).__host.stats().frames > 10, null, {
+    timeout: 30_000,
+  });
   const live = await host(page, (h) => h.stats());
-  console.log(`per frame: ${live.calls} draw calls, ${live.triangles} triangles, ${live.points} points; live GPU memory: ${live.geometries} geometries, ${live.textures} textures`);
+  console.log(
+    `per frame: ${live.calls} draw calls, ${live.triangles} triangles, ${live.points} points; live GPU memory: ${live.geometries} geometries, ${live.textures} textures`,
+  );
   writeResult('host/render-stats.json', JSON.stringify(live, null, 2));
   expect(live.calls).toBeGreaterThan(0);
   expect(live.geometries).toBeGreaterThan(0);
@@ -51,7 +78,9 @@ test('mounts, renders, and frees all GPU memory and its rAF loop on unmount', as
 
   // Remount works (no stale state) and unmounts clean again.
   await host(page, (h) => h.mount('idle'));
-  await page.waitForFunction(() => (window as unknown as HostWindow).__host.stats().frames > 5, null, { timeout: 30_000 });
+  await page.waitForFunction(() => (window as unknown as HostWindow).__host.stats().frames > 5, null, {
+    timeout: 30_000,
+  });
   await host(page, (h) => h.unmount());
   await page.waitForTimeout(300);
   const again = await host(page, (h) => h.stats());
@@ -61,13 +90,18 @@ test('mounts, renders, and frees all GPU memory and its rAF loop on unmount', as
 test('stops rendering while the document is hidden, resumes when visible', async ({ page }) => {
   await open(page);
   await host(page, (h) => h.mount('think'));
-  await page.waitForFunction(() => (window as unknown as HostWindow).__host.stats().frames > 5, null, { timeout: 30_000 });
+  await page.waitForFunction(() => (window as unknown as HostWindow).__host.stats().frames > 5, null, {
+    timeout: 30_000,
+  });
   expect(await framesOver(page, 500)).toBeGreaterThan(0);
 
   const setHidden = (hidden: boolean) =>
     page.evaluate((hidden) => {
       Object.defineProperty(document, 'hidden', { configurable: true, get: () => hidden });
-      Object.defineProperty(document, 'visibilityState', { configurable: true, get: () => (hidden ? 'hidden' : 'visible') });
+      Object.defineProperty(document, 'visibilityState', {
+        configurable: true,
+        get: () => (hidden ? 'hidden' : 'visible'),
+      });
       document.dispatchEvent(new Event('visibilitychange'));
     }, hidden);
 
@@ -85,7 +119,9 @@ test('stops rendering while the document is hidden, resumes when visible', async
 test('stops rendering while scrolled off-screen, resumes when back', async ({ page }) => {
   await open(page);
   await host(page, (h) => h.mount('think'));
-  await page.waitForFunction(() => (window as unknown as HostWindow).__host.stats().frames > 5, null, { timeout: 30_000 });
+  await page.waitForFunction(() => (window as unknown as HostWindow).__host.stats().frames > 5, null, {
+    timeout: 30_000,
+  });
   await page.evaluate(() => window.scrollTo(0, 2000));
   await page.waitForTimeout(300);
   expect(await framesOver(page, 1000), 'frames while off-screen').toBe(0);
@@ -96,7 +132,9 @@ test('stops rendering while scrolled off-screen, resumes when back', async ({ pa
 test('picks a lower frame cap while idle and asleep', async ({ page }) => {
   await open(page);
   await host(page, (h) => h.mount('think'));
-  await page.waitForFunction(() => (window as unknown as HostWindow).__host.stats().frames > 2, null, { timeout: 30_000 });
+  await page.waitForFunction(() => (window as unknown as HostWindow).__host.stats().frames > 2, null, {
+    timeout: 30_000,
+  });
   const expected: Record<string, number> = { think: 60, idle: 30, sleep: 12, type: 60 };
   for (const [mood, rate] of Object.entries(expected)) {
     await host(page, (h, m) => h.setMood(m), mood);
@@ -111,7 +149,9 @@ test('the frame driver actually throttles to the cap', async ({ page }) => {
   const caps = { fps: 8, idleFps: 4, sleepFps: 2, particles: 40 };
   await open(page);
   await host(page, (h, p) => h.mount('think', p, [120, 140]), caps);
-  await page.waitForFunction(() => (window as unknown as HostWindow).__host.stats().frames > 3, null, { timeout: 30_000 });
+  await page.waitForFunction(() => (window as unknown as HostWindow).__host.stats().frames > 3, null, {
+    timeout: 30_000,
+  });
   await page.waitForTimeout(1000); // warm-up
   const measured: Record<string, number> = {};
   for (const mood of ['think', 'idle', 'sleep']) {

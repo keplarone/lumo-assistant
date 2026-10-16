@@ -77,11 +77,14 @@ pub fn get_settings(state: S) -> Settings {
 }
 
 #[tauri::command]
-pub fn save_settings(app: AppHandle, state: S, mut settings: Settings) -> ApiResult<Settings> {
+pub async fn save_settings(app: AppHandle, state: S<'_>, mut settings: Settings) -> ApiResult<Settings> {
     let old = state.core.settings();
     // The plan comes only from a verified license, never from the webview.
     settings.plan = old.plan.clone();
     settings.plan_checked_at = old.plan_checked_at.clone();
+    settings.validate()?;
+    // A saved key is only sent to a new server after the user confirms it natively.
+    settings::confirm_key_destinations(&state.core, &old, &settings).await?;
     settings::save(&state.core.db, &settings)?;
     if old.global_shortcut != settings.global_shortcut {
         if let Err(e) = desktop::register_shortcut(&app, &settings.global_shortcut) {
@@ -838,4 +841,15 @@ pub async fn activate_license(state: S<'_>, license_key: String) -> ApiResult<cr
 #[tauri::command]
 pub fn remove_license(state: S) -> ApiResult<crate::license::LicenseStatus> {
     Ok(crate::license::deactivate(&state.core)?)
+}
+
+/// Open a link in the default browser. Only https links are allowed, so the webview cannot launch
+/// local files or other URL schemes.
+#[tauri::command]
+pub fn open_external_url(state: S, url: String) -> ApiResult<()> {
+    let parsed = url::Url::parse(&url).map_err(|_| invalid("not a valid link"))?;
+    if parsed.scheme() != "https" || parsed.host_str().is_none() {
+        return Err(invalid("only https links can be opened").into());
+    }
+    Ok(state.core.platform.open_url(parsed.as_str())?)
 }

@@ -15,9 +15,14 @@ const port = 4398;
 
 function exe() {
   const dir = process.env.PLAYWRIGHT_BROWSERS_PATH;
-  try { if (existsSync(chromium.executablePath())) return undefined; } catch {}
+  try {
+    if (existsSync(chromium.executablePath())) return undefined;
+  } catch {}
   if (!dir) return undefined;
-  const d = readdirSync(dir).filter((x) => /^chromium-\d+$/.test(x)).sort().pop();
+  const d = readdirSync(dir)
+    .filter((x) => /^chromium-\d+$/.test(x))
+    .sort()
+    .pop();
   return d ? join(dir, d, 'chrome-linux/chrome') : undefined;
 }
 function du(p) {
@@ -28,7 +33,10 @@ const kb = (n) => `${(n / 1024).toFixed(1)} KB`;
 
 const server = spawn('node', ['tests/serve.mjs', String(port)], { cwd: root, stdio: 'ignore' });
 await new Promise((r) => setTimeout(r, 600));
-const browser = await chromium.launch({ executablePath: exe(), args: ['--use-angle=swiftshader', '--enable-unsafe-swiftshader', '--ignore-gpu-blocklist'] });
+const browser = await chromium.launch({
+  executablePath: exe(),
+  args: ['--use-angle=swiftshader', '--enable-unsafe-swiftshader', '--ignore-gpu-blocklist'],
+});
 console.log('page'.padEnd(20), 'inline'.padStart(10), 'js raw'.padStart(12), 'js gzip'.padStart(12));
 for (const path of PAGES) {
   const page = await browser.newPage({ viewport: { width: 1440, height: 900 } });
@@ -45,7 +53,10 @@ for (const path of PAGES) {
   await page.waitForLoadState('networkidle');
   await page.waitForTimeout(800);
   const inline = await page.evaluate(() =>
-    Array.from(document.querySelectorAll('script:not([src]):not([type="application/ld+json"])')).reduce((a, s) => a + (s.textContent?.length ?? 0), 0),
+    Array.from(document.querySelectorAll('script:not([src]):not([type="application/ld+json"])')).reduce(
+      (a, s) => a + (s.textContent?.length ?? 0),
+      0,
+    ),
   );
   const bufs = await Promise.all(bodies);
   const raw = bufs.reduce((a, b) => a + b.length, 0);
@@ -56,4 +67,6 @@ for (const path of PAGES) {
 await browser.close();
 server.kill();
 const dist = join(root, 'dist');
-console.log(`\ndist total: ${kb(du(dist))}  (_astro: ${kb(du(join(dist, '_astro')))}, stills: ${kb(du(join(dist, 'stills')))}, og.png: ${kb(statSync(join(dist, 'og.png')).size)})`);
+console.log(
+  `\ndist total: ${kb(du(dist))}  (_astro: ${kb(du(join(dist, '_astro')))}, stills: ${kb(du(join(dist, 'stills')))}, og.png: ${kb(statSync(join(dist, 'og.png')).size)})`,
+);

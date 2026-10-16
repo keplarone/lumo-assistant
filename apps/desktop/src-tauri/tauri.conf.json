@@ -70,9 +70,7 @@
   },
   "plugins": {
     "updater": {
-      "endpoints": [
-        "https://github.com/keplarone/lumo-assistant/releases/latest/download/latest.json"
-      ],
+      "endpoints": ["https://github.com/keplarone/lumo-assistant/releases/latest/download/latest.json"],
       "pubkey": ""
     }
   }

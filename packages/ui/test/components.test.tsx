@@ -48,7 +48,10 @@ describe('Field', () => {
     const input = screen.getByLabelText('API key');
     expect(input.getAttribute('aria-invalid')).toBe('true');
     const describedBy = input.getAttribute('aria-describedby')!.split(' ');
-    expect(describedBy.map((id) => document.getElementById(id)?.textContent)).toEqual(['Stored in your keychain', 'Key is required']);
+    expect(describedBy.map((id) => document.getElementById(id)?.textContent)).toEqual([
+      'Stored in your keychain',
+      'Key is required',
+    ]);
   });
 });
 

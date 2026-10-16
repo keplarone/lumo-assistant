@@ -7,7 +7,12 @@
  */
 import type { Point } from '../behavior/machine';
 
-export interface RectLike { left: number; top: number; width: number; height: number }
+export interface RectLike {
+  left: number;
+  top: number;
+  width: number;
+  height: number;
+}
 
 export interface GazeOrigin {
   /** Head position in client px. Defaults to the canvas centre, 42% down (the reference framing). */
@@ -16,17 +21,24 @@ export interface GazeOrigin {
 }
 
 /** Same scale as the reference page's pointer gaze: x * 1.3, y * 1.4 - 0.1. */
-const SX = 1.3, SY = 1.4, OY = -0.1;
+const SX = 1.3,
+  SY = 1.4,
+  OY = -0.1;
 
 export function gazeTowardClientPoint(point: Point, canvas: RectLike, origin?: GazeOrigin): Point {
-  const w = Math.max(1, canvas.width), h = Math.max(1, canvas.height);
+  const w = Math.max(1, canvas.width),
+    h = Math.max(1, canvas.height);
   const ox = origin?.x ?? canvas.left + w / 2;
   const oy = origin?.y ?? canvas.top + h * 0.42;
   const dx = (point.x - ox) / (w / 2);
   const dy = -(point.y - oy) / (h / 2);
-  let gx = dx * SX, gy = dy * SY + OY;
+  let gx = dx * SX,
+    gy = dy * SY + OY;
   const m = Math.max(Math.abs(gx), Math.abs(gy));
-  if (m > 1) { gx /= m; gy /= m; }
+  if (m > 1) {
+    gx /= m;
+    gy /= m;
+  }
   return { x: round(gx), y: round(gy) };
 }
 

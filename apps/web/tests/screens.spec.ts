@@ -12,7 +12,10 @@ for (const vp of [
 ]) {
   test(`download page screenshots ${vp.name}`, async ({ browser }) => {
     test.setTimeout(90_000);
-    const ctx = await browser.newContext({ viewport: { width: vp.width, height: vp.height }, deviceScaleFactor: 1 });
+    const ctx = await browser.newContext({
+      viewport: { width: vp.width, height: vp.height },
+      deviceScaleFactor: 1,
+    });
     const page = await ctx.newPage();
     await page.goto('/');
     await expect(page.locator('.hero-stage')).toHaveAttribute('data-live', 'true', { timeout: 30_000 });

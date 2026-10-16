@@ -6,7 +6,9 @@ test('every internal link and in-page anchor resolves', async ({ page, request }
   const seen = new Map<string, Set<string>>(); // target path -> anchors referenced
   for (const path of PAGES) {
     await page.goto(path);
-    const hrefs = await page.$$eval('a[href]', (as) => as.map((a) => (a as HTMLAnchorElement).getAttribute('href')!));
+    const hrefs = await page.$$eval('a[href]', (as) =>
+      as.map((a) => (a as HTMLAnchorElement).getAttribute('href')!),
+    );
     for (const href of hrefs) {
       if (/^(https?:|mailto:)/.test(href)) continue;
       const url = new URL(href, `http://x${path}`);
@@ -16,7 +18,9 @@ test('every internal link and in-page anchor resolves', async ({ page, request }
     }
   }
   // The download page and the three legal pages are all linked from somewhere.
-  expect([...seen.keys()].sort()).toEqual(expect.arrayContaining(['/', '/licenses/', '/privacy/', '/terms/']));
+  expect([...seen.keys()].sort()).toEqual(
+    expect.arrayContaining(['/', '/licenses/', '/privacy/', '/terms/']),
+  );
   const broken: string[] = [];
   for (const [target, anchors] of seen) {
     const res = await request.get(target);
@@ -29,7 +33,8 @@ test('every internal link and in-page anchor resolves', async ({ page, request }
     if (anchors.size) {
       await page.goto(target);
       for (const id of anchors) {
-        if ((await page.locator(`[id="${id}"]`).count()) === 0) broken.push(`${target}#${id} (missing anchor)`);
+        if ((await page.locator(`[id="${id}"]`).count()) === 0)
+          broken.push(`${target}#${id} (missing anchor)`);
       }
     }
   }

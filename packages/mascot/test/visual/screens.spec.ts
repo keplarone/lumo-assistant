@@ -5,7 +5,13 @@
 import { expect, test } from '@playwright/test';
 import { openRender, writeResult } from './util';
 
-interface Shot { name: string; mood?: string; steps: number; actions?: { at: number; method: string; args?: unknown[] }[]; calm?: boolean }
+interface Shot {
+  name: string;
+  mood?: string;
+  steps: number;
+  actions?: { at: number; method: string; args?: unknown[] }[];
+  calm?: boolean;
+}
 
 const SHOTS: Shot[] = [
   { name: 'idle', mood: 'idle', steps: 90 },
@@ -35,7 +41,11 @@ const SHOTS: Shot[] = [
 for (const s of SHOTS) {
   test(`screen: ${s.name}`, async ({ page }) => {
     await openRender(page, 'companion', s.calm ? '&calm' : '');
-    const r = await page.evaluate((s) => (window as unknown as { __lumo: { run(o: object): { calls: number; state: string } } }).__lumo.run(s), { mood: s.mood, steps: s.steps, actions: s.actions });
+    const r = await page.evaluate(
+      (s) =>
+        (window as unknown as { __lumo: { run(o: object): { calls: number; state: string } } }).__lumo.run(s),
+      { mood: s.mood, steps: s.steps, actions: s.actions },
+    );
     expect(r.calls).toBeGreaterThan(0);
     const png = await page.locator('#stage').screenshot({ animations: 'disabled' });
     writeResult(`screens/${s.name}.png`, png);

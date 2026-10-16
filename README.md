@@ -8,14 +8,14 @@ with your permission, checks its own work and reports back. It is **pre-release 
 
 ## Repository
 
-| Path | What it is |
-| --- | --- |
-| `apps/desktop` | The Tauri 2 app. `src/` is the React UI; `src-tauri/` is the Rust core (agent loop, tools, policy, encrypted storage) |
-| `apps/web` | The download page at lumo.keplar.one (Astro, static), plus privacy, terms and licenses |
-| `services/license` | Whop license check (serverless; holds the Whop API key) |
-| `packages/ui` | Design system: tokens and React components |
-| `packages/mascot` | The Lumo mascot (three.js, with a React wrapper) |
-| `docs/` | Audit, architecture, design system, release process and phase report |
+| Path               | What it is                                                                                                            |
+| ------------------ | --------------------------------------------------------------------------------------------------------------------- |
+| `apps/desktop`     | The Tauri 2 app. `src/` is the React UI; `src-tauri/` is the Rust core (agent loop, tools, policy, encrypted storage) |
+| `apps/web`         | The download page at lumo.keplar.one (Astro, static), plus privacy, terms and licenses                                |
+| `services/license` | Whop license check (serverless; holds the Whop API key)                                                               |
+| `packages/ui`      | Design system: tokens and React components                                                                            |
+| `packages/mascot`  | The Lumo mascot (three.js, with a React wrapper)                                                                      |
+| `docs/`            | Audit, architecture, design system, release process and phase report                                                  |
 
 ## How it is put together
 

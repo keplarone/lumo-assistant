@@ -216,7 +216,10 @@
   background: var(--lu-surface-2);
   border-radius: var(--lu-radius-md);
   box-shadow: var(--lu-shadow-2);
-  transform-origin: var(--radix-dropdown-menu-content-transform-origin, var(--radix-popover-content-transform-origin, top));
+  transform-origin: var(
+    --radix-dropdown-menu-content-transform-origin,
+    var(--radix-popover-content-transform-origin, top)
+  );
   animation: lu-pop-in var(--lu-duration-base) var(--lu-ease-enter);
 }
 .lu-popover {

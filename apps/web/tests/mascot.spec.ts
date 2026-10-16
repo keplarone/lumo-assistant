@@ -33,7 +33,9 @@ test.describe('hero mascot', () => {
 
   test('keeps the static fallback when WebGL is unavailable', async ({ page }) => {
     await page.addInitScript(() => {
-      const proto = HTMLCanvasElement.prototype as unknown as { getContext: (type: string, ...rest: unknown[]) => unknown };
+      const proto = HTMLCanvasElement.prototype as unknown as {
+        getContext: (type: string, ...rest: unknown[]) => unknown;
+      };
       const orig = proto.getContext;
       proto.getContext = function (this: HTMLCanvasElement, type: string, ...rest: unknown[]) {
         if (/webgl/.test(type)) return null;

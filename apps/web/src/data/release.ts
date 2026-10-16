@@ -51,16 +51,28 @@ export function releasesUrl(repo = RELEASE.repo): string {
 }
 
 /** Download assets for one platform, primary first. Empty when no version is published. */
-export function assetsFor(id: PlatformId, version: string | null = RELEASE.version, repo = RELEASE.repo): Asset[] {
+export function assetsFor(
+  id: PlatformId,
+  version: string | null = RELEASE.version,
+  repo = RELEASE.repo,
+): Asset[] {
   if (!version) return [];
   const base = `${releasesUrl(repo)}/download/v${version}/`;
-  const make = (label: string, format: string, file: string): Asset => ({ label, format, file, url: base + file });
+  const make = (label: string, format: string, file: string): Asset => ({
+    label,
+    format,
+    file,
+    url: base + file,
+  });
   switch (id) {
     case 'macos':
       return [make('Universal disk image', '.dmg', `Lumo_${version}_universal.dmg`)];
     case 'windows':
       return [make('Installer', '.exe', `Lumo_${version}_x64-setup.exe`)];
     case 'linux':
-      return [make('AppImage', '.AppImage', `Lumo_${version}_amd64.AppImage`), make('Debian package', '.deb', `Lumo_${version}_amd64.deb`)];
+      return [
+        make('AppImage', '.AppImage', `Lumo_${version}_amd64.AppImage`),
+        make('Debian package', '.deb', `Lumo_${version}_amd64.deb`),
+      ];
   }
 }

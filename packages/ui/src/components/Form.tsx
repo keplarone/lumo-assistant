@@ -16,7 +16,10 @@ import {
   type TextareaHTMLAttributes,
 } from 'react';
 
-export const Input = forwardRef<HTMLInputElement, InputHTMLAttributes<HTMLInputElement>>(function Input({ className, ...rest }, ref) {
+export const Input = forwardRef<HTMLInputElement, InputHTMLAttributes<HTMLInputElement>>(function Input(
+  { className, ...rest },
+  ref,
+) {
   return <input ref={ref} className={clsx('lu-input', className)} {...rest} />;
 });
 
@@ -123,7 +126,9 @@ export interface CheckboxProps {
 export function Checkbox({ onCheckedChange, ...props }: CheckboxProps) {
   return (
     <RCheckbox.Root className="lu-checkbox" onCheckedChange={(c) => onCheckedChange(c === true)} {...props}>
-      <RCheckbox.Indicator>{props.checked === 'indeterminate' ? <Minus strokeWidth={3} /> : <Check strokeWidth={3} />}</RCheckbox.Indicator>
+      <RCheckbox.Indicator>
+        {props.checked === 'indeterminate' ? <Minus strokeWidth={3} /> : <Check strokeWidth={3} />}
+      </RCheckbox.Indicator>
     </RCheckbox.Root>
   );
 }
@@ -146,7 +151,15 @@ export interface SelectProps {
   'aria-describedby'?: string;
 }
 
-export function Select({ value, onValueChange, options, placeholder, disabled, className, ...aria }: SelectProps) {
+export function Select({
+  value,
+  onValueChange,
+  options,
+  placeholder,
+  disabled,
+  className,
+  ...aria
+}: SelectProps) {
   return (
     <RSelect.Root value={value} onValueChange={onValueChange} disabled={disabled}>
       <RSelect.Trigger className={clsx('lu-select-trigger', className)} {...aria}>

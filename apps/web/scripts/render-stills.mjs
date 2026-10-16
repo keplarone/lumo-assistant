@@ -25,8 +25,12 @@ function chromiumExecutable() {
   } catch {}
   const dir = process.env.PLAYWRIGHT_BROWSERS_PATH;
   if (!dir || !existsSync(dir)) return undefined;
-  const dirs = readdirSync(dir).filter((d) => /^chromium-\d+$/.test(d)).sort((a, b) => Number(b.split('-')[1]) - Number(a.split('-')[1]));
-  for (const d of dirs) for (const rel of ['chrome-linux/chrome', 'chrome-linux64/chrome']) if (existsSync(join(dir, d, rel))) return join(dir, d, rel);
+  const dirs = readdirSync(dir)
+    .filter((d) => /^chromium-\d+$/.test(d))
+    .sort((a, b) => Number(b.split('-')[1]) - Number(a.split('-')[1]));
+  for (const d of dirs)
+    for (const rel of ['chrome-linux/chrome', 'chrome-linux64/chrome'])
+      if (existsSync(join(dir, d, rel))) return join(dir, d, rel);
   return undefined;
 }
 
@@ -47,10 +51,17 @@ async function waitFor(url, ms = 60_000) {
   throw new Error(`Timed out waiting for ${url}`);
 }
 
-const dev = spawn('pnpm', ['exec', 'astro', 'dev', '--port', String(port)], { cwd: root, env: { ...process.env, LUMO_STILLS: '1' }, stdio: 'inherit' });
+const dev = spawn('pnpm', ['exec', 'astro', 'dev', '--port', String(port)], {
+  cwd: root,
+  env: { ...process.env, LUMO_STILLS: '1' },
+  stdio: 'inherit',
+});
 try {
   await waitFor(`${base}/__still`);
-  const browser = await chromium.launch({ executablePath: chromiumExecutable(), args: ['--use-angle=swiftshader', '--enable-unsafe-swiftshader', '--ignore-gpu-blocklist'] });
+  const browser = await chromium.launch({
+    executablePath: chromiumExecutable(),
+    args: ['--use-angle=swiftshader', '--enable-unsafe-swiftshader', '--ignore-gpu-blocklist'],
+  });
   mkdirSync(join(root, 'public/stills'), { recursive: true });
   const ogOnly = process.argv.includes('--og');
   for (const s of ogOnly ? [] : SHOTS) {

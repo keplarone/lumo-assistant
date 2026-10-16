@@ -18,12 +18,24 @@ export interface DialogProps {
   size?: 'md' | 'lg';
 }
 
-export function Dialog({ open, onOpenChange, title, description, children, footer, size = 'md' }: DialogProps) {
+export function Dialog({
+  open,
+  onOpenChange,
+  title,
+  description,
+  children,
+  footer,
+  size = 'md',
+}: DialogProps) {
   return (
     <RDialog.Root open={open} onOpenChange={onOpenChange}>
       <RDialog.Portal>
         <RDialog.Overlay className="lu-dialog-overlay" />
-        <RDialog.Content className="lu-dialog" data-size={size} aria-describedby={description ? undefined : undefined}>
+        <RDialog.Content
+          className="lu-dialog"
+          data-size={size}
+          aria-describedby={description ? undefined : undefined}
+        >
           <div className="lu-dialog-header">
             <RDialog.Title className="lu-dialog-title">{title}</RDialog.Title>
             {description ? (
@@ -45,7 +57,15 @@ export function Dialog({ open, onOpenChange, title, description, children, foote
 export const Menu = RMenu.Root;
 export const MenuTrigger = RMenu.Trigger;
 
-export function MenuContent({ children, align = 'start', className }: { children: ReactNode; align?: 'start' | 'center' | 'end'; className?: string }) {
+export function MenuContent({
+  children,
+  align = 'start',
+  className,
+}: {
+  children: ReactNode;
+  align?: 'start' | 'center' | 'end';
+  className?: string;
+}) {
   return (
     <RMenu.Portal>
       <RMenu.Content className={clsx('lu-menu', className)} align={align} sideOffset={4} collisionPadding={8}>
@@ -79,7 +99,9 @@ export function MenuItem({
   );
 }
 
-export const MenuLabel = ({ children }: { children: ReactNode }) => <RMenu.Label className="lu-menu-label">{children}</RMenu.Label>;
+export const MenuLabel = ({ children }: { children: ReactNode }) => (
+  <RMenu.Label className="lu-menu-label">{children}</RMenu.Label>
+);
 export const MenuSeparator = () => <RMenu.Separator className="lu-menu-separator" />;
 
 /* Popover */
@@ -87,10 +109,26 @@ export const MenuSeparator = () => <RMenu.Separator className="lu-menu-separator
 export const Popover = RPopover.Root;
 export const PopoverTrigger = RPopover.Trigger;
 export const PopoverClose = RPopover.Close;
-export function PopoverContent({ children, side = 'bottom', align = 'center', className }: { children: ReactNode; side?: 'top' | 'bottom' | 'left' | 'right'; align?: 'start' | 'center' | 'end'; className?: string }) {
+export function PopoverContent({
+  children,
+  side = 'bottom',
+  align = 'center',
+  className,
+}: {
+  children: ReactNode;
+  side?: 'top' | 'bottom' | 'left' | 'right';
+  align?: 'start' | 'center' | 'end';
+  className?: string;
+}) {
   return (
     <RPopover.Portal>
-      <RPopover.Content className={clsx('lu-popover', className)} side={side} align={align} sideOffset={6} collisionPadding={8}>
+      <RPopover.Content
+        className={clsx('lu-popover', className)}
+        side={side}
+        align={align}
+        sideOffset={6}
+        collisionPadding={8}
+      >
         {children}
       </RPopover.Content>
     </RPopover.Portal>

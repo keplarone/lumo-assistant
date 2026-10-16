@@ -28,25 +28,39 @@ const summary: Record<string, unknown> = {};
 async function shoot(browser: Browser, impl: 'ref' | 'port' | 'companion', mood: string, steps = STEPS) {
   const page = await browser.newPage();
   await openRender(page, impl);
-  const info = await page.evaluate(({ mood, steps }) => {
-    const w = window as unknown as { __lumo: { three: string; run(o: object): { calls: number; triangles: number; points: number; state: string } } };
-    return { three: w.__lumo.three, ...w.__lumo.run({ mood, steps }) };
-  }, { mood, steps });
+  const info = await page.evaluate(
+    ({ mood, steps }) => {
+      const w = window as unknown as {
+        __lumo: {
+          three: string;
+          run(o: object): { calls: number; triangles: number; points: number; state: string };
+        };
+      };
+      return { three: w.__lumo.three, ...w.__lumo.run({ mood, steps }) };
+    },
+    { mood, steps },
+  );
   const png = await page.locator('#stage').screenshot({ animations: 'disabled' });
   await page.close();
   return { png, info };
 }
 
 function compare(aBuf: Buffer, bBuf: Buffer) {
-  const a = PNG.sync.read(aBuf), b = PNG.sync.read(bBuf);
+  const a = PNG.sync.read(aBuf),
+    b = PNG.sync.read(bBuf);
   expect([b.width, b.height]).toEqual([a.width, a.height]);
   const total = a.width * a.height;
   const diff = new PNG({ width: a.width, height: a.height });
   const strict = pixelmatch(a.data, b.data, diff.data, a.width, a.height, { threshold: 0.02 });
-  let channel = 0, sum = 0;
+  let channel = 0,
+    sum = 0;
   for (let i = 0; i < a.data.length; i += 4) {
     let d = 0;
-    for (let c = 0; c < 3; c++) { const x = Math.abs(a.data[i + c]! - b.data[i + c]!); d = Math.max(d, x); sum += x; }
+    for (let c = 0; c < 3; c++) {
+      const x = Math.abs(a.data[i + c]! - b.data[i + c]!);
+      d = Math.max(d, x);
+      sum += x;
+    }
     if (d > 3) channel++;
   }
   return { total, strict, channel, mae: sum / (total * 3), diff };
@@ -57,18 +71,35 @@ for (const { name: mood, mood: setMood, steps } of CASES) {
     const ref = await shoot(browser, 'ref', setMood, steps);
     const port = await shoot(browser, 'port', setMood, steps);
     const r = compare(ref.png, port.png);
-    const strictPct = (r.strict / r.total) * 100, channelPct = (r.channel / r.total) * 100;
-    summary[mood] = { steps, pixels: r.total, pixelmatch002: r.strict, pixelmatch002Pct: +strictPct.toFixed(4), channelGt3: r.channel, channelGt3Pct: +channelPct.toFixed(4), meanAbsError: +r.mae.toFixed(5), ref: ref.info, port: port.info };
+    const strictPct = (r.strict / r.total) * 100,
+      channelPct = (r.channel / r.total) * 100;
+    summary[mood] = {
+      steps,
+      pixels: r.total,
+      pixelmatch002: r.strict,
+      pixelmatch002Pct: +strictPct.toFixed(4),
+      channelGt3: r.channel,
+      channelGt3Pct: +channelPct.toFixed(4),
+      meanAbsError: +r.mae.toFixed(5),
+      ref: ref.info,
+      port: port.info,
+    };
     writeResult('parity/summary.json', JSON.stringify(summary, null, 2));
-    console.log(`parity ${mood}: pixelmatch(0.02) ${r.strict} px (${strictPct.toFixed(4)}%), channel>3 ${r.channel} px (${channelPct.toFixed(4)}%), MAE ${r.mae.toFixed(5)}; draw calls ref ${ref.info.calls} / port ${port.info.calls}`);
+    console.log(
+      `parity ${mood}: pixelmatch(0.02) ${r.strict} px (${strictPct.toFixed(4)}%), channel>3 ${r.channel} px (${channelPct.toFixed(4)}%), MAE ${r.mae.toFixed(5)}; draw calls ref ${ref.info.calls} / port ${port.info.calls}`,
+    );
     const fail = r.strict / r.total > MAX_RATIO || r.channel / r.total > MAX_RATIO;
     if (fail || process.env.LUMO_SAVE_PARITY) {
       writeResult(`parity/${mood}-ref.png`, ref.png);
       writeResult(`parity/${mood}-port.png`, port.png);
       writeResult(`parity/${mood}-diff.png`, PNG.sync.write(r.diff));
     }
-    expect(r.strict / r.total, `${mood}: pixelmatch(0.02) ${strictPct.toFixed(3)}%`).toBeLessThanOrEqual(MAX_RATIO);
-    expect(r.channel / r.total, `${mood}: channel>3 ${channelPct.toFixed(3)}%`).toBeLessThanOrEqual(MAX_RATIO);
+    expect(r.strict / r.total, `${mood}: pixelmatch(0.02) ${strictPct.toFixed(3)}%`).toBeLessThanOrEqual(
+      MAX_RATIO,
+    );
+    expect(r.channel / r.total, `${mood}: channel>3 ${channelPct.toFixed(3)}%`).toBeLessThanOrEqual(
+      MAX_RATIO,
+    );
   });
 }
 
@@ -80,7 +111,12 @@ for (const mood of ['idle', 'think', 'majestic'] as const) {
     const comp = await shoot(browser, 'companion', mood, 60);
     const r = compare(ref.png, comp.png);
     console.log(`parity companion ${mood}: pixelmatch(0.02) ${r.strict} px, channel>3 ${r.channel} px`);
-    summary[`companion-${mood}`] = { steps: 60, pixelmatch002: r.strict, channelGt3: r.channel, meanAbsError: +r.mae.toFixed(5) };
+    summary[`companion-${mood}`] = {
+      steps: 60,
+      pixelmatch002: r.strict,
+      channelGt3: r.channel,
+      meanAbsError: +r.mae.toFixed(5),
+    };
     writeResult('parity/summary.json', JSON.stringify(summary, null, 2));
     expect(r.strict / r.total).toBeLessThanOrEqual(MAX_RATIO);
     expect(r.channel / r.total).toBeLessThanOrEqual(MAX_RATIO);

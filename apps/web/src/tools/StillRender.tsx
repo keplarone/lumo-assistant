@@ -11,7 +11,10 @@ export default function StillRender() {
   const gy = params.get('gy');
   const gaze = gx !== null && gy !== null ? { x: Number(gx), y: Number(gy) } : null;
   useEffect(() => {
-    const t = setTimeout(() => document.documentElement.setAttribute('data-ready', '1'), Number(params.get('wait') ?? '2600'));
+    const t = setTimeout(
+      () => document.documentElement.setAttribute('data-ready', '1'),
+      Number(params.get('wait') ?? '2600'),
+    );
     return () => clearTimeout(t);
   }, [params]);
   return (

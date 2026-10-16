@@ -16,7 +16,11 @@ export function writeResult(rel: string, data: Buffer | string) {
 export async function openRender(page: Page, impl: 'ref' | 'port' | 'companion', extra = '') {
   page.on('pageerror', (e) => console.error(`[${impl}] pageerror`, e));
   await page.goto(`/render.html?impl=${impl}${extra}`);
-  await page.waitForFunction(() => document.body.dataset.ready === 'true' || !!document.body.dataset.error, null, { timeout: 30_000 });
+  await page.waitForFunction(
+    () => document.body.dataset.ready === 'true' || !!document.body.dataset.error,
+    null,
+    { timeout: 30_000 },
+  );
   const err = await page.evaluate(() => document.body.dataset.error);
   if (err) throw new Error(`harness failed to boot (${impl}): ${err}`);
 }

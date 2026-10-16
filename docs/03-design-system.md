@@ -25,15 +25,15 @@ against these principles and folded into the tokens rather than starting over.
 
 ## Color
 
-| Role | Tokens | Notes |
-|---|---|---|
-| Surfaces | `--lu-bg-sunken`, `--lu-bg`, `--lu-surface-1/2/3`, `--lu-surface-overlay` | Dark: oklch L 0.135 → 0.252 at hue 275. Light: near-white with the same hue. |
-| Lines | `--lu-line-subtle`, `--lu-line`, `--lu-line-strong` | Translucent, so they read correctly on any surface. |
-| Text | `--lu-text`, `-secondary`, `-tertiary`, `-disabled`, `--lu-text-on-accent` | Tertiary still meets 4.5:1 on every surface it is used on. |
-| Accent | `--lu-accent`, `-hover`, `-pressed`, `-text`, `-subtle`, `--lu-focus` | Solid accent carries white text at ≥ 4.5:1. |
-| Lumo | `--lu-lumen`, `--lu-lumen-subtle`, `--lu-lumen-text`, `--lu-aurora` | From the mascot palette (#ffc65c, #7ff3ff). Brand use only. |
-| Status | `--lu-success`, `--lu-warning`, `--lu-danger(-solid, -text)`, each with `-subtle` | |
-| Privacy | `--lu-live` | Microphone, screen capture and input control indicators. |
+| Role     | Tokens                                                                            | Notes                                                                        |
+| -------- | --------------------------------------------------------------------------------- | ---------------------------------------------------------------------------- |
+| Surfaces | `--lu-bg-sunken`, `--lu-bg`, `--lu-surface-1/2/3`, `--lu-surface-overlay`         | Dark: oklch L 0.135 → 0.252 at hue 275. Light: near-white with the same hue. |
+| Lines    | `--lu-line-subtle`, `--lu-line`, `--lu-line-strong`                               | Translucent, so they read correctly on any surface.                          |
+| Text     | `--lu-text`, `-secondary`, `-tertiary`, `-disabled`, `--lu-text-on-accent`        | Tertiary still meets 4.5:1 on every surface it is used on.                   |
+| Accent   | `--lu-accent`, `-hover`, `-pressed`, `-text`, `-subtle`, `--lu-focus`             | Solid accent carries white text at ≥ 4.5:1.                                  |
+| Lumo     | `--lu-lumen`, `--lu-lumen-subtle`, `--lu-lumen-text`, `--lu-aurora`               | From the mascot palette (#ffc65c, #7ff3ff). Brand use only.                  |
+| Status   | `--lu-success`, `--lu-warning`, `--lu-danger(-solid, -text)`, each with `-subtle` |                                                                              |
+| Privacy  | `--lu-live`                                                                       | Microphone, screen capture and input control indicators.                     |
 
 Every pairing used by components is checked against WCAG 2.2 AA in both themes by
 `packages/ui/test/contrast.test.ts` (text ≥ 4.5:1, primary text ≥ 7:1 on main surfaces, focus ring and
@@ -46,15 +46,15 @@ in script so each theme has a single definition. `prefers-contrast: more` streng
 
 ## Typography
 
-| Use | Family | Size / line height | Weight |
-|---|---|---|---|
-| UI default | Inter Variable | 13 / 1.5 | 400, 510 for labels |
-| Conversation text | Inter Variable | 14 / 1.62 | 400 |
-| Captions, mono labels | IBM Plex Mono | 11 | 400–500 |
-| Section title | Inter Variable | 16 / 1.3 | 600, tracking −0.012em |
-| Page title | Inter Variable | 20 / 1.3 | 600 |
+| Use                         | Family                       | Size / line height                  | Weight                    |
+| --------------------------- | ---------------------------- | ----------------------------------- | ------------------------- |
+| UI default                  | Inter Variable               | 13 / 1.5                            | 400, 510 for labels       |
+| Conversation text           | Inter Variable               | 14 / 1.62                           | 400                       |
+| Captions, mono labels       | IBM Plex Mono                | 11                                  | 400–500                   |
+| Section title               | Inter Variable               | 16 / 1.3                            | 600, tracking −0.012em    |
+| Page title                  | Inter Variable               | 20 / 1.3                            | 600                       |
 | Display (greeting, website) | Bricolage Grotesque Variable | 28 / 40 / 56 / 72, line height 1.15 | 600–700, tracking −0.03em |
-| Code | IBM Plex Mono | 0.92em of context | 400 |
+| Code                        | IBM Plex Mono                | 0.92em of context                   | 400                       |
 
 Bricolage Grotesque and IBM Plex Mono carry over from the mascot reference page, so the character and the
 product share a voice. All fonts are self-hosted (`@lumo/ui/fonts`), so the desktop app works offline.
@@ -71,16 +71,16 @@ product share a voice. All fonts are self-hosted (`@lumo/ui/fonts`), so the desk
 
 ## Motion
 
-| Token | Value | Use |
-|---|---|---|
-| `--lu-duration-instant` | 80 ms | Press feedback |
-| `--lu-duration-fast` | 120 ms | Hover, color changes, menu close |
-| `--lu-duration-base` | 180 ms | Menu and popover open, switches |
-| `--lu-duration-slow` | 260 ms | Dialogs, toasts, panels |
-| `--lu-duration-deliberate` | 420 ms | Large layout transitions |
-| `--lu-ease-standard` | cubic-bezier(0.2, 0, 0, 1) | Default |
-| `--lu-ease-enter` | cubic-bezier(0.05, 0.7, 0.1, 1) | Things appearing |
-| `--lu-ease-exit` | cubic-bezier(0.3, 0, 0.8, 0.15) | Things leaving |
+| Token                      | Value                           | Use                              |
+| -------------------------- | ------------------------------- | -------------------------------- |
+| `--lu-duration-instant`    | 80 ms                           | Press feedback                   |
+| `--lu-duration-fast`       | 120 ms                          | Hover, color changes, menu close |
+| `--lu-duration-base`       | 180 ms                          | Menu and popover open, switches  |
+| `--lu-duration-slow`       | 260 ms                          | Dialogs, toasts, panels          |
+| `--lu-duration-deliberate` | 420 ms                          | Large layout transitions         |
+| `--lu-ease-standard`       | cubic-bezier(0.2, 0, 0, 1)      | Default                          |
+| `--lu-ease-enter`          | cubic-bezier(0.05, 0.7, 0.1, 1) | Things appearing                 |
+| `--lu-ease-exit`           | cubic-bezier(0.3, 0, 0.8, 0.15) | Things leaving                   |
 
 With `prefers-reduced-motion: reduce`, durations collapse to 0–120 ms, spinners slow down and skeleton
 shimmer stops. The mascot has its own calm mode (smaller amplitudes, no hops or turns, lower frame rate).
@@ -89,16 +89,16 @@ shimmer stops. The mascot has its own calm mode (smaller amplitudes, no hops or 
 
 Every interactive component defines:
 
-| State | Treatment |
-|---|---|
-| Rest | Surface or accent fill per variant |
-| Hover | One surface step lighter (or accent-hover); 120 ms |
-| Pressed | Scale 0.98 and pressed color; 80 ms |
-| Focus-visible | 2px `--lu-focus` ring, 2px offset; keyboard only |
-| Disabled | 48% opacity, `not-allowed` cursor, removed from tab order where native |
-| Selected / open | Surface 3 (ghost) or accent-subtle; `aria-pressed` / `data-state` |
-| Loading | Spinner replaces content in place, width preserved, `aria-busy`, clicks blocked |
-| Invalid | Danger border and an error message linked with `aria-describedby` |
+| State           | Treatment                                                                       |
+| --------------- | ------------------------------------------------------------------------------- |
+| Rest            | Surface or accent fill per variant                                              |
+| Hover           | One surface step lighter (or accent-hover); 120 ms                              |
+| Pressed         | Scale 0.98 and pressed color; 80 ms                                             |
+| Focus-visible   | 2px `--lu-focus` ring, 2px offset; keyboard only                                |
+| Disabled        | 48% opacity, `not-allowed` cursor, removed from tab order where native          |
+| Selected / open | Surface 3 (ghost) or accent-subtle; `aria-pressed` / `data-state`               |
+| Loading         | Spinner replaces content in place, width preserved, `aria-busy`, clicks blocked |
+| Invalid         | Danger border and an error message linked with `aria-describedby`               |
 
 ## Components (`@lumo/ui`)
 

@@ -115,6 +115,9 @@ fn is_protected(p: &Path) -> bool {
     if NAMES.iter().any(|n| s.contains(&format!("/{n}"))) {
         return true;
     }
+    if runs_automatically(p) {
+        return true;
+    }
     #[cfg(unix)]
     for sys in ["/etc", "/bin", "/sbin", "/usr", "/boot", "/dev", "/proc", "/sys", "/System", "/Library", "/private/etc"] {
         if s == sys || s.starts_with(&format!("{sys}/")) {
@@ -129,6 +132,59 @@ fn is_protected(p: &Path) -> bool {
         }
     }
     false
+}
+
+/// Files and folders that the shell, git, the login session or package managers read and act on by
+/// themselves (startup scripts, hooks, autostart entries), plus credential files. Writing one would
+/// turn a one-click file approval into running code, or expose a credential, so they are refused
+/// even inside a grant. Compared by path component, ignoring ASCII case (macOS and Windows file
+/// systems usually do).
+fn runs_automatically(p: &Path) -> bool {
+    const FILES: &[&str] = &[
+        ".bashrc",
+        ".bash_profile",
+        ".bash_login",
+        ".bash_logout",
+        ".profile",
+        ".zshrc",
+        ".zprofile",
+        ".zshenv",
+        ".zlogin",
+        ".zlogout",
+        ".login",
+        ".cshrc",
+        ".tcshrc",
+        ".kshrc",
+        ".xprofile",
+        ".xinitrc",
+        ".xsessionrc",
+        ".gitconfig",
+        ".git-credentials",
+        ".netrc",
+        ".npmrc",
+        ".yarnrc",
+        ".yarnrc.yml",
+        ".pypirc",
+    ];
+    const DIRS: &[&[&str]] = &[
+        &[".git", "hooks"],
+        &[".config", "autostart"],
+        &[".config", "systemd"],
+        &[".config", "fish"],
+        &[".config", "git"],
+        &["library", "launchagents"],
+        &["library", "launchdaemons"],
+        &["library", "startupitems"],
+        &["start menu", "programs", "startup"],
+    ];
+    let parts: Vec<String> = p
+        .components()
+        .filter_map(|c| if let Component::Normal(n) = c { Some(n.to_string_lossy().to_ascii_lowercase()) } else { None })
+        .collect();
+    if parts.iter().any(|n| FILES.contains(&n.as_str())) {
+        return true;
+    }
+    DIRS.iter().any(|seq| parts.windows(seq.len()).any(|w| w.iter().zip(seq.iter()).all(|(a, b)| a == b)))
 }
 
 /// Expand `~` and resolve a user/model-supplied path to a canonical path inside a granted folder.
@@ -235,6 +291,33 @@ mod tests {
         let root = std::fs::canonicalize(dir.path()).unwrap();
         std::fs::create_dir_all(root.join(".ssh")).unwrap();
         assert!(resolve_in_grants(std::slice::from_ref(&root), ".ssh/id_ed25519").is_err());
+    }
+
+    #[test]
+    fn startup_scripts_hooks_and_credentials_are_refused_inside_a_grant() {
+        let dir = tempfile::tempdir().unwrap();
+        let root = std::fs::canonicalize(dir.path()).unwrap();
+        let roots = std::slice::from_ref(&root);
+        for p in [
+            ".zshrc",
+            ".bashrc",
+            ".profile",
+            ".gitconfig",
+            ".netrc",
+            "project/.git/hooks/pre-commit",
+            ".config/autostart/evil.desktop",
+            ".config/systemd/user/evil.service",
+            "Library/LaunchAgents/com.evil.plist",
+            "library/launchagents/x.plist",
+            "AppStuff/Start Menu/Programs/Startup/evil.lnk",
+            "sub/.ZSHRC",
+        ] {
+            assert!(resolve_in_grants(roots, p).is_err(), "{p}");
+        }
+        // Ordinary files with similar names are still fine.
+        for p in ["notes/.profile-pictures/a.png", "hooks/readme.md", "project/.gitignore", "Library/notes.txt", "zshrc-backup.txt"] {
+            assert!(resolve_in_grants(roots, p).is_ok(), "{p}");
+        }
     }
 
     #[test]

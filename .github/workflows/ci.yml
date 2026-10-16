@@ -92,3 +92,14 @@ jobs:
           tool: cargo-audit
       - run: cargo audit
         working-directory: apps/desktop/src-tauri
+
+  secrets:
+    name: Secret scan
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

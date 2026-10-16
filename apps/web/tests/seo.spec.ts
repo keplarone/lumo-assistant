@@ -46,7 +46,11 @@ test('home has SoftwareApplication JSON-LD without offers or ratings', async ({ 
   const items = blocks.flatMap((b) => JSON.parse(b) as Record<string, unknown>[]);
   const app = items.find((i) => i['@type'] === 'SoftwareApplication');
   expect(app).toBeTruthy();
-  expect(app).toMatchObject({ name: 'Lumo Assistant', operatingSystem: 'Windows, macOS, Linux', downloadUrl: 'https://lumo.keplar.one/' });
+  expect(app).toMatchObject({
+    name: 'Lumo Assistant',
+    operatingSystem: 'Windows, macOS, Linux',
+    downloadUrl: 'https://lumo.keplar.one/',
+  });
   for (const key of ['offers', 'aggregateRating', 'review']) expect(app).not.toHaveProperty(key);
   if (RELEASE.version) expect(app).toHaveProperty('softwareVersion', RELEASE.version);
   else expect(app).not.toHaveProperty('softwareVersion');
@@ -60,7 +64,12 @@ test('robots.txt, sitemap and OG image are served', async ({ request }) => {
   const sm = await request.get('/sitemap-0.xml');
   expect(sm.status()).toBe(200);
   const urls = [...(await sm.text()).matchAll(/<loc>([^<]+)<\/loc>/g)].map((m) => m[1]);
-  expect(urls.sort()).toEqual(['https://lumo.keplar.one/', 'https://lumo.keplar.one/licenses/', 'https://lumo.keplar.one/privacy/', 'https://lumo.keplar.one/terms/']);
+  expect(urls.sort()).toEqual([
+    'https://lumo.keplar.one/',
+    'https://lumo.keplar.one/licenses/',
+    'https://lumo.keplar.one/privacy/',
+    'https://lumo.keplar.one/terms/',
+  ]);
   const og = await request.get('/og.png');
   expect(og.status()).toBe(200);
   expect(og.headers()['content-type']).toBe('image/png');
@@ -76,7 +85,13 @@ test('no analytics code is shipped when PUBLIC_ANALYTICS_ENDPOINT is unset', asy
 test('no page mentions bringing your own model key', async ({ request }) => {
   for (const path of PAGES) {
     const html = (await (await request.get(path)).text()).toLowerCase();
-    for (const phrase of ['bring your own', 'own model key', 'own anthropic', 'own api key', 'anthropic api key']) {
+    for (const phrase of [
+      'bring your own',
+      'own model key',
+      'own anthropic',
+      'own api key',
+      'anthropic api key',
+    ]) {
       expect(html, `${path}: ${phrase}`).not.toContain(phrase);
     }
   }

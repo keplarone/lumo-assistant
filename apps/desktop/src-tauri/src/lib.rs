@@ -180,6 +180,7 @@ pub fn run() {
             commands::verify_integration,
             commands::disconnect_integration,
             commands::transcribe_audio,
+            commands::open_external_url,
             commands::license_status,
             commands::activate_license,
             commands::remove_license,

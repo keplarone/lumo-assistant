@@ -8,11 +8,18 @@ use async_trait::async_trait;
 use futures_util::StreamExt;
 use serde::Deserialize;
 use serde_json::{json, Value};
-use std::net::IpAddr;
+use std::net::{IpAddr, SocketAddr};
 
 /// Only public http(s) URLs. Hosts that resolve to loopback, private, link-local or otherwise
 /// internal addresses are refused so a web page cannot steer Lumo at the user's own network.
 pub async fn check_public_url(raw: &str) -> Result<url::Url> {
+    Ok(resolve_public(raw).await?.0)
+}
+
+/// Like `check_public_url`, and also returns the checked addresses. Requests must connect to exactly
+/// these addresses (see `FetchUrl::run`): resolving the name a second time would let a DNS server
+/// answer with a public address for the check and an internal one for the connection (DNS rebinding).
+pub async fn resolve_public(raw: &str) -> Result<(url::Url, Vec<SocketAddr>)> {
     let u = url::Url::parse(raw.trim()).map_err(|_| invalid(format!("'{raw}' is not a valid URL")))?;
     if !matches!(u.scheme(), "http" | "https") {
         return Err(invalid("only http and https links are supported"));
@@ -22,18 +29,17 @@ pub async fn check_public_url(raw: &str) -> Result<url::Url> {
     }
     let host = u.host_str().ok_or_else(|| invalid("the link has no host"))?.to_string();
     let port = u.port_or_known_default().unwrap_or(443);
-    let addrs: Vec<IpAddr> = match host.trim_matches(['[', ']']).parse::<IpAddr>() {
-        Ok(ip) => vec![ip],
+    let addrs: Vec<SocketAddr> = match host.trim_matches(['[', ']']).parse::<IpAddr>() {
+        Ok(ip) => vec![SocketAddr::new(ip, port)],
         Err(_) => tokio::net::lookup_host((host.as_str(), port))
             .await
             .map_err(|e| LumoError::Unavailable(format!("could not resolve {host}: {e}")))?
-            .map(|a| a.ip())
             .collect(),
     };
-    if addrs.is_empty() || addrs.iter().any(|ip| !is_public(ip)) {
+    if addrs.is_empty() || addrs.iter().any(|a| !is_public(&a.ip())) {
         return Err(denied(format!("{host} is not a public internet address, so Lumo will not fetch it.")));
     }
-    Ok(u)
+    Ok((u, addrs))
 }
 
 fn is_public(ip: &IpAddr) -> bool {
@@ -48,6 +54,7 @@ fn is_public(ip: &IpAddr) -> bool {
                 || v.is_documentation()
                 || o[0] == 0
                 || (o[0] == 100 && (64..128).contains(&o[1]))
+                || (o[0] == 192 && o[1] == 0 && o[2] == 0)
                 || (o[0] == 198 && (o[1] == 18 || o[1] == 19))
                 || o[0] >= 224)
         }
@@ -56,7 +63,27 @@ fn is_public(ip: &IpAddr) -> bool {
                 return is_public(&IpAddr::V4(m));
             }
             let s = v.segments();
-            !(v.is_loopback() || v.is_unspecified() || (s[0] & 0xfe00) == 0xfc00 || (s[0] & 0xffc0) == 0xfe80 || (s[0] & 0xff00) == 0xff00)
+            let embedded = |hi: u16, lo: u16| IpAddr::V4(std::net::Ipv4Addr::new((hi >> 8) as u8, hi as u8, (lo >> 8) as u8, lo as u8));
+            // Addresses that carry an IPv4 address: NAT64 (64:ff9b::/96), 6to4 (2002::/16) and the
+            // deprecated IPv4-compatible form (::a.b.c.d). They are only as public as that address.
+            if s[0] == 0x64 && s[1] == 0xff9b && s[2..6] == [0, 0, 0, 0] {
+                return is_public(&embedded(s[6], s[7]));
+            }
+            if s[0] == 0x2002 {
+                return is_public(&embedded(s[1], s[2]));
+            }
+            if s[..6] == [0, 0, 0, 0, 0, 0] && !v.is_loopback() && !v.is_unspecified() {
+                return is_public(&embedded(s[6], s[7]));
+            }
+            !(v.is_loopback()
+                || v.is_unspecified()
+                || (s[0] & 0xfe00) == 0xfc00 // unique local
+                || (s[0] & 0xffc0) == 0xfe80 // link-local
+                || (s[0] & 0xffc0) == 0xfec0 // site-local (deprecated)
+                || (s[0] & 0xff00) == 0xff00 // multicast
+                || (s[0] == 0x64 && s[1] == 0xff9b) // local-use NAT64 (64:ff9b:1::/48)
+                || (s[0] == 0x2001 && s[1] == 0xdb8) // documentation
+                || (s[0] == 0x100 && s[1..4] == [0, 0, 0])) // discard-only
         }
     }
 }
@@ -85,20 +112,24 @@ impl TypedTool for FetchUrl {
         format!("Reading {host}")
     }
     async fn run(&self, ctx: &ToolCtx, i: FetchInput) -> Result<ToolOutput> {
-        let mut url = check_public_url(&i.url).await?;
-        // Follow redirects manually so every hop is checked.
-        let client = reqwest::Client::builder()
-            .redirect(reqwest::redirect::Policy::none())
-            .user_agent(concat!("Lumo/", env!("CARGO_PKG_VERSION")))
-            .timeout(std::time::Duration::from_secs(20))
-            .build()?;
+        let (mut url, mut addrs) = resolve_public(&i.url).await?;
+        // Follow redirects manually so every hop is checked, and connect only to the addresses that
+        // were checked (no second DNS lookup).
         let mut resp = None;
         for _ in 0..5 {
+            let mut builder = reqwest::Client::builder()
+                .redirect(reqwest::redirect::Policy::none())
+                .user_agent(concat!("Lumo/", env!("CARGO_PKG_VERSION")))
+                .timeout(std::time::Duration::from_secs(20));
+            if let Some(domain) = url.domain() {
+                builder = builder.resolve_to_addrs(domain, &addrs);
+            }
+            let client = builder.build()?;
             let r = client.get(url.clone()).header("accept", "text/html,text/plain,application/json;q=0.9,*/*;q=0.5").send().await?;
             if r.status().is_redirection() {
                 let loc =
                     r.headers().get("location").and_then(|v| v.to_str().ok()).ok_or_else(|| invalid("redirect without a location"))?;
-                url = check_public_url(url.join(loc).map_err(|_| invalid("bad redirect"))?.as_str()).await?;
+                (url, addrs) = resolve_public(url.join(loc).map_err(|_| invalid("bad redirect"))?.as_str()).await?;
                 continue;
             }
             resp = Some(r);
@@ -216,5 +247,31 @@ mod tests {
             assert!(check_public_url(u).await.is_err(), "{u}");
         }
         assert!(is_public(&"93.184.216.34".parse().unwrap()));
+    }
+
+    #[test]
+    fn ipv6_forms_of_internal_ipv4_addresses_are_not_public() {
+        for ip in [
+            "64:ff9b::7f00:1",    // NAT64 of 127.0.0.1
+            "64:ff9b::a9fe:a9fe", // NAT64 of 169.254.169.254
+            "2002:c0a8:0101::1",  // 6to4 of 192.168.1.1
+            "::7f00:1",           // IPv4-compatible 127.0.0.1
+            "::ffff:10.0.0.1",
+            "fec0::1",
+            "64:ff9b:1::1",
+            "2001:db8::1",
+            "192.0.0.8",
+        ] {
+            assert!(!is_public(&ip.parse().unwrap()), "{ip}");
+        }
+        assert!(is_public(&"64:ff9b::5db8:d822".parse().unwrap()), "NAT64 of a public address");
+        assert!(is_public(&"2606:4700::6810:84e5".parse().unwrap()));
+    }
+
+    #[tokio::test]
+    async fn resolved_addresses_are_returned_for_pinning() {
+        let (u, addrs) = resolve_public("http://93.184.216.34:8080/x").await.unwrap();
+        assert_eq!(u.as_str(), "http://93.184.216.34:8080/x");
+        assert_eq!(addrs, vec!["93.184.216.34:8080".parse().unwrap()]);
     }
 }

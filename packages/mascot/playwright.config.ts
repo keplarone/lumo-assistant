@@ -15,7 +15,9 @@ function chromiumExecutable(): string | undefined {
   }
   const root = process.env.PLAYWRIGHT_BROWSERS_PATH;
   if (!root || !existsSync(root)) return undefined;
-  const dirs = readdirSync(root).filter((d) => /^chromium-\d+$/.test(d)).sort((a, b) => Number(b.split('-')[1]) - Number(a.split('-')[1]));
+  const dirs = readdirSync(root)
+    .filter((d) => /^chromium-\d+$/.test(d))
+    .sort((a, b) => Number(b.split('-')[1]) - Number(a.split('-')[1]));
   for (const d of dirs) {
     for (const rel of ['chrome-linux/chrome', 'chrome-linux64/chrome']) {
       const exe = join(root, d, rel);

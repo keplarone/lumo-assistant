@@ -42,7 +42,12 @@ export function ToastProvider({ children }: { children: ReactNode }) {
         {items.map((t) => {
           const Icon = icons[t.tone ?? 'info'];
           return (
-            <div key={t.id} className="lu-toast" data-tone={t.tone ?? 'info'} role={t.tone === 'danger' ? 'alert' : 'status'}>
+            <div
+              key={t.id}
+              className="lu-toast"
+              data-tone={t.tone ?? 'info'}
+              role={t.tone === 'danger' ? 'alert' : 'status'}
+            >
               <Icon aria-hidden />
               <div>
                 <div className="lu-toast-title">{t.title}</div>
@@ -63,7 +68,15 @@ export function ToastProvider({ children }: { children: ReactNode }) {
                   </button>
                 )}
               </div>
-              <button type="button" className="lu-button" data-variant="ghost" data-size="sm" data-icon-only="" aria-label="Dismiss" onClick={() => dismiss(t.id)}>
+              <button
+                type="button"
+                className="lu-button"
+                data-variant="ghost"
+                data-size="sm"
+                data-icon-only=""
+                aria-label="Dismiss"
+                onClick={() => dismiss(t.id)}
+              >
                 <X />
               </button>
             </div>

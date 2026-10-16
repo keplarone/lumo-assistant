@@ -33,7 +33,10 @@ export type AgentPhase =
   | 'done'
   | 'failed';
 
-export interface Point { x: number; y: number }
+export interface Point {
+  x: number;
+  y: number;
+}
 
 export type Facing = 'viewer' | 'away' | 'left' | 'right';
 
@@ -73,7 +76,10 @@ export const DEFAULT_CONFIG: MascotConfig = {
   workspaceMoods: ['work', 'type'],
 };
 
-interface Transient { mood: string; until: number }
+interface Transient {
+  mood: string;
+  until: number;
+}
 
 export interface MascotState {
   phase: AgentPhase;
@@ -143,11 +149,17 @@ export function initialState(now: number, cfg: MascotConfig = DEFAULT_CONFIG): M
 
 function setBase(s: MascotState, mood: string, now: number, cfg: MascotConfig, force = false): MascotState {
   if (mood === s.baseMood) return { ...s, pendingMood: null };
-  if (force || now - s.baseSince >= cfg.minDwellMs) return { ...s, baseMood: mood, pendingMood: null, baseSince: now, manualX: null };
+  if (force || now - s.baseSince >= cfg.minDwellMs)
+    return { ...s, baseMood: mood, pendingMood: null, baseSince: now, manualX: null };
   return { ...s, pendingMood: mood };
 }
 
-export function reduce(s: MascotState, e: MascotEvent, now: number, cfg: MascotConfig = DEFAULT_CONFIG): MascotState {
+export function reduce(
+  s: MascotState,
+  e: MascotEvent,
+  now: number,
+  cfg: MascotConfig = DEFAULT_CONFIG,
+): MascotState {
   return place(step(s, e, now, cfg), cfg);
 }
 
@@ -156,7 +168,7 @@ function place(s: MascotState, cfg: MascotConfig): MascotState {
   if (s.transient && !s.asleep) return s;
   const x = s.asleep
     ? cfg.stations.home
-    : s.manualX ?? (cfg.workspaceMoods.includes(s.baseMood) ? cfg.stations.workspace : cfg.stations.home);
+    : (s.manualX ?? (cfg.workspaceMoods.includes(s.baseMood) ? cfg.stations.workspace : cfg.stations.home));
   return x === s.x ? s : { ...s, x };
 }
 
@@ -167,7 +179,13 @@ function step(s: MascotState, e: MascotEvent, now: number, cfg: MascotConfig): M
 
     case 'activity': {
       if (s.asleep) {
-        return { ...s, asleep: false, lastActivity: now, baseSince: now, transient: { mood: 'greet', until: now + cfg.greetMs } };
+        return {
+          ...s,
+          asleep: false,
+          lastActivity: now,
+          baseSince: now,
+          transient: { mood: 'greet', until: now + cfg.greetMs },
+        };
       }
       return { ...s, lastActivity: now };
     }
@@ -196,12 +214,22 @@ function step(s: MascotState, e: MascotEvent, now: number, cfg: MascotConfig): M
         lastActivity: now,
         asleep: false,
         attend: null,
-        attention: { x: clampUnit(e.target.x), y: clampUnit(e.target.y), until: now + (e.durationMs ?? cfg.attentionMs) },
+        attention: {
+          x: clampUnit(e.target.x),
+          y: clampUnit(e.target.y),
+          until: now + (e.durationMs ?? cfg.attentionMs),
+        },
       };
 
     case 'attend':
       if (!e.target) return { ...s, attend: null };
-      return { ...s, lastActivity: now, asleep: false, attention: null, attend: { target: e.target, until: now + (e.durationMs ?? cfg.attentionMs) } };
+      return {
+        ...s,
+        lastActivity: now,
+        asleep: false,
+        attention: null,
+        attend: { target: e.target, until: now + (e.durationMs ?? cfg.attentionMs) },
+      };
 
     case 'move': {
       const x = typeof e.to === 'number' ? clampUnit(e.to) : cfg.stations[e.to];
@@ -220,7 +248,12 @@ function step(s: MascotState, e: MascotEvent, now: number, cfg: MascotConfig): M
       if (next.pendingMood && now - next.baseSince >= cfg.minDwellMs) {
         next = { ...next, baseMood: next.pendingMood, pendingMood: null, baseSince: now, manualX: null };
       }
-      if (!next.asleep && next.phase === 'idle' && !next.transient && now - next.lastActivity >= cfg.sleepAfterMs) {
+      if (
+        !next.asleep &&
+        next.phase === 'idle' &&
+        !next.transient &&
+        now - next.lastActivity >= cfg.sleepAfterMs
+      ) {
         next = { ...next, asleep: true, facing: 'viewer', manualX: null };
       }
       return next;

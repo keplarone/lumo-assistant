@@ -3,11 +3,15 @@ import { PLATFORMS, RELEASE, assetsFor, releasesUrl } from '../src/data/release'
 import { REDIRECTS } from './pages';
 
 const UA = {
-  windows: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36',
-  macos: 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.0 Safari/605.1.15',
+  windows:
+    'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36',
+  macos:
+    'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.0 Safari/605.1.15',
   linux: 'Mozilla/5.0 (X11; Ubuntu; Linux x86_64; rv:140.0) Gecko/20100101 Firefox/140.0',
-  iphone: 'Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.0 Mobile/15E148 Safari/604.1',
-  android: 'Mozilla/5.0 (Linux; Android 15; Pixel 9) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Mobile Safari/537.36',
+  iphone:
+    'Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.0 Mobile/15E148 Safari/604.1',
+  android:
+    'Mozilla/5.0 (Linux; Android 15; Pixel 9) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Mobile Safari/537.36',
 };
 const NAME = Object.fromEntries(PLATFORMS.map((p) => [p.id, p.name])) as Record<string, string>;
 
@@ -18,10 +22,14 @@ async function open(browser: Browser, userAgent: string) {
   return { ctx, page };
 }
 
-test('the download page has the name, tagline, requirements, pre-release note and footer', async ({ page }) => {
+test('the download page has the name, tagline, requirements, pre-release note and footer', async ({
+  page,
+}) => {
   await page.goto('/');
   await expect(page.locator('h1')).toHaveText('Lumo');
-  await expect(page.locator('.tagline')).toHaveText('Tell Lumo what you want. Lumo figures out how to make it happen.');
+  await expect(page.locator('.tagline')).toHaveText(
+    'Tell Lumo what you want. Lumo figures out how to make it happen.',
+  );
   await expect(page.locator('.hero-stage')).toBeVisible();
   await expect(page.getByRole('heading', { name: 'System requirements' })).toBeVisible();
   await expect(page.locator('.req-card h3')).toHaveText(['Windows', 'macOS', 'Linux']);
@@ -62,7 +70,9 @@ for (const device of ['iphone', 'android'] as const) {
   });
 }
 
-test('without JavaScript the Windows button shows and the other platforms are listed', async ({ browser }) => {
+test('without JavaScript the Windows button shows and the other platforms are listed', async ({
+  browser,
+}) => {
   const ctx = await browser.newContext({ javaScriptEnabled: false });
   const page = await ctx.newPage();
   await page.goto('/');

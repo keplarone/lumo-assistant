@@ -9,12 +9,12 @@ the draft and publishes it.
 Set these under the repository's Settings → Secrets and variables → Actions. Every one is optional for a
 build to succeed; what you lose without each is listed.
 
-| Secret | Used for | Without it |
-| --- | --- | --- |
-| `TAURI_SIGNING_PRIVATE_KEY`, `TAURI_SIGNING_PRIVATE_KEY_PASSWORD` | Signing update bundles | No update artifacts; the app's "Check for updates" says updates are not configured |
-| `LUMO_UPDATER_PUBKEY` | Public half of the key above, compiled into the app | Same as above (both must be set) |
-| `APPLE_CERTIFICATE`, `APPLE_CERTIFICATE_PASSWORD`, `APPLE_SIGNING_IDENTITY` | Developer ID code signing | macOS build is unsigned; Gatekeeper blocks it by default |
-| `APPLE_ID`, `APPLE_PASSWORD`, `APPLE_TEAM_ID` | Notarization | Signed build is not notarized; Gatekeeper still warns |
+| Secret                                                                      | Used for                                            | Without it                                                                         |
+| --------------------------------------------------------------------------- | --------------------------------------------------- | ---------------------------------------------------------------------------------- |
+| `TAURI_SIGNING_PRIVATE_KEY`, `TAURI_SIGNING_PRIVATE_KEY_PASSWORD`           | Signing update bundles                              | No update artifacts; the app's "Check for updates" says updates are not configured |
+| `LUMO_UPDATER_PUBKEY`                                                       | Public half of the key above, compiled into the app | Same as above (both must be set)                                                   |
+| `APPLE_CERTIFICATE`, `APPLE_CERTIFICATE_PASSWORD`, `APPLE_SIGNING_IDENTITY` | Developer ID code signing                           | macOS build is unsigned; Gatekeeper blocks it by default                           |
+| `APPLE_ID`, `APPLE_PASSWORD`, `APPLE_TEAM_ID`                               | Notarization                                        | Signed build is not notarized; Gatekeeper still warns                              |
 
 Windows builds are unsigned until a code-signing certificate is added (SmartScreen will warn).
 

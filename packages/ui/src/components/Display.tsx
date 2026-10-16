@@ -4,7 +4,17 @@ import type { HTMLAttributes, ReactNode } from 'react';
 
 export type Tone = 'neutral' | 'accent' | 'success' | 'warning' | 'danger' | 'lumen' | 'live';
 
-export function Badge({ tone = 'neutral', icon, children, className }: { tone?: Exclude<Tone, 'live'>; icon?: ReactNode; children: ReactNode; className?: string }) {
+export function Badge({
+  tone = 'neutral',
+  icon,
+  children,
+  className,
+}: {
+  tone?: Exclude<Tone, 'live'>;
+  icon?: ReactNode;
+  children: ReactNode;
+  className?: string;
+}) {
   return (
     <span className={clsx('lu-badge', className)} data-tone={tone}>
       {icon}
@@ -13,7 +23,15 @@ export function Badge({ tone = 'neutral', icon, children, className }: { tone?: 
   );
 }
 
-export function StatusDot({ tone = 'neutral', pulse, label }: { tone?: Tone; pulse?: boolean; label?: string }) {
+export function StatusDot({
+  tone = 'neutral',
+  pulse,
+  label,
+}: {
+  tone?: Tone;
+  pulse?: boolean;
+  label?: string;
+}) {
   return (
     <span
       className="lu-status-dot"
@@ -37,15 +55,38 @@ export function Kbd({ keys, className }: { keys: string[]; className?: string })
   );
 }
 
-export function Card({ interactive, className, ...rest }: HTMLAttributes<HTMLDivElement> & { interactive?: boolean }) {
+export function Card({
+  interactive,
+  className,
+  ...rest
+}: HTMLAttributes<HTMLDivElement> & { interactive?: boolean }) {
   return <div className={clsx('lu-card', className)} data-interactive={interactive || undefined} {...rest} />;
 }
 
-export function Separator({ orientation = 'horizontal', className }: { orientation?: 'horizontal' | 'vertical'; className?: string }) {
-  return <div className={clsx('lu-separator', className)} data-orientation={orientation} role="separator" aria-orientation={orientation} />;
+export function Separator({
+  orientation = 'horizontal',
+  className,
+}: {
+  orientation?: 'horizontal' | 'vertical';
+  className?: string;
+}) {
+  return (
+    <div
+      className={clsx('lu-separator', className)}
+      data-orientation={orientation}
+      role="separator"
+      aria-orientation={orientation}
+    />
+  );
 }
 
-const calloutIcons = { neutral: Info, accent: Info, success: CheckCircle2, warning: AlertTriangle, danger: OctagonAlert };
+const calloutIcons = {
+  neutral: Info,
+  accent: Info,
+  success: CheckCircle2,
+  warning: AlertTriangle,
+  danger: OctagonAlert,
+};
 
 export function Callout({
   tone = 'neutral',
@@ -60,7 +101,11 @@ export function Callout({
 }) {
   const Icon = calloutIcons[tone];
   return (
-    <div className={clsx('lu-callout', className)} data-tone={tone} role={tone === 'danger' || tone === 'warning' ? 'alert' : 'note'}>
+    <div
+      className={clsx('lu-callout', className)}
+      data-tone={tone}
+      role={tone === 'danger' || tone === 'warning' ? 'alert' : 'note'}
+    >
       <Icon aria-hidden />
       <div>
         {title && <div className="lu-callout-title">{title}</div>}
@@ -85,7 +130,11 @@ export function EmptyState({
 }) {
   return (
     <div className={clsx('lu-empty', className)}>
-      {icon && <div className="lu-empty-icon" aria-hidden>{icon}</div>}
+      {icon && (
+        <div className="lu-empty-icon" aria-hidden>
+          {icon}
+        </div>
+      )}
       <div className="lu-empty-title">{title}</div>
       {description && <p className="lu-empty-description">{description}</p>}
       {actions && <div className="lu-empty-actions">{actions}</div>}

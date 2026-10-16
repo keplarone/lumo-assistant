@@ -15,7 +15,8 @@ function block(selector: string) {
   const open = css.indexOf('{', start);
   const close = css.indexOf('\n}', open);
   const vars: Record<string, string> = {};
-  for (const m of css.slice(open + 1, close).matchAll(/--(lu-[\w-]+):\s*([^;]+);/g)) vars[m[1]!] = m[2]!.trim();
+  for (const m of css.slice(open + 1, close).matchAll(/--(lu-[\w-]+):\s*([^;]+);/g))
+    vars[m[1]!] = m[2]!.trim();
   return vars;
 }
 
@@ -30,7 +31,8 @@ function over(fg: Color, bg: Color): Color {
   const f = parse(formatHex(fg))!;
   const b = parse(formatHex(bg))!;
   const toRgb = (c: Color) => parse(formatHex(c)) as { r: number; g: number; b: number };
-  const F = toRgb(f), B = toRgb(b);
+  const F = toRgb(f),
+    B = toRgb(b);
   return { mode: 'rgb', r: F.r * a + B.r * (1 - a), g: F.g * a + B.g * (1 - a), b: F.b * a + B.b * (1 - a) };
 }
 
@@ -80,6 +82,9 @@ describe.each(Object.entries(themes))('%s theme contrast', (_name, vars) => {
     let back = color(vars, bg);
     if (layer) back = over(color(vars, layer), back);
     const ratio = wcagContrast(color(vars, fg), back);
-    expect(ratio, `${fg} on ${layer ? layer + ' over ' : ''}${bg} = ${ratio.toFixed(2)}`).toBeGreaterThanOrEqual(min);
+    expect(
+      ratio,
+      `${fg} on ${layer ? layer + ' over ' : ''}${bg} = ${ratio.toFixed(2)}`,
+    ).toBeGreaterThanOrEqual(min);
   });
 });

@@ -3,7 +3,17 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { ANALYTICS_SNIPPET } from '../../src/lib/analytics.ts';
 
-function run({ endpoint = 'https://stats.example/hit', dnt, gpc, referrer = '' }: { endpoint?: string | null; dnt?: string; gpc?: boolean; referrer?: string }) {
+function run({
+  endpoint = 'https://stats.example/hit',
+  dnt,
+  gpc,
+  referrer = '',
+}: {
+  endpoint?: string | null;
+  dnt?: string;
+  gpc?: boolean;
+  referrer?: string;
+}) {
   const calls: { url: string; init: Record<string, unknown> }[] = [];
   const win = {
     location: { pathname: '/features/', hostname: 'lumo.test' },

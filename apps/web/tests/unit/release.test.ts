@@ -38,10 +38,19 @@ test('detects desktop platforms from the user agent and platform', () => {
 });
 
 test('phones, tablets and unknown systems are not guessed', () => {
-  assert.equal(detectOS('Mozilla/5.0 (Linux; Android 15; Pixel 9) Mobile Safari/537', 'Linux armv8l'), 'other');
-  assert.equal(detectOS('Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) Mobile/15E148', 'iPhone'), 'other');
+  assert.equal(
+    detectOS('Mozilla/5.0 (Linux; Android 15; Pixel 9) Mobile Safari/537', 'Linux armv8l'),
+    'other',
+  );
+  assert.equal(
+    detectOS('Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) Mobile/15E148', 'iPhone'),
+    'other',
+  );
   // iPadOS presents itself as a Mac, but has a touch screen.
-  assert.equal(detectOS('Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) Safari/605', 'MacIntel', 5), 'other');
+  assert.equal(
+    detectOS('Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) Safari/605', 'MacIntel', 5),
+    'other',
+  );
   assert.equal(detectOS('Mozilla/5.0 (X11; CrOS x86_64 14541.0.0) Chrome/140', 'Linux x86_64'), 'other');
   assert.equal(detectOS('', ''), 'other');
 });

@@ -16,21 +16,134 @@ import { Lumo, clamp, damp, registerMood, type LumoOptions } from './lumo';
 
 export const PRODUCT_MOODS = {
   /** Attentive: eyes wide, crest lifted, looking at the person (with small acknowledging nods). */
-  listen: { wingSpread: 0.08, flap: 0.1, lidTop: 0.02, lidBottom: 0, glow: 0.8, haloSpeed: 0.5, bob: 0.7, tilt: 0.1, crest: 0.85, tailFan: 0.2, dilate: 1.12, gazeLock: 1, gazeX: 0, gazeY: 0.05 },
+  listen: {
+    wingSpread: 0.08,
+    flap: 0.1,
+    lidTop: 0.02,
+    lidBottom: 0,
+    glow: 0.8,
+    haloSpeed: 0.5,
+    bob: 0.7,
+    tilt: 0.1,
+    crest: 0.85,
+    tailFan: 0.2,
+    dilate: 1.12,
+    gazeLock: 1,
+    gazeX: 0,
+    gazeY: 0.05,
+  },
   /** Processing a request: halo spins fast, eyes hold up-right with small reading saccades. */
-  process: { wingSpread: 0.1, flap: 0.08, lidTop: 0.16, lidBottom: 0.1, glow: 0.95, haloSpeed: 2.4, bob: 0.55, tilt: 0.08, crest: 1.1, rise: 0.04, tailFan: 0.2, dilate: 0.8, gazeLock: 1, gazeX: 0.1, gazeY: 0.45 },
+  process: {
+    wingSpread: 0.1,
+    flap: 0.08,
+    lidTop: 0.16,
+    lidBottom: 0.1,
+    glow: 0.95,
+    haloSpeed: 2.4,
+    bob: 0.55,
+    tilt: 0.08,
+    crest: 1.1,
+    rise: 0.04,
+    tailFan: 0.2,
+    dilate: 0.8,
+    gazeLock: 1,
+    gazeX: 0.1,
+    gazeY: 0.45,
+  },
   /** Scanning: gaze sweeps side to side (driven by the companion). */
-  search: { wingSpread: 0.1, flap: 0.12, lidTop: 0.06, glow: 0.9, haloSpeed: 1.2, bob: 0.7, crest: 0.95, tailFan: 0.25, dilate: 0.85 },
+  search: {
+    wingSpread: 0.1,
+    flap: 0.12,
+    lidTop: 0.06,
+    glow: 0.9,
+    haloSpeed: 1.2,
+    bob: 0.7,
+    crest: 0.95,
+    tailFan: 0.25,
+    dilate: 0.85,
+  },
   /** Heads-down work: eyes lowered toward the workspace, reading. */
-  work: { wingSpread: 0.08, flap: 0.12, lidTop: 0.28, lidBottom: 0.05, glow: 0.8, haloSpeed: 1.0, bob: 0.55, tilt: 0.06, crest: 0.8, tailFan: 0.15, dilate: 0.8, gazeLock: 1, gazeX: 0.15, gazeY: -0.55 },
+  work: {
+    wingSpread: 0.08,
+    flap: 0.12,
+    lidTop: 0.28,
+    lidBottom: 0.05,
+    glow: 0.8,
+    haloSpeed: 1.0,
+    bob: 0.55,
+    tilt: 0.06,
+    crest: 0.8,
+    tailFan: 0.15,
+    dilate: 0.8,
+    gazeLock: 1,
+    gazeX: 0.15,
+    gazeY: -0.55,
+  },
   /** Typing / coding: head lowered over the workspace, leaning in; wing taps come from the companion. */
-  type: { wingSpread: 0.06, flap: 0.05, lidTop: 0.3, lidBottom: 0.06, glow: 0.82, haloSpeed: 1.1, bob: 0.45, tilt: 0.04, crest: 0.8, lean: 0.07, tailFan: 0.12, dilate: 0.85, gazeLock: 1, gazeX: 0.1, gazeY: -0.75 },
+  type: {
+    wingSpread: 0.06,
+    flap: 0.05,
+    lidTop: 0.3,
+    lidBottom: 0.06,
+    glow: 0.82,
+    haloSpeed: 1.1,
+    bob: 0.45,
+    tilt: 0.04,
+    crest: 0.8,
+    lean: 0.07,
+    tailFan: 0.12,
+    dilate: 0.85,
+    gazeLock: 1,
+    gazeX: 0.1,
+    gazeY: -0.75,
+  },
   /** Unsure: soft tilt that slowly alternates with a small wing shrug, crest lowered. */
-  unsure: { wingSpread: 0.1, flap: 0.05, lidTop: 0.18, lidBottom: 0.15, glow: 0.55, haloSpeed: 0.25, bob: 0.7, tilt: 0.28, crest: 0.3, tailFan: 0.08, dilate: 1.0 },
+  unsure: {
+    wingSpread: 0.1,
+    flap: 0.05,
+    lidTop: 0.18,
+    lidBottom: 0.15,
+    glow: 0.55,
+    haloSpeed: 0.25,
+    bob: 0.7,
+    tilt: 0.28,
+    crest: 0.3,
+    tailFan: 0.08,
+    dilate: 1.0,
+  },
   /** Something failed: light dims and the crest droops, without alarm colors; then a shake-off. */
-  recover: { wingSpread: 0.02, flap: 0.02, lidTop: 0.32, lidBottom: 0.1, glow: 0.35, haloSpeed: 0.12, bob: 0.4, tilt: -0.08, crest: 0.2, rise: -0.05, tailFan: 0.05, dilate: 1.1 },
+  recover: {
+    wingSpread: 0.02,
+    flap: 0.02,
+    lidTop: 0.32,
+    lidBottom: 0.1,
+    glow: 0.35,
+    haloSpeed: 0.12,
+    bob: 0.4,
+    tilt: -0.08,
+    crest: 0.2,
+    rise: -0.05,
+    tailFan: 0.05,
+    dilate: 1.1,
+  },
   /** Hello: smiling eyes on the person; the one-wing wave is a companion layer. */
-  greet: { wingSpread: 0.1, flap: 0.2, lidTop: 0, lidBottom: 0.35, glow: 1.0, haloSpeed: 0.8, bob: 1.1, tilt: -0.1, crest: 1.05, rise: 0.06, tailFan: 0.4, dilate: 1.1, gazeLock: 1, gazeX: 0, gazeY: 0.05 },
+  greet: {
+    wingSpread: 0.1,
+    flap: 0.2,
+    lidTop: 0,
+    lidBottom: 0.35,
+    glow: 1.0,
+    haloSpeed: 0.8,
+    bob: 1.1,
+    tilt: -0.1,
+    crest: 1.05,
+    rise: 0.06,
+    tailFan: 0.4,
+    dilate: 1.1,
+    gazeLock: 1,
+    gazeX: 0,
+    gazeY: 0.05,
+  },
 } as const;
 for (const [k, v] of Object.entries(PRODUCT_MOODS)) registerMood(k, v);
 
@@ -38,20 +151,43 @@ export type ProductMood = keyof typeof PRODUCT_MOODS;
 export type WingSide = 'left' | 'right';
 
 const PI = Math.PI;
-const smooth = (x: number) => { const t = clamp(x, 0, 1); return t * t * (3 - 2 * t); };
+const smooth = (x: number) => {
+  const t = clamp(x, 0, 1);
+  return t * t * (3 - 2 * t);
+};
 /** 0 -> 1 -> 0 over [a, d], flat at 1 between b and c. */
 const plateau = (t: number, a: number, b: number, c: number, d: number) =>
   t <= a || t >= d ? 0 : t < b ? smooth((t - a) / (b - a)) : t <= c ? 1 : 1 - smooth((t - c) / (d - c));
 const easeInOutSine = (u: number) => 0.5 - 0.5 * Math.cos(PI * clamp(u, 0, 1));
-const easeInOutCubic = (u: number) => { const x = clamp(u, 0, 1); return x < 0.5 ? 4 * x * x * x : 1 - Math.pow(-2 * x + 2, 3) / 2; };
+const easeInOutCubic = (u: number) => {
+  const x = clamp(u, 0, 1);
+  return x < 0.5 ? 4 * x * x * x : 1 - Math.pow(-2 * x + 2, 3) / 2;
+};
 const rand = (a: number, b: number) => a + Math.random() * (b - a);
 
 /** Per-wing additive offsets, reset every frame. Positive lift raises the wing outward. */
-interface WingOffset { lift: number; open: number; pitch: number; fan: number }
+interface WingOffset {
+  lift: number;
+  open: number;
+  pitch: number;
+  fan: number;
+}
 const zeroWing = (): WingOffset => ({ lift: 0, open: 0, pitch: 0, fan: 0 });
 
-interface Walk { from: number; to: number; phase: 'anticipate' | 'travel' | 'settle'; t: number; dur: number; hops: number }
-interface Turn { from: number; to: number; t: number; dur: number }
+interface Walk {
+  from: number;
+  to: number;
+  phase: 'anticipate' | 'travel' | 'settle';
+  t: number;
+  dur: number;
+  hops: number;
+}
+interface Turn {
+  from: number;
+  to: number;
+  t: number;
+  dur: number;
+}
 
 export class LumoCompanion extends Lumo {
   /** Extra yaw from the user dragging the character; springs back to 0. */
@@ -98,17 +234,30 @@ export class LumoCompanion extends Lumo {
     if (Math.abs(x - this._walkTarget) < 1e-3 && this._walk) return this;
     this._walkTarget = x;
     const dist = Math.abs(x - this._x);
-    if (dist < 0.02) { this._walk = null; return this; }
+    if (dist < 0.02) {
+      this._walk = null;
+      return this;
+    }
     const moving = this._walk?.phase === 'travel';
     this._walk = {
-      from: this._x, to: x, phase: moving ? 'travel' : 'anticipate', t: 0,
-      dur: clamp(dist / 1.4, 0.55, 2.6), hops: Math.max(1, Math.round(dist / 0.5)),
+      from: this._x,
+      to: x,
+      phase: moving ? 'travel' : 'anticipate',
+      t: 0,
+      dur: clamp(dist / 1.4, 0.55, 2.6),
+      hops: Math.max(1, Math.round(dist / 0.5)),
     };
     return this;
   }
-  get walkTarget() { return this._walkTarget; }
-  get x() { return this._x; }
-  get isWalking() { return this._walk != null; }
+  get walkTarget() {
+    return this._walkTarget;
+  }
+  get x() {
+    return this._x;
+  }
+  get isWalking() {
+    return this._walk != null;
+  }
 
   /** Turn to a yaw angle (radians, 0 = facing the viewer). Skipped in calm mode. */
   turnTo(yaw: number) {
@@ -119,24 +268,40 @@ export class LumoCompanion extends Lumo {
     return this;
   }
   /** Face away (showing the back), or back toward the viewer. */
-  turnAround() { return this.turnTo(Math.abs(this._yawTarget) < 0.5 ? PI : 0); }
-  get yawTarget() { return this._yawTarget; }
-  get yaw() { return this._yaw; }
+  turnAround() {
+    return this.turnTo(Math.abs(this._yawTarget) < 0.5 ? PI : 0);
+  }
+  get yawTarget() {
+    return this._yawTarget;
+  }
+  get yaw() {
+    return this._yaw;
+  }
 
   /** One-wing wave. `side` is the screen side of the waving wing. Plays automatically on greet. */
-  wave(side: WingSide = 'right') { this._waveT = 0; this._waveSide = side; return this; }
+  wave(side: WingSide = 'right') {
+    this._waveT = 0;
+    this._waveSide = side;
+    return this;
+  }
 
   /** Celebrate: a light pulse, a small hop and one brief wing flourish, then settle. */
-  celebrate() { this.pulse(); this._celebrateT = 0; return this; }
+  celebrate() {
+    this.pulse();
+    this._celebrateT = 0;
+    return this;
+  }
 
   /** Natural blink scheduling (and occasional double blinks) on top of the reference blink. */
   override blink() {
     super.blink();
     // Human-like intervals: a floor plus an exponential tail, quicker while typing or concentrating.
     const quick = this.state === 'type' || this.state === 'work';
-    const floor = quick ? 1.1 : 1.8, mean = quick ? 1.4 : 2.8;
+    const floor = quick ? 1.1 : 1.8,
+      mean = quick ? 1.4 : 2.8;
     this._nextBlink = Math.min(floor + -Math.log(1 - Math.random() * 0.98) * mean, quick ? 5 : 9);
-    if (this._doubleIn < 0 && Math.random() < this.doubleBlinkChance * (quick ? 1.5 : 1)) this._doubleIn = rand(0.2, 0.32);
+    if (this._doubleIn < 0 && Math.random() < this.doubleBlinkChance * (quick ? 1.5 : 1))
+      this._doubleIn = rand(0.2, 0.32);
     return this;
   }
 
@@ -149,7 +314,10 @@ export class LumoCompanion extends Lumo {
     this._stateT = 0;
     if (name === 'greet') this.wave('right');
     if (name === 'recover') this._recoverT = 0;
-    if (name === 'listen') { this._nodT = -1; this._nodWait = rand(1.2, 2.4); }
+    if (name === 'listen') {
+      this._nodT = -1;
+      this._nodWait = rand(1.2, 2.4);
+    }
   }
 
   override update(dt: number) {
@@ -171,7 +339,12 @@ export class LumoCompanion extends Lumo {
     const parts = this.parts;
     this._wing.left = zeroWing();
     this._wing.right = zeroWing();
-    let rigY = 0, rigZ = 0, rigX = 0, headX = 0, headY = 0, squash = 0;
+    let rigY = 0,
+      rigZ = 0,
+      rigX = 0,
+      headX = 0,
+      headY = 0,
+      squash = 0;
 
     // Typing: alternating small wing taps in bursts, head lowered toward the workspace.
     this._typeW = damp(this._typeW, this.state === 'type' ? 1 : 0, 4, dt);
@@ -193,7 +366,9 @@ export class LumoCompanion extends Lumo {
         const u = this._tapT / 0.14;
         const e = (u < 0.3 ? smooth(u / 0.3) : 1 - smooth((u - 0.3) / 0.7)) * w * calm;
         const o = this._wing[this._tapSide];
-        o.lift -= 0.07 * e; o.pitch -= 0.16 * e; o.open += 0.1 * e;
+        o.lift -= 0.07 * e;
+        o.pitch -= 0.16 * e;
+        o.open += 0.1 * e;
         headX += 0.015 * e;
       }
       headX += 0.08 * w; // head lowered a little further than the gaze alone gives
@@ -226,13 +401,17 @@ export class LumoCompanion extends Lumo {
       else {
         const hop = this.opts.calm ? 0 : 1;
         const dip = -0.05 * plateau(c, 0, 0.1, 0.12, 0.2) - 0.035 * plateau(c, 0.58, 0.66, 0.68, 0.9);
-        const air = c > 0.16 && c < 0.6 ? Math.sin(PI * (c - 0.16) / 0.44) : 0;
+        const air = c > 0.16 && c < 0.6 ? Math.sin((PI * (c - 0.16)) / 0.44) : 0;
         rigY += (dip + 0.16 * air) * hop;
-        squash += (-0.03 * plateau(c, 0, 0.1, 0.12, 0.22) + 0.02 * air - 0.025 * plateau(c, 0.58, 0.64, 0.66, 0.85)) * hop;
+        squash +=
+          (-0.03 * plateau(c, 0, 0.1, 0.12, 0.22) + 0.02 * air - 0.025 * plateau(c, 0.58, 0.64, 0.66, 0.85)) *
+          hop;
         const fl = plateau(c, 0.1, 0.36, 0.42, 0.95) * calm;
         for (const s of ['left', 'right'] as const) {
           const o = this._wing[s];
-          o.lift += 0.6 * fl; o.open += 0.5 * fl; o.fan += 0.035 * fl;
+          o.lift += 0.6 * fl;
+          o.open += 0.5 * fl;
+          o.fan += 0.035 * fl;
         }
       }
     }
@@ -265,14 +444,20 @@ export class LumoCompanion extends Lumo {
       this._shrugT += dt;
       const e = plateau(this._shrugT, 0, 0.18, 0.3, 0.7) * calm;
       if (this._shrugT > 0.7) this._shrugT = -1;
-      for (const s of ['left', 'right'] as const) { this._wing[s].lift += 0.1 * e; this._wing[s].open += 0.06 * e; }
+      for (const s of ['left', 'right'] as const) {
+        this._wing[s].lift += 0.1 * e;
+        this._wing[s].open += 0.06 * e;
+      }
       rigY += 0.015 * e;
     }
 
     // Listening: a slight acknowledging nod now and then.
     if (this.state === 'listen') {
       this._nodWait -= dt;
-      if (this._nodWait <= 0 && this._nodT < 0) { this._nodT = 0; this._nodWait = rand(2.4, 5); }
+      if (this._nodWait <= 0 && this._nodT < 0) {
+        this._nodT = 0;
+        this._nodWait = rand(2.4, 5);
+      }
     }
     if (this._nodT >= 0) {
       this._nodT += dt;
@@ -282,7 +467,10 @@ export class LumoCompanion extends Lumo {
 
     // Locomotion and turning.
     const loco = this._locomotion(dt, calm);
-    rigY += loco.rigY; rigZ += loco.rigZ; rigX += loco.rigX; squash += loco.squash;
+    rigY += loco.rigY;
+    rigZ += loco.rigZ;
+    rigX += loco.rigX;
+    squash += loco.squash;
 
     // Apply layers on top of the reference pose.
     parts.rig.position.y += rigY;
@@ -298,11 +486,16 @@ export class LumoCompanion extends Lumo {
     for (const k of ['left', 'right'] as const) {
       const o = this._wing[k];
       if (!o.lift && !o.open && !o.pitch && !o.fan) continue;
-      const w = parts.wings[k], s = w.side, g = w.group;
+      const w = parts.wings[k],
+        s = w.side,
+        g = w.group;
       g.rotation.z += -s * o.lift;
       g.rotation.y += s * o.open;
       g.rotation.x += o.pitch;
-      if (o.fan) w.primaries.forEach((f, i) => { f.rotation.z += -s * i * o.fan; });
+      if (o.fan)
+        w.primaries.forEach((f, i) => {
+          f.rotation.z += -s * i * o.fan;
+        });
     }
   }
 
@@ -319,7 +512,10 @@ export class LumoCompanion extends Lumo {
     if (this.state === 'unsure') {
       const sign = Math.sign(Math.sin(t * 0.55)) || 1;
       T.tilt = 0.26 * sign;
-      if (sign !== this._lastTiltSign) { this._lastTiltSign = sign; this._shrugT = 0; }
+      if (sign !== this._lastTiltSign) {
+        this._lastTiltSign = sign;
+        this._shrugT = 0;
+      }
     }
     if (this.state === 'process') {
       // Reading saccades: small hops of the eyes around the held point.
@@ -352,7 +548,10 @@ export class LumoCompanion extends Lumo {
         out.rigZ -= dir * 0.04 * e * calm;
         for (const s of ['left', 'right'] as const) this._wing[s].lift += 0.12 * e * calm;
         travelYawTarget = hopOK ? dir * 0.45 : 0;
-        if (walk.t >= A) { walk.phase = 'travel'; walk.t = 0; }
+        if (walk.t >= A) {
+          walk.phase = 'travel';
+          walk.t = 0;
+        }
       } else if (walk.phase === 'travel') {
         const u = clamp(walk.t / walk.dur, 0, 1);
         this._x = walk.from + (walk.to - walk.from) * easeInOutSine(u);
@@ -371,7 +570,11 @@ export class LumoCompanion extends Lumo {
           }
         }
         travelYawTarget = hopOK ? dir * 0.45 : 0;
-        if (u >= 1) { walk.phase = 'settle'; walk.t = 0; this._x = walk.to; }
+        if (u >= 1) {
+          walk.phase = 'settle';
+          walk.t = 0;
+          this._x = walk.to;
+        }
       } else {
         const S = 0.45;
         const u = walk.t / S;
@@ -393,7 +596,10 @@ export class LumoCompanion extends Lumo {
       const mid = Math.sin(PI * u);
       out.rigY += 0.05 * mid;
       for (const s of ['left', 'right'] as const) this._wing[s].lift += 0.1 * mid;
-      if (u >= 1) { this._yaw = turn.to; this._turn = null; }
+      if (u >= 1) {
+        this._yaw = turn.to;
+        this._turn = null;
+      }
     }
     this._travelYaw = damp(this._travelYaw, travelYawTarget, 6, dt);
     this.dragYaw = damp(this.dragYaw, 0, 0.9, dt);
@@ -403,8 +609,15 @@ export class LumoCompanion extends Lumo {
 
   /** True while a scripted layer is playing (walking, turning, a one-shot, a pulse ring). */
   get busy() {
-    return this._walk != null || this._turn != null || this._waveT >= 0 || this._celebrateT >= 0 ||
-      (this._recoverT >= 0 && this._recoverT < 2.1) || this._pulseT >= 0 || Math.abs(this.dragYaw) > 0.01;
+    return (
+      this._walk != null ||
+      this._turn != null ||
+      this._waveT >= 0 ||
+      this._celebrateT >= 0 ||
+      (this._recoverT >= 0 && this._recoverT < 2.1) ||
+      this._pulseT >= 0 ||
+      Math.abs(this.dragYaw) > 0.01
+    );
   }
 
   /**

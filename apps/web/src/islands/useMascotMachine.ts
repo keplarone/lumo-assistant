@@ -1,5 +1,11 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { DEFAULT_CONFIG, MascotMachine, type MascotConfig, type MascotEvent, type MascotOutput } from '@lumo/mascot';
+import {
+  DEFAULT_CONFIG,
+  MascotMachine,
+  type MascotConfig,
+  type MascotEvent,
+  type MascotOutput,
+} from '@lumo/mascot';
 
 // The output is a small plain object whose fields grow as the mascot package evolves; compare it whole.
 const same = (a: MascotOutput, b: MascotOutput) => JSON.stringify(a) === JSON.stringify(b);

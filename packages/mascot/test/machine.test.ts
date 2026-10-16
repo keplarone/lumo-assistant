@@ -1,5 +1,12 @@
 import { describe, expect, it } from 'vitest';
-import { DEFAULT_CONFIG as C, initialState, output, reduce, type MascotEvent, type MascotState } from '../src/behavior/machine';
+import {
+  DEFAULT_CONFIG as C,
+  initialState,
+  output,
+  reduce,
+  type MascotEvent,
+  type MascotState,
+} from '../src/behavior/machine';
 
 function run(events: [number, MascotEvent][], s: MascotState = initialState(0)) {
   for (const [t, e] of events) s = reduce(s, e, t);
@@ -15,7 +22,16 @@ describe('mascot behavior machine', () => {
   });
 
   it('maps agent phases to moods', () => {
-    const cases = { listening: 'listen', thinking: 'think', planning: 'process', searching: 'search', working: 'work', speaking: 'speak', uncertain: 'unsure', awaiting_approval: 'listen' } as const;
+    const cases = {
+      listening: 'listen',
+      thinking: 'think',
+      planning: 'process',
+      searching: 'search',
+      working: 'work',
+      speaking: 'speak',
+      uncertain: 'unsure',
+      awaiting_approval: 'listen',
+    } as const;
     for (const [phase, mood] of Object.entries(cases)) {
       const s = run([[1000, { type: 'agent', phase: phase as keyof typeof cases }]]);
       expect(output(s).mood, phase).toBe(mood);

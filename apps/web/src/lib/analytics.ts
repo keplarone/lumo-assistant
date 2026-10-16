@@ -13,7 +13,8 @@
  * from its own data attribute.
  */
 
-export const ANALYTICS_ENDPOINT: string = (import.meta.env?.PUBLIC_ANALYTICS_ENDPOINT as string | undefined) ?? '';
+export const ANALYTICS_ENDPOINT: string =
+  (import.meta.env?.PUBLIC_ANALYTICS_ENDPOINT as string | undefined) ?? '';
 
 export const ANALYTICS_SNIPPET = `(function (s, w, d, n) {
   var e = s && s.getAttribute('data-endpoint');

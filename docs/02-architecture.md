@@ -51,19 +51,19 @@ docs/                    Audit, architecture, design system, security, release
 
 ## 3. Trust boundaries
 
-| Zone | Trusted with | Never trusted with |
-|---|---|---|
-| Rust core | Secrets, the database, every OS and network capability, the final decision on every tool call. | Model output as code. Model output is data that is parsed into typed tool calls and validated. |
-| Webview | Rendering and the user's typed input. | Secrets (it never receives one), direct filesystem or network access (CSP `connect-src` is limited to IPC), approving sensitive actions (only the native dialog can). |
-| Model | Choosing among offered tools and writing text. | Permissions. A tool call is a request; policy in Rust decides. |
-| Content from the web, files, email, screenshots | Nothing. | It is wrapped and labelled as untrusted data in the model context and cannot widen permissions, because permissions are not expressed in the context at all. |
+| Zone                                            | Trusted with                                                                                   | Never trusted with                                                                                                                                                    |
+| ----------------------------------------------- | ---------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Rust core                                       | Secrets, the database, every OS and network capability, the final decision on every tool call. | Model output as code. Model output is data that is parsed into typed tool calls and validated.                                                                        |
+| Webview                                         | Rendering and the user's typed input.                                                          | Secrets (it never receives one), direct filesystem or network access (CSP `connect-src` is limited to IPC), approving sensitive actions (only the native dialog can). |
+| Model                                           | Choosing among offered tools and writing text.                                                 | Permissions. A tool call is a request; policy in Rust decides.                                                                                                        |
+| Content from the web, files, email, screenshots | Nothing.                                                                                       | It is wrapped and labelled as untrusted data in the model context and cannot widen permissions, because permissions are not expressed in the context at all.          |
 
 ### Risk tiers (enforced in Rust at the execution boundary)
 
-| Tier | Examples | Gate |
-|---|---|---|
-| `read` | List or read files in a granted folder, web search, read clipboard (after grant), read calendar | Runs automatically once the capability is granted. Logged. |
-| `write` | Create or edit files in a granted folder, create a project, write clipboard, draft an email, create a calendar event | In-app approval card (one click), or pre-approved per conversation. Reversible: file writes are journaled for undo, projects are versioned with git. |
+| Tier        | Examples                                                                                                                                                | Gate                                                                                                                                                                              |
+| ----------- | ------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `read`      | List or read files in a granted folder, web search, read clipboard (after grant), read calendar                                                         | Runs automatically once the capability is granted. Logged.                                                                                                                        |
+| `write`     | Create or edit files in a granted folder, create a project, write clipboard, draft an email, create a calendar event                                    | In-app approval card (one click), or pre-approved per conversation. Reversible: file writes are journaled for undo, projects are versioned with git.                              |
 | `sensitive` | Delete or move files out of place, send email, place an order or open a checkout, deploy, run a command, control mouse and keyboard, capture the screen | Native OS confirmation dialog shown by Rust with the exact action. The webview cannot create, alter, or answer it. Never pre-approvable, never allowed in background automations. |
 
 Grants (folders, screen, clipboard, location, accounts) are explicit, listed in Settings → Permissions, and
@@ -144,28 +144,28 @@ previous one and that system prompt and tools never change within a conversation
 
 ## 5. Tools (as implemented)
 
-| Tool | Tier | Notes |
-|---|---|---|
-| `update_plan`, `ask_user`, `present_options` | UI | No side effects; drive plan, question and comparison cards. `ask_user` is unavailable in automations. |
-| `list_files`, `search_files`, `read_file` | read | Granted folders only; symlinks resolved and rechecked; credential folders refused even inside a grant. |
-| `write_file`, `create_folder`, `move_files` | write | Journaled for undo; overwrites are backed up first; moves never overwrite. |
-| `move_to_trash` | write (≤20) / sensitive | System Trash only; Lumo cannot permanently delete. |
-| `request_folder_access` | UI | Opens the native folder picker; the user's choice is the grant. |
-| `fetch_url` | read | Public addresses only; content untrusted. |
-| `web_search`, `web_fetch` (Anthropic server tools) / `search_web` (Brave) | read | Server tools on Anthropic; Brave for local models when a key is added. |
-| `open_url` | write / sensitive for checkout and sign-in | Handoff to the user's browser. |
-| `find_places` | read | OpenStreetMap (Nominatim + Overpass); no menus, prices or ratings. |
-| `prepare_checkout_handoff` | sensitive | Shows merchant, items, quantities, address and total (or "unknown until checkout"); copies the list and opens the merchant's site. Never places an order. |
-| `read_clipboard` / `write_clipboard` | read after grant, else write / write | |
-| `notify` | UI | Desktop notification. |
-| `take_screenshot` | read after grant, else sensitive | Primary display, downscaled; privacy event shown. |
-| `get_active_window` | read after grant, else write | The window in front when Lumo was summoned with the shortcut; kept in memory only. |
-| `remember`, `forget` | UI | Only when memory is enabled; refuses passwords and payment details; all visible in Settings → Memory. |
-| `create_project` | write | A folder under Documents/Lumo Projects, a git repository, auto-granted. |
-| `save_version`, `preview_project` | UI | Git commit inside the project; preview served by the `preview:` protocol. |
-| `run_command` | sensitive | Allowlisted programs (node, npm, pnpm, yarn, python, pip, git, cargo, go, deno, bun), no shell, no inline code, secrets stripped from the environment, timeout. Not an OS sandbox; the dialog says so. |
-| `publish_to_github` | sensitive | Creates a repository (private by default) and pushes the project with the user's token. |
-| `deploy_to_netlify` | sensitive | Zips the project, deploys, waits for "ready", and checks the URL responds. |
+| Tool                                                                      | Tier                                       | Notes                                                                                                                                                                                                  |
+| ------------------------------------------------------------------------- | ------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `update_plan`, `ask_user`, `present_options`                              | UI                                         | No side effects; drive plan, question and comparison cards. `ask_user` is unavailable in automations.                                                                                                  |
+| `list_files`, `search_files`, `read_file`                                 | read                                       | Granted folders only; symlinks resolved and rechecked; credential folders refused even inside a grant.                                                                                                 |
+| `write_file`, `create_folder`, `move_files`                               | write                                      | Journaled for undo; overwrites are backed up first; moves never overwrite.                                                                                                                             |
+| `move_to_trash`                                                           | write (≤20) / sensitive                    | System Trash only; Lumo cannot permanently delete.                                                                                                                                                     |
+| `request_folder_access`                                                   | UI                                         | Opens the native folder picker; the user's choice is the grant.                                                                                                                                        |
+| `fetch_url`                                                               | read                                       | Public addresses only; content untrusted.                                                                                                                                                              |
+| `web_search`, `web_fetch` (Anthropic server tools) / `search_web` (Brave) | read                                       | Server tools on Anthropic; Brave for local models when a key is added.                                                                                                                                 |
+| `open_url`                                                                | write / sensitive for checkout and sign-in | Handoff to the user's browser.                                                                                                                                                                         |
+| `find_places`                                                             | read                                       | OpenStreetMap (Nominatim + Overpass); no menus, prices or ratings.                                                                                                                                     |
+| `prepare_checkout_handoff`                                                | sensitive                                  | Shows merchant, items, quantities, address and total (or "unknown until checkout"); copies the list and opens the merchant's site. Never places an order.                                              |
+| `read_clipboard` / `write_clipboard`                                      | read after grant, else write / write       |                                                                                                                                                                                                        |
+| `notify`                                                                  | UI                                         | Desktop notification.                                                                                                                                                                                  |
+| `take_screenshot`                                                         | read after grant, else sensitive           | Primary display, downscaled; privacy event shown.                                                                                                                                                      |
+| `get_active_window`                                                       | read after grant, else write               | The window in front when Lumo was summoned with the shortcut; kept in memory only.                                                                                                                     |
+| `remember`, `forget`                                                      | UI                                         | Only when memory is enabled; refuses passwords and payment details; all visible in Settings → Memory.                                                                                                  |
+| `create_project`                                                          | write                                      | A folder under Documents/Lumo Projects, a git repository, auto-granted.                                                                                                                                |
+| `save_version`, `preview_project`                                         | UI                                         | Git commit inside the project; preview served by the `preview:` protocol.                                                                                                                              |
+| `run_command`                                                             | sensitive                                  | Allowlisted programs (node, npm, pnpm, yarn, python, pip, git, cargo, go, deno, bun), no shell, no inline code, secrets stripped from the environment, timeout. Not an OS sandbox; the dialog says so. |
+| `publish_to_github`                                                       | sensitive                                  | Creates a repository (private by default) and pushes the project with the user's token.                                                                                                                |
+| `deploy_to_netlify`                                                       | sensitive                                  | Zips the project, deploys, waits for "ready", and checks the URL responds.                                                                                                                             |
 
 ## 6. IPC contract (webview ↔ Rust)
 
@@ -249,12 +249,12 @@ unless an endpoint is configured, honor Do Not Track and Global Privacy Control,
 
 ## 10. Decision log
 
-| # | Decision | Why |
-|---|---|---|
-| 1 | Agent runtime in Rust, not the webview | Background work survives closed windows; a compromised renderer cannot drive tools; plans stay separate from privileged execution. |
-| 2 | Native dialog for `sensitive` tier | The renderer can be compromised; the OS dialog cannot be forged by it. |
-| 3 | SQLCipher with keychain-held key | Conversations and memories are personal data at rest. |
-| 4 | No cloud backend in v1 | Fewer places to leak data; nothing in v1 requires one. |
-| 5 | Handoff, not scraping, for ordering and checkout | No consumer ordering APIs are available to Lumo yet; bypassing provider terms or payment confirmation is not acceptable. |
-| 6 | Append-only conversation history | Required for thinking-block validity on current Claude models and keeps caching effective. |
-| 7 | Astro for the website | Static HTML for SEO and no-JS readers, React islands for the 3D scenes. |
+| #   | Decision                                         | Why                                                                                                                                |
+| --- | ------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------- |
+| 1   | Agent runtime in Rust, not the webview           | Background work survives closed windows; a compromised renderer cannot drive tools; plans stay separate from privileged execution. |
+| 2   | Native dialog for `sensitive` tier               | The renderer can be compromised; the OS dialog cannot be forged by it.                                                             |
+| 3   | SQLCipher with keychain-held key                 | Conversations and memories are personal data at rest.                                                                              |
+| 4   | No cloud backend in v1                           | Fewer places to leak data; nothing in v1 requires one.                                                                             |
+| 5   | Handoff, not scraping, for ordering and checkout | No consumer ordering APIs are available to Lumo yet; bypassing provider terms or payment confirmation is not acceptable.           |
+| 6   | Append-only conversation history                 | Required for thinking-block validity on current Claude models and keeps caching effective.                                         |
+| 7   | Astro for the website                            | Static HTML for SEO and no-JS readers, React islands for the 3D scenes.                                                            |

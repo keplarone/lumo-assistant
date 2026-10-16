@@ -42,7 +42,15 @@ export default function HeroStage({ still, alt, width, height, className }: Stag
       data-live={showLive ? 'true' : 'false'}
       data-webgl={mounted ? String(webgl) : undefined}
     >
-      <img className="stage-still" src={still} alt={showLive ? '' : alt} width={width} height={height} fetchPriority="high" decoding="async" />
+      <img
+        className="stage-still"
+        src={still}
+        alt={showLive ? '' : alt}
+        width={width}
+        height={height}
+        fetchPriority="high"
+        decoding="async"
+      />
       {wantLive && (
         <Suspense fallback={null}>
           <HeroLive stageRef={stageRef} calm={reduce} onReady={() => setReady(true)} handle={live} />

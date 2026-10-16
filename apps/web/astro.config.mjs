@@ -30,7 +30,17 @@ function stillRoutes() {
  */
 const redirects = {
   ...Object.fromEntries(
-    ['/features', '/how-it-works', '/integrations', '/pricing', '/docs', '/support', '/security', '/download', '/legal'].map((from) => [from, '/']),
+    [
+      '/features',
+      '/how-it-works',
+      '/integrations',
+      '/pricing',
+      '/docs',
+      '/support',
+      '/security',
+      '/download',
+      '/legal',
+    ].map((from) => [from, '/']),
   ),
   '/legal/privacy': '/privacy/',
   '/legal/terms': '/terms/',
@@ -44,11 +54,7 @@ export default defineConfig({
   devToolbar: { enabled: false },
   trailingSlash: 'ignore',
   build: { format: 'directory', inlineStylesheets: 'auto' },
-  integrations: [
-    react(),
-    sitemap({ filter: (page) => !page.includes('/404') }),
-    stillRoutes(),
-  ],
+  integrations: [react(), sitemap({ filter: (page) => !page.includes('/404') }), stillRoutes()],
   vite: {
     ssr: { noExternal: ['@lumo/ui', '@lumo/mascot'] },
   },

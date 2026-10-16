@@ -326,6 +326,14 @@ pub fn build_tray(app: &AppHandle, core: &Arc<Core>) -> tauri::Result<()> {
     Ok(())
 }
 
+/// The policy for every preview response. `sandbox` (without `allow-same-origin`,
+/// `allow-top-navigation` or `allow-popups`) gives the page an opaque origin and keeps it from
+/// navigating Lumo's window. That matters because `preview:` is one of Lumo's own protocols, which
+/// Tauri treats as a local origin: a preview page that took over the top-level window would be
+/// handed the IPC bridge. The webview's iframe sets the same sandbox, but this header is enforced
+/// from Rust, so it holds even if the UI forgets it or the URL is opened some other way.
+pub const PREVIEW_CSP: &str = "sandbox allow-scripts allow-forms; default-src 'self' preview: http://preview.localhost https: data: blob: 'unsafe-inline' 'unsafe-eval'; connect-src https:; frame-ancestors http://tauri.localhost tauri://localhost http://localhost:1420";
+
 /// Serve project files to the preview pane: `preview://localhost/<project-id>/<path>`.
 pub fn preview_response(core: &Core, uri_path: &str) -> tauri::http::Response<Vec<u8>> {
     let trimmed = uri_path.trim_start_matches('/');
@@ -336,10 +344,7 @@ pub fn preview_response(core: &Core, uri_path: &str) -> tauri::http::Response<Ve
             .status(200)
             .header("content-type", mime)
             // Previews are untrusted pages: no access to Lumo, no network beyond public assets.
-            .header(
-                "content-security-policy",
-                "default-src 'self' https: data: blob: 'unsafe-inline' 'unsafe-eval'; connect-src https:; frame-ancestors http://tauri.localhost tauri://localhost http://localhost:1420",
-            )
+            .header("content-security-policy", PREVIEW_CSP)
             .header("cache-control", "no-store")
             .body(body)
             .unwrap(),
@@ -385,5 +390,26 @@ fn to_key(p: &str) -> enigo::Key {
         "f11" => Key::F11,
         "f12" => Key::F12,
         other => Key::Unicode(other.chars().next().unwrap_or(' ')),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::core::testing::{core_with, FakePlatform};
+
+    #[test]
+    fn previews_are_sandboxed_without_top_navigation_or_same_origin() {
+        let (core, _d) = core_with(Arc::new(FakePlatform::default()));
+        let p = crate::tools::projects::create(&core, "Site", "website", None).unwrap();
+        std::fs::write(std::path::Path::new(&p.path).join("index.html"), "<h1>hi</h1>").unwrap();
+        let r = preview_response(&core, &format!("/{}/index.html", p.id));
+        assert_eq!(r.status(), 200);
+        let csp = r.headers().get("content-security-policy").unwrap().to_str().unwrap();
+        let sandbox = csp.split(';').next().unwrap().trim();
+        assert!(sandbox.starts_with("sandbox "), "{csp}");
+        for forbidden in ["allow-same-origin", "allow-top-navigation", "allow-popups"] {
+            assert!(!sandbox.contains(forbidden), "{forbidden} in {csp}");
+        }
     }
 }

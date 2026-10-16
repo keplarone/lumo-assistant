@@ -1,6 +1,14 @@
 import { clsx } from 'clsx';
 
-export function Spinner({ size = 16, className, label }: { size?: number; className?: string; label?: string }) {
+export function Spinner({
+  size = 16,
+  className,
+  label,
+}: {
+  size?: number;
+  className?: string;
+  label?: string;
+}) {
   return (
     <svg
       className={clsx('lu-spinner', className)}
@@ -42,6 +50,14 @@ export function ProgressBar({ value, label, className }: ProgressBarProps) {
   );
 }
 
-export function Skeleton({ width, height = 12, className }: { width?: number | string; height?: number | string; className?: string }) {
+export function Skeleton({
+  width,
+  height = 12,
+  className,
+}: {
+  width?: number | string;
+  height?: number | string;
+  className?: string;
+}) {
   return <div className={clsx('lu-skeleton', className)} style={{ width, height }} aria-hidden />;
 }

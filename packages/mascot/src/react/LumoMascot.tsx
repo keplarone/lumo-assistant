@@ -140,7 +140,15 @@ function Framing({ framing, shared }: { framing: number; shared: MutableRefObjec
 }
 
 /** The only frame driver: a rAF loop that advances this root at the current cap, or nothing. */
-function Driver({ active, rate, shared }: { active: boolean; rate: () => number; shared: MutableRefObject<Shared> }) {
+function Driver({
+  active,
+  rate,
+  shared,
+}: {
+  active: boolean;
+  rate: () => number;
+  shared: MutableRefObject<Shared>;
+}) {
   const advance = useThree((s) => s.advance);
   useEffect(() => {
     if (!active) {
@@ -192,7 +200,10 @@ function Character({
 }) {
   const gl = useThree((s) => s.gl);
   const camera = useThree((s) => s.camera);
-  const lumo = useMemo(() => new LumoCompanion({ pixelRatio: gl.getPixelRatio(), calm, particles }), [gl, calm, particles]);
+  const lumo = useMemo(
+    () => new LumoCompanion({ pixelRatio: gl.getPixelRatio(), calm, particles }),
+    [gl, calm, particles],
+  );
   useEffect(() => {
     const holder = shared.current;
     holder.lumo = lumo;
@@ -275,7 +286,10 @@ function Character({
       lumo.parts.head.getWorldPosition(_head);
       _head.y += 0.35;
       _head.project(camera);
-      const origin = { x: rect.left + ((_head.x + 1) / 2) * rect.width, y: rect.top + ((1 - _head.y) / 2) * rect.height };
+      const origin = {
+        x: rect.left + ((_head.x + 1) / 2) * rect.width,
+        y: rect.top + ((1 - _head.y) / 2) * rect.height,
+      };
       const p = target instanceof Element ? centerOf(target) : target;
       if (p) g = gazeTowardClientPoint(p, rect, origin);
     } else if (behavior.gaze) g = behavior.gaze;
@@ -334,17 +348,33 @@ export const LumoMascot = forwardRef<LumoMascotHandle, LumoMascotProps>(function
   ref,
 ) {
   const reduce = usePrefersReducedMotion(reducedMotion);
-  const shared = useRef<Shared>({ lumo: null, gl: null, walkRange: 0, frames: 0, rate: 0, walkX: null, look: null });
+  const shared = useRef<Shared>({
+    lumo: null,
+    gl: null,
+    walkRange: 0,
+    frames: 0,
+    rate: 0,
+    walkX: null,
+    look: null,
+  });
   const hostRef = useRef<HTMLDivElement>(null);
   const [onScreen, setOnScreen] = useState(true);
-  const [docVisible, setDocVisible] = useState(() => (typeof document === 'undefined' ? true : !document.hidden));
+  const [docVisible, setDocVisible] = useState(() =>
+    typeof document === 'undefined' ? true : !document.hidden,
+  );
 
   useImperativeHandle(
     ref,
     () => ({
-      get lumo() { return shared.current.lumo; },
-      get renderer() { return shared.current.gl; },
-      walkTo: (x) => { shared.current.walkX = Math.max(-1, Math.min(1, x)); },
+      get lumo() {
+        return shared.current.lumo;
+      },
+      get renderer() {
+        return shared.current.gl;
+      },
+      walkTo: (x) => {
+        shared.current.walkX = Math.max(-1, Math.min(1, x));
+      },
       turnAround: () => shared.current.lumo?.turnAround(),
       pulse: () => shared.current.lumo?.pulse(),
       blink: () => shared.current.lumo?.blink(),
@@ -398,7 +428,13 @@ export const LumoMascot = forwardRef<LumoMascotHandle, LumoMascotProps>(function
   );
 
   return (
-    <div ref={hostRef} className={className} style={{ position: 'relative', ...style }} role="img" aria-label={`${label}, ${mood}`}>
+    <div
+      ref={hostRef}
+      className={className}
+      style={{ position: 'relative', ...style }}
+      role="img"
+      aria-label={`${label}, ${mood}`}
+    >
       <Canvas
         frameloop="never"
         dpr={[1, 2]}
@@ -407,7 +443,9 @@ export const LumoMascot = forwardRef<LumoMascotHandle, LumoMascotProps>(function
         gl={{ antialias: true, alpha: true, powerPreference: 'low-power' }}
         camera={{ fov: 32, near: 0.1, far: 100, position: [0, 0.35, 10] }}
         style={{ position: 'absolute', inset: 0 }}
-        onCreated={(s: RootState) => { shared.current.gl = s.gl as THREE.WebGLRenderer; }}
+        onCreated={(s: RootState) => {
+          shared.current.gl = s.gl as THREE.WebGLRenderer;
+        }}
       >
         <Framing framing={framing} shared={shared} />
         <Driver active={active} rate={rate} shared={shared} />

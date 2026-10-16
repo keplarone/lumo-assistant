@@ -22,7 +22,8 @@ const list = (v) =>
  * @returns {Promise<{status: number, body: object}>}
  */
 export async function validate(licenseKey, env, fetchImpl = fetch) {
-  if (!env.WHOP_API_KEY) return { status: 503, body: { valid: false, error: 'Licensing is not configured on the server.' } };
+  if (!env.WHOP_API_KEY)
+    return { status: 503, body: { valid: false, error: 'Licensing is not configured on the server.' } };
   if (typeof licenseKey !== 'string' || !KEY_PATTERN.test(licenseKey)) {
     return { status: 400, body: { valid: false, error: 'That does not look like a license key.' } };
   }
@@ -36,13 +37,25 @@ export async function validate(licenseKey, env, fetchImpl = fetch) {
     return { status: 502, body: { valid: false, error: 'Could not reach Whop.' } };
   }
   if (res.status === 404) return { status: 200, body: { valid: false, error: 'License key not found.' } };
-  if (!res.ok) return { status: 502, body: { valid: false, error: `Whop answered with HTTP ${res.status}.` } };
+  if (!res.ok)
+    return { status: 502, body: { valid: false, error: `Whop answered with HTTP ${res.status}.` } };
   const m = await res.json();
   const planId = m?.plan?.id ?? null;
-  const tier = list(env.WHOP_PLANS_PRO || DEFAULT_PLANS.pro).includes(planId) ? 'pro' : list(env.WHOP_PLANS_LITE || DEFAULT_PLANS.lite).includes(planId) ? 'lite' : null;
+  const tier = list(env.WHOP_PLANS_PRO || DEFAULT_PLANS.pro).includes(planId)
+    ? 'pro'
+    : list(env.WHOP_PLANS_LITE || DEFAULT_PLANS.lite).includes(planId)
+      ? 'lite'
+      : null;
   if (!VALID_STATUSES.has(m?.status)) {
-    return { status: 200, body: { valid: false, membershipStatus: m?.status ?? null, error: 'This membership is not active.' } };
+    return {
+      status: 200,
+      body: { valid: false, membershipStatus: m?.status ?? null, error: 'This membership is not active.' },
+    };
   }
-  if (!tier) return { status: 200, body: { valid: false, membershipStatus: m.status, error: 'This membership is not for a Lumo plan.' } };
+  if (!tier)
+    return {
+      status: 200,
+      body: { valid: false, membershipStatus: m.status, error: 'This membership is not for a Lumo plan.' },
+    };
   return { status: 200, body: { valid: true, tier, membershipStatus: m.status } };
 }

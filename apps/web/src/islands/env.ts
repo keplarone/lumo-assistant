@@ -55,7 +55,9 @@ export function useNearViewport(ref: RefObject<Element | null>, margin = '35% 0p
       setNear(true);
       return;
     }
-    const io = new IntersectionObserver((entries) => setNear(entries.some((e) => e.isIntersecting)), { rootMargin: margin });
+    const io = new IntersectionObserver((entries) => setNear(entries.some((e) => e.isIntersecting)), {
+      rootMargin: margin,
+    });
     io.observe(el);
     return () => io.disconnect();
   }, [ref, margin]);
