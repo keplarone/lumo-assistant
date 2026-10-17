@@ -25,6 +25,7 @@ import {
   type Settings,
 } from '../lib/ipc';
 import { mascotEventsFor } from '../lib/mascotEvents';
+import { speech } from '../lib/speech';
 import { applyTheme } from '../lib/theme';
 import { mascotBus } from './mascot';
 import { runStore } from './runs';
@@ -122,6 +123,7 @@ export function AppProvider({ boot, children }: { boot: Boot; children: ReactNod
   }, []);
 
   useEffect(() => applyTheme(settings.theme), [settings.theme]);
+  useEffect(() => speech.setStyle(settings.voiceStyle ?? 'lumo'), [settings.voiceStyle]);
   // The plan changes only through a license check, which reloads settings.
   useEffect(() => void reloadPlanUsage(), [settings.plan, reloadPlanUsage]);
   useEffect(() => {
@@ -136,6 +138,18 @@ export function AppProvider({ boot, children }: { boot: Boot; children: ReactNod
       on('settings-changed', () => void reloadSettings()),
       on('runs-changed', () => void reloadConversations()),
       on('plan-usage-changed', (u) => setPlanUsage(u)),
+      // Reminders, renewals and price drops also arrive as system notifications; in the open app
+      // Lumo pops up with them. The morning brief itself shows (and is read aloud) on Home and My day.
+      on('everyday-alert', (a) => {
+        toast({
+          title: a.title,
+          description: a.body,
+          tone: 'info',
+          duration: a.kind === 'reminder' ? 0 : 8000,
+        });
+        mascotBus.send([{ type: 'agent', phase: 'done' }, { type: 'activity' }]);
+        announce(`${a.title}. ${a.body}`);
+      }),
       on('agent-event', (env) => {
         runStore.apply(env);
         mascotBus.send(mascotEventsFor(env.event));
@@ -160,7 +174,7 @@ export function AppProvider({ boot, children }: { boot: Boot; children: ReactNod
       }),
     ];
     return () => subs.forEach((p) => void p.then((u) => u()));
-  }, [announce, reloadAgents, reloadConversations, reloadSecrets, reloadSettings]);
+  }, [announce, reloadAgents, reloadConversations, reloadSecrets, reloadSettings, toast]);
 
   const value = useMemo<AppState>(
     () => ({

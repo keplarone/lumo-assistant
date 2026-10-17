@@ -8,6 +8,7 @@ pub mod core;
 pub mod db;
 pub mod desktop;
 pub mod error;
+pub mod everyday;
 pub mod integrations;
 pub mod license;
 pub mod location;
@@ -17,6 +18,7 @@ pub mod plans;
 pub mod policy;
 pub mod secrets;
 pub mod settings;
+pub mod stt;
 pub mod tools;
 pub mod util;
 pub mod voice;
@@ -186,6 +188,11 @@ pub fn run() {
             commands::verify_integration,
             commands::disconnect_integration,
             commands::transcribe_audio,
+            commands::transcribe_on_device,
+            commands::speech_model_status,
+            commands::download_speech_model,
+            commands::cancel_speech_model_download,
+            commands::delete_speech_model,
             commands::open_external_url,
             commands::detect_location,
             commands::license_status,
@@ -193,6 +200,20 @@ pub fn run() {
             commands::remove_license,
             commands::plan_usage,
             commands::model_catalog,
+            commands::everyday_overview,
+            commands::add_reminder,
+            commands::delete_reminder,
+            commands::save_subscription,
+            commands::delete_subscription,
+            commands::find_subscriptions_in_statement,
+            commands::watch_price,
+            commands::set_price_target,
+            commands::check_price_now,
+            commands::delete_price_watch,
+            commands::make_brief_now,
+            commands::mark_brief_seen,
+            commands::get_wake_templates,
+            commands::save_wake_templates,
         ])
         .run(tauri::generate_context!())
         .expect("error while running Lumo");

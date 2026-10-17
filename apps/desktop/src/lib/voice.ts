@@ -78,3 +78,30 @@ export async function blobToBase64(blob: Blob): Promise<string> {
   for (let i = 0; i < buf.length; i += chunk) bin += String.fromCharCode(...buf.subarray(i, i + chunk));
   return btoa(bin);
 }
+
+/** Mono 16 kHz audio as 16-bit little-endian PCM, base64 encoded (what on-device transcription takes). */
+export function pcm16Base64(samples: Float32Array): string {
+  const bytes = new Uint8Array(samples.length * 2);
+  const view = new DataView(bytes.buffer);
+  for (let i = 0; i < samples.length; i++) {
+    const s = Math.max(-1, Math.min(1, samples[i]!));
+    view.setInt16(i * 2, Math.round(s < 0 ? s * 32768 : s * 32767), true);
+  }
+  let bin = '';
+  const chunk = 0x8000;
+  for (let i = 0; i < bytes.length; i += chunk) bin += String.fromCharCode(...bytes.subarray(i, i + chunk));
+  return btoa(bin);
+}
+
+/** Decode a recording (any format the webview plays) to mono 16 kHz samples. */
+export async function decodeTo16k(blob: Blob): Promise<Float32Array> {
+  const ctx = new OfflineAudioContext(1, 1, 16_000);
+  const audio = await ctx.decodeAudioData(await blob.arrayBuffer());
+  if (audio.numberOfChannels === 1) return audio.getChannelData(0);
+  const out = new Float32Array(audio.length);
+  for (let c = 0; c < audio.numberOfChannels; c++) {
+    const ch = audio.getChannelData(c);
+    for (let i = 0; i < out.length; i++) out[i] = out[i]! + ch[i]! / audio.numberOfChannels;
+  }
+  return out;
+}

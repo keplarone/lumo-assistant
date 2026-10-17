@@ -8,6 +8,7 @@
 
 pub mod clipboard;
 pub mod computer;
+pub mod everyday;
 pub mod files;
 pub mod journal;
 pub mod location;
@@ -189,6 +190,8 @@ impl Registry {
             Arc::new(Typed(computer::ControlComputer)),
             Arc::new(Typed(memory::Remember)),
             Arc::new(Typed(memory::Forget)),
+            Arc::new(Typed(everyday::GetMyDay)),
+            Arc::new(Typed(everyday::KeepTrack)),
             Arc::new(Typed(projects::CreateProject)),
             Arc::new(Typed(projects::SaveVersion)),
             Arc::new(Typed(projects::PreviewProject)),

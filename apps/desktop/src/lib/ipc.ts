@@ -72,11 +72,22 @@ export interface Settings {
   location: Location | null;
   automationsPaused: boolean;
   maxToolCallsPerRun: number;
+  /** 'device': Lumo's built-in speech model (free, private). 'service': the address below. */
+  sttEngine: 'device' | 'service';
   sttBaseUrl: string;
   sttModel: string;
   ttsEnabled: boolean;
   mascotEnabled: boolean;
   reducedMotion: boolean;
+  /** The morning brief: on/off, local time (HH:MM), and whether the app reads it aloud. */
+  briefEnabled: boolean;
+  briefTime: string;
+  briefReadAloud: boolean;
+  temperatureUnit: 'auto' | 'celsius' | 'fahrenheit';
+  /** Listen for "Hey Lumo" while the app is open (matched on this computer). */
+  wakeWordEnabled: boolean;
+  /** "lumo": the mascot's cute voice; "system": the plain system voice. */
+  voiceStyle: 'lumo' | 'system';
   /** "free", "lite" or "pro". Set only by Rust's license check; saving settings keeps it. */
   plan: string;
   planCheckedAt: string | null;
@@ -104,7 +115,8 @@ export type SecretName =
   | 'netlify_token'
   | 'google_client_secret'
   | 'google_tokens'
-  | 'stt_api_key';
+  | 'stt_api_key'
+  | 'calendar_ics_urls';
 
 // ---- Conversations and runs ---------------------------------------------------------------------
 
@@ -456,6 +468,8 @@ export interface PlanInfo {
   /** Active automations; null means no limit. */
   automations: number | null;
   computerControl: boolean;
+  /** Product pages watched for price drops; null means no limit. */
+  priceWatches: number | null;
   /** The model "Auto" uses on this plan, when known. */
   defaultModel: string | null;
   /** Empty until the catalog has been fetched once. */
@@ -473,7 +487,122 @@ export interface PlanUsage {
   usageError: string | null;
   automationsAllowed: number | null;
   computerControl: boolean;
+  priceWatchesAllowed: number | null;
   plans: PlanInfo[];
+}
+
+// ---- Everyday helpers (src/everyday) ------------------------------------------------------------
+
+export type Repeat = 'none' | 'daily' | 'weekdays' | 'weekly' | 'monthly';
+export type Cycle = 'weekly' | 'monthly' | 'yearly';
+
+export interface Reminder {
+  id: string;
+  text: string;
+  /** The next time it fires (UTC). */
+  dueAt: string;
+  repeat: Repeat;
+  done: boolean;
+  lastFiredAt: string | null;
+  createdAt: string;
+}
+
+export interface ReminderInput {
+  text: string;
+  /** 24-hour HH:MM. */
+  time?: string | null;
+  /** YYYY-MM-DD. */
+  date?: string | null;
+  inMinutes?: number | null;
+  repeat?: Repeat;
+}
+
+export interface Subscription {
+  id: string;
+  name: string;
+  amount: number;
+  currency: string;
+  cycle: Cycle;
+  /** Local date, YYYY-MM-DD. */
+  nextRenewal: string;
+  manageUrl: string | null;
+  createdAt: string;
+}
+
+export interface SubscriptionInput {
+  name: string;
+  amount: number;
+  currency: string;
+  cycle: Cycle;
+  nextRenewal: string;
+  manageUrl?: string | null;
+}
+
+/** A repeating charge found in a statement (not saved until the user tracks it). */
+export interface Recurring {
+  name: string;
+  amount: number;
+  cycle: Cycle;
+  timesSeen: number;
+  lastCharged: string;
+  nextExpected: string;
+}
+
+export interface PriceWatch {
+  id: string;
+  name: string;
+  url: string;
+  currency: string | null;
+  targetPrice: number | null;
+  firstPrice: number | null;
+  lastPrice: number | null;
+  lowestPrice: number | null;
+  lastCheckedAt: string | null;
+  lastError: string | null;
+  createdAt: string;
+}
+
+export interface Brief {
+  /** Local date, YYYY-MM-DD. */
+  day: string;
+  /** Short paragraphs separated by blank lines. */
+  text: string;
+  data: { problems: string[]; missing: string[] };
+  createdAt: string;
+  seen: boolean;
+}
+
+export interface EverydayOverview {
+  reminders: Reminder[];
+  subscriptions: Subscription[];
+  priceWatches: PriceWatch[];
+  brief: Brief | null;
+  calendarConnected: boolean;
+}
+
+/** A reminder firing, a bill about to renew, a price drop or a new morning brief. */
+export interface EverydayAlert {
+  kind: 'reminder' | 'bill' | 'price' | 'brief';
+  title: string;
+  body: string;
+  id: string | null;
+}
+
+// ---- On-device speech-to-text (stt/) ------------------------------------------------------------
+
+export interface SpeechModelStatus {
+  installed: boolean;
+  downloading: boolean;
+  sizeBytes: number;
+  name: string;
+  license: string;
+}
+
+export interface SpeechModelProgress {
+  status: 'checking' | 'downloading' | 'verifying' | 'success' | 'failed' | 'cancelled';
+  completed: number;
+  total: number;
+  done: boolean;
 }
 
 const call = <T>(cmd: string, args?: Record<string, unknown>) => invoke<T>(cmd, args);
@@ -566,6 +695,14 @@ export const api = {
   // Voice: the recording goes to the user's speech-to-text endpoint; Rust attaches the key.
   transcribeAudio: (audioBase64: string, mimeType: string) =>
     call<string>('transcribe_audio', { audioBase64, mimeType }),
+  /** On this computer: mono 16 kHz 16-bit PCM in, text out. */
+  transcribeOnDevice: (pcmBase64: string, lang: string | null) =>
+    call<string>('transcribe_on_device', { pcmBase64, lang }),
+  speechModelStatus: () => call<SpeechModelStatus>('speech_model_status'),
+  /** Resolves when finished; progress arrives as 'speech-model-progress'. */
+  downloadSpeechModel: () => call<void>('download_speech_model'),
+  cancelSpeechModelDownload: () => call<void>('cancel_speech_model_download'),
+  deleteSpeechModel: () => call<void>('delete_speech_model'),
 
   // Plans and licenses
   licenseStatus: () => call<LicenseStatus>('license_status'),
@@ -578,6 +715,28 @@ export const api = {
    * OpenStreetMap and save it as the default location. Errors say how to allow location access.
    */
   detectLocation: () => call<Location>('detect_location'),
+
+  // Everyday helpers. Reminders, renewals and price checks fire from Rust as notifications.
+  everydayOverview: () => call<EverydayOverview>('everyday_overview'),
+  addReminder: (input: ReminderInput) => call<Reminder>('add_reminder', { input }),
+  deleteReminder: (id: string) => call<void>('delete_reminder', { id }),
+  saveSubscription: (id: string | null, input: SubscriptionInput) =>
+    call<Subscription>('save_subscription', { id, input }),
+  deleteSubscription: (id: string) => call<void>('delete_subscription', { id }),
+  /** Opens the native file picker; null if the user cancelled. */
+  findSubscriptionsInStatement: () => call<Recurring[] | null>('find_subscriptions_in_statement'),
+  watchPrice: (url: string, name: string | null, targetPrice: number | null) =>
+    call<PriceWatch>('watch_price', { url, name, targetPrice }),
+  setPriceTarget: (id: string, targetPrice: number | null) =>
+    call<void>('set_price_target', { id, targetPrice }),
+  checkPriceNow: (id: string) => call<PriceWatch>('check_price_now', { id }),
+  deletePriceWatch: (id: string) => call<void>('delete_price_watch', { id }),
+  makeBriefNow: () => call<Brief>('make_brief_now'),
+  markBriefSeen: (day: string) => call<void>('mark_brief_seen', { day }),
+
+  // "Hey Lumo": the user's samples as voice features (13 MFCCs per frame), never audio.
+  getWakeTemplates: () => call<number[][][]>('get_wake_templates'),
+  saveWakeTemplates: (templates: number[][][]) => call<void>('save_wake_templates', { templates }),
 
   /** Open an https link in the default browser. Rust checks the scheme before opening it. */
   openExternal: (url: string) => call<void>('open_external_url', { url }),
@@ -606,6 +765,12 @@ export interface AppEvents {
   'input-control': { active: boolean; stopShortcut: string };
   /** This month's model usage changed (after every task). */
   'plan-usage-changed': PlanUsage;
+  /** Download progress for the on-device speech model. */
+  'speech-model-progress': SpeechModelProgress;
+  /** A reminder, renewal warning, price drop or morning brief (also shown as a notification). */
+  'everyday-alert': EverydayAlert;
+  /** Reminders, bills or price watches changed. */
+  'everyday-changed': { kind: 'reminders' | 'bills' | 'prices' };
   /** Sent by the compact window ("Open in Lumo") to the main window. */
   'open-conversation': string;
 }

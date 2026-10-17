@@ -133,6 +133,14 @@ pub fn set_secret(state: S, name: String, value: String) -> ApiResult<()> {
     if v.is_empty() || v.len() > 8192 {
         return Err(invalid("the value is empty or too long").into());
     }
+    // Calendar addresses are checked (https or webcal, at most five) and stored normalized.
+    let normalized;
+    let v = if name == crate::everyday::calendar::SECRET {
+        normalized = crate::everyday::calendar::normalize_urls(v)?.join("\n");
+        normalized.as_str()
+    } else {
+        v
+    };
     state.core.secrets.set(&name, v)?;
     crate::audit::record(&state.core.db, "user", "set_secret", Some(&name), None, "ok");
     Ok(())
@@ -761,6 +769,35 @@ pub async fn transcribe_audio(app: AppHandle, state: S<'_>, audio_base64: String
     Ok(crate::voice::transcribe(&state.core, &audio_base64, &mime_type).await?)
 }
 
+/// Transcribe on this computer with Lumo's speech model. `pcm_base64` is mono 16 kHz 16-bit PCM,
+/// decoded from the recording by the webview; nothing is sent anywhere.
+#[tauri::command]
+pub async fn transcribe_on_device(state: S<'_>, pcm_base64: String, lang: Option<String>) -> ApiResult<String> {
+    Ok(crate::stt::transcribe(&state.core, &pcm_base64, lang).await?)
+}
+
+#[tauri::command]
+pub async fn speech_model_status(state: S<'_>) -> ApiResult<crate::stt::SpeechModelStatus> {
+    Ok(crate::stt::status(&state.core))
+}
+
+/// Download the speech model. Progress arrives as `speech-model-progress` events.
+#[tauri::command]
+pub async fn download_speech_model(state: S<'_>) -> ApiResult<()> {
+    Ok(crate::stt::pull(&state.core).await?)
+}
+
+#[tauri::command]
+pub async fn cancel_speech_model_download() -> ApiResult<()> {
+    crate::stt::cancel_download();
+    Ok(())
+}
+
+#[tauri::command]
+pub async fn delete_speech_model(state: S<'_>) -> ApiResult<()> {
+    Ok(crate::stt::delete(&state.core).await?)
+}
+
 // ---- Plans and licenses (Whop) --------------------------------------------------------------
 
 #[tauri::command]
@@ -820,4 +857,154 @@ pub fn open_external_url(state: S, url: String) -> ApiResult<()> {
         return Err(invalid("only https links can be opened").into());
     }
     Ok(state.core.platform.open_url(parsed.as_str())?)
+}
+
+// ---- Everyday helpers -----------------------------------------------------------------------
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct EverydayOverview {
+    reminders: Vec<crate::everyday::reminders::Reminder>,
+    subscriptions: Vec<crate::everyday::bills::Subscription>,
+    price_watches: Vec<crate::everyday::prices::PriceWatch>,
+    brief: Option<crate::everyday::brief::Brief>,
+    calendar_connected: bool,
+}
+
+#[tauri::command]
+pub fn everyday_overview(state: S) -> ApiResult<EverydayOverview> {
+    let c = &state.core;
+    Ok(EverydayOverview {
+        reminders: crate::everyday::reminders::upcoming(c)?,
+        subscriptions: crate::everyday::bills::list(c)?,
+        price_watches: crate::everyday::prices::list(c)?,
+        brief: crate::everyday::brief::today_brief(c)?,
+        calendar_connected: crate::everyday::calendar::configured(c),
+    })
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ReminderRequest {
+    text: String,
+    #[serde(default)]
+    time: Option<String>,
+    #[serde(default)]
+    date: Option<String>,
+    #[serde(default)]
+    in_minutes: Option<u32>,
+    #[serde(default)]
+    repeat: Option<String>,
+}
+
+#[tauri::command]
+pub fn add_reminder(state: S, input: ReminderRequest) -> ApiResult<crate::everyday::reminders::Reminder> {
+    let when = crate::everyday::reminders::When { time: input.time, date: input.date, in_minutes: input.in_minutes };
+    Ok(crate::everyday::reminders::add(&state.core, &input.text, &when, input.repeat.as_deref().unwrap_or("none"))?)
+}
+
+#[tauri::command]
+pub fn delete_reminder(state: S, id: String) -> ApiResult<()> {
+    Ok(crate::everyday::reminders::delete(&state.core, &id)?)
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SubscriptionRequest {
+    name: String,
+    amount: f64,
+    currency: String,
+    cycle: String,
+    next_renewal: String,
+    #[serde(default)]
+    manage_url: Option<String>,
+}
+
+#[tauri::command]
+pub fn save_subscription(state: S, id: Option<String>, input: SubscriptionRequest) -> ApiResult<crate::everyday::bills::Subscription> {
+    let i = crate::everyday::bills::SubscriptionInput {
+        name: input.name,
+        amount: input.amount,
+        currency: input.currency,
+        cycle: input.cycle,
+        next_renewal: input.next_renewal,
+        manage_url: input.manage_url.filter(|u| !u.trim().is_empty()),
+    };
+    Ok(crate::everyday::bills::save(&state.core, id.as_deref(), &i)?)
+}
+
+#[tauri::command]
+pub fn delete_subscription(state: S, id: String) -> ApiResult<()> {
+    Ok(crate::everyday::bills::delete(&state.core, &id)?)
+}
+
+/// Let the user pick a bank or card statement (CSV) with the native picker, and list the repeating
+/// charges in it. Nothing is saved; the user chooses which ones to track.
+#[tauri::command]
+pub async fn find_subscriptions_in_statement(app: AppHandle) -> ApiResult<Option<Vec<crate::everyday::bills::Recurring>>> {
+    let (tx, rx) = tokio::sync::oneshot::channel();
+    app.dialog().file().add_filter("Statement (CSV)", &["csv", "txt"]).pick_file(move |p| {
+        let _ = tx.send(p);
+    });
+    let Some(path) = rx.await.ok().flatten().and_then(|p| p.into_path().ok()) else { return Ok(None) };
+    let meta = std::fs::metadata(&path).map_err(LumoError::from)?;
+    if meta.len() > 20 * 1024 * 1024 {
+        return Err(invalid("this file is larger than 20 MB").into());
+    }
+    let bytes = std::fs::read(&path).map_err(LumoError::from)?;
+    Ok(Some(crate::everyday::bills::find_recurring_in_csv(&String::from_utf8_lossy(&bytes))?))
+}
+
+#[tauri::command]
+pub async fn watch_price(
+    state: S<'_>,
+    url: String,
+    name: Option<String>,
+    target_price: Option<f64>,
+) -> ApiResult<crate::everyday::prices::PriceWatch> {
+    crate::plans::check_price_watch_slot(&state.core)?;
+    let found = crate::everyday::prices::read_price(&url).await?;
+    Ok(crate::everyday::prices::add(&state.core, &url, name.as_deref(), target_price, &found)?)
+}
+
+#[tauri::command]
+pub fn set_price_target(state: S, id: String, target_price: Option<f64>) -> ApiResult<()> {
+    Ok(crate::everyday::prices::set_target(&state.core, &id, target_price)?)
+}
+
+#[tauri::command]
+pub async fn check_price_now(state: S<'_>, id: String) -> ApiResult<crate::everyday::prices::PriceWatch> {
+    let result = crate::everyday::prices::read_price(&crate::everyday::prices::get(&state.core, &id)?.url).await;
+    crate::everyday::prices::record(&state.core, &id, result)?;
+    Ok(crate::everyday::prices::get(&state.core, &id)?)
+}
+
+#[tauri::command]
+pub fn delete_price_watch(state: S, id: String) -> ApiResult<()> {
+    Ok(crate::everyday::prices::delete(&state.core, &id)?)
+}
+
+/// Make today's morning brief now (the "Brief me now" button).
+#[tauri::command]
+pub async fn make_brief_now(state: S<'_>) -> ApiResult<crate::everyday::brief::Brief> {
+    Ok(crate::everyday::brief::make_and_save(&state.core).await?)
+}
+
+#[tauri::command]
+pub fn mark_brief_seen(state: S, day: String) -> ApiResult<()> {
+    Ok(crate::everyday::brief::mark_seen(&state.core, &day)?)
+}
+
+// ---- "Hey Lumo" -----------------------------------------------------------------------------
+
+/// The user's recorded "Hey Lumo" samples, as voice features (never audio). Matched in the app on
+/// this computer; kept in the encrypted database.
+#[tauri::command]
+pub fn get_wake_templates(state: S) -> ApiResult<Vec<Vec<Vec<f32>>>> {
+    Ok(crate::voice::wake_templates(&state.core)?)
+}
+
+#[tauri::command]
+pub fn save_wake_templates(state: S, templates: Vec<Vec<Vec<f32>>>) -> ApiResult<()> {
+    Ok(crate::voice::save_wake_templates(&state.core, &templates)?)
 }

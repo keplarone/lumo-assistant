@@ -70,6 +70,10 @@ pub struct Paths {
 pub struct Endpoints {
     pub nominatim: String,
     pub overpass: String,
+    /// MET Norway's weather API (see everyday/weather.rs).
+    pub met_no: String,
+    /// Host the on-device speech model is downloaded from (stt/ pins the rest of the address).
+    pub model_downloads: String,
     /// Lumo's model gateway (see models.rs). None in builds without one.
     pub lumo_api: Option<String>,
 }
@@ -79,6 +83,8 @@ impl Default for Endpoints {
         Endpoints {
             nominatim: "https://nominatim.openstreetmap.org".into(),
             overpass: "https://overpass-api.de/api/interpreter".into(),
+            met_no: "https://api.met.no".into(),
+            model_downloads: crate::stt::DOWNLOAD_HOST.into(),
             lumo_api: crate::models::api_base(),
         }
     }

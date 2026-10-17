@@ -7,6 +7,7 @@ export type Route =
   | { name: 'projects' }
   | { name: 'project'; id: string }
   | { name: 'automations' }
+  | { name: 'everyday' }
   | { name: 'tasks' }
   | { name: 'settings'; section: string }
   | { name: 'compact' }
@@ -22,6 +23,8 @@ export function parseRoute(hash: string): Route {
       return b ? { name: 'project', id: b } : { name: 'projects' };
     case 'automations':
       return { name: 'automations' };
+    case 'everyday':
+      return { name: 'everyday' };
     case 'tasks':
       return { name: 'tasks' };
     case 'settings':
@@ -47,6 +50,8 @@ export function routeHref(r: Route): string {
       return `#/projects/${encodeURIComponent(r.id)}`;
     case 'automations':
       return '#/automations';
+    case 'everyday':
+      return '#/everyday';
     case 'tasks':
       return '#/tasks';
     case 'settings':

@@ -24,13 +24,15 @@ pub struct PlanLimits {
     pub automations: Option<u32>,
     /// The `control_computer` tool (mouse and keyboard).
     pub computer_control: bool,
+    /// Product pages Lumo checks for price drops. None means no limit.
+    pub price_watches: Option<u32>,
 }
 
 /// The plans, cheapest first. Change limits here; everything else reads this table.
 pub const PLANS: [PlanLimits; 3] = [
-    PlanLimits { id: "free", name: "Free", price_usd: 0.0, automations: Some(1), computer_control: false },
-    PlanLimits { id: "lite", name: "Lumo Lite", price_usd: 19.99, automations: Some(10), computer_control: true },
-    PlanLimits { id: "pro", name: "Lumo Pro", price_usd: 49.99, automations: None, computer_control: true },
+    PlanLimits { id: "free", name: "Free", price_usd: 0.0, automations: Some(1), computer_control: false, price_watches: Some(3) },
+    PlanLimits { id: "lite", name: "Lumo Lite", price_usd: 19.99, automations: Some(10), computer_control: true, price_watches: Some(25) },
+    PlanLimits { id: "pro", name: "Lumo Pro", price_usd: 49.99, automations: None, computer_control: true, price_watches: None },
 ];
 
 /// The limits for a plan id. Anything unknown gets Free.
@@ -69,6 +71,7 @@ pub struct PlanInfo {
     pub price_usd: f64,
     pub automations: Option<u32>,
     pub computer_control: bool,
+    pub price_watches: Option<u32>,
     /// The model "Auto" uses on this plan, when known.
     pub default_model: Option<String>,
     /// Empty until the gateway's catalog has arrived once.
@@ -88,6 +91,8 @@ pub struct PlanUsage {
     /// None means no limit.
     pub automations_allowed: Option<u32>,
     pub computer_control: bool,
+    /// None means no limit.
+    pub price_watches_allowed: Option<u32>,
     /// Every plan, from this table and the gateway's catalog.
     pub plans: Vec<PlanInfo>,
 }
@@ -108,6 +113,7 @@ pub async fn usage(core: &Core) -> PlanUsage {
         usage_error,
         automations_allowed: l.automations,
         computer_control: l.computer_control,
+        price_watches_allowed: l.price_watches,
         plans: PLANS
             .iter()
             .map(|p| {
@@ -118,6 +124,7 @@ pub async fn usage(core: &Core) -> PlanUsage {
                     price_usd: c.map(|c| c.price_usd).unwrap_or(p.price_usd),
                     automations: p.automations,
                     computer_control: p.computer_control,
+                    price_watches: p.price_watches,
                     default_model: c.and_then(|c| c.default_model.clone()),
                     models: c.map(|c| c.models.clone()).unwrap_or_default(),
                 }
@@ -192,6 +199,33 @@ pub fn pause_excess_automations(core: &Core) -> Result<usize> {
     crate::audit::record(&core.db, "system", "automations_paused_by_plan", None, Some(&serde_json::json!({"count": extra.len()})), "ok");
     core.platform.broadcast("automations-changed", serde_json::json!({"id": extra[0]}));
     Ok(extra.len())
+}
+
+// ---- Price watches -------------------------------------------------------------------------
+
+/// Refuse watching one more product page than the plan includes.
+pub fn check_price_watch_slot(core: &Core) -> Result<()> {
+    let l = current(core);
+    let n: u32 = core.db.conn().query_row("SELECT count(*) FROM price_watches", [], |r| r.get(0))?;
+    // A technical ceiling for every plan, so background checks stay polite.
+    if n >= 200 {
+        return Err(LumoError::Invalid("Lumo can watch up to 200 prices at once. Stop watching some first.".into()));
+    }
+    let Some(cap) = l.price_watches else { return Ok(()) };
+    if n < cap {
+        return Ok(());
+    }
+    let more: Vec<String> = higher(l)
+        .map(|p| match p.price_watches {
+            Some(c) => format!("{} watches {c}", p.name),
+            None => format!("{} has no limit", p.name),
+        })
+        .collect();
+    Err(plan_limit(format!(
+        "The {} plan watches up to {cap} prices, and you're watching {n}. Stop watching one first, or upgrade: {}.",
+        l.name,
+        join_and(&more.iter().map(String::as_str).collect::<Vec<_>>())
+    )))
 }
 
 // ---- Tools ----------------------------------------------------------------------------------

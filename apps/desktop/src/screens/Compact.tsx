@@ -8,7 +8,7 @@ import { Mascot } from '../components/Mascot';
 import { greeting } from '../lib/format';
 import { api, type AttachmentInfo } from '../lib/ipc';
 import { useApp } from '../state/app';
-import { startedHere } from '../state/runs';
+import { markStartedHere } from '../state/runs';
 
 /** The floating quick-ask window (label "compact", loaded at #/compact). */
 export function Compact() {
@@ -35,7 +35,7 @@ export function Compact() {
 
   const send = async (text: string, attachments: AttachmentInfo[], agentId: string | null) => {
     const started = await api.startRun({ text, attachments: attachments.map((a) => a.token), agentId });
-    startedHere.add(started.runId);
+    markStartedHere(started.runId);
     rememberPendingSend(started.conversationId, text, attachments);
     setConversationId(started.conversationId);
     void app.reloadConversations();

@@ -82,7 +82,14 @@ export function planFeatures(plans: PlanInfo[], index: number): string[] {
         : `${p.automations} automation${p.automations === 1 ? '' : 's'}`,
     );
   if (p.computerControl && !prev?.computerControl) out.push('Lumo can use your mouse and keyboard');
-  if (!prev) out.push('Conversations, files, places and order handoff', 'The Lumo owl');
+  if (!prev || prev.priceWatches !== p.priceWatches)
+    out.push(p.priceWatches === null ? 'Unlimited price watches' : `${p.priceWatches} price watches`);
+  if (!prev)
+    out.push(
+      'Conversations, files, places and order handoff',
+      'Reminders, a morning brief and bill warnings',
+      'The Lumo owl',
+    );
   return out;
 }
 

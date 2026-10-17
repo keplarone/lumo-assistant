@@ -1,21 +1,25 @@
 /**
  * Microphone capture for the composer: push-to-talk (hold) or hands-free (click; stops after a
- * pause). The recording is sent to the user's speech-to-text endpoint by Rust and the text comes
- * back; nothing is sent until the user records.
+ * pause). By default the recording is transcribed on this computer by Lumo's speech model; if the
+ * user chose a speech-to-text service instead, Rust sends it there. Nothing is recorded until the
+ * user starts.
  */
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { api, errorMessage } from '../lib/ipc';
+import { api, errorMessage, isApiError } from '../lib/ipc';
 import {
   blobToBase64,
+  decodeTo16k,
   DEFAULT_VAD,
   MAX_BYTES,
   MAX_MS,
+  pcm16Base64,
   pickMimeType,
   rmsOf,
   vadStart,
   vadStep,
   type VadState,
 } from '../lib/voice';
+import { useApp } from './app';
 
 export type VoiceMode = 'hold' | 'handsfree';
 export type VoiceStatus = 'idle' | 'starting' | 'recording' | 'transcribing';
@@ -58,6 +62,31 @@ export function useVoice(onText: (text: string) => void): Voice {
   const pendingStop = useRef<'stop' | 'cancel' | null>(null);
   const textCb = useRef(onText);
   textCb.current = onText;
+  const app = useApp();
+  const appRef = useRef(app);
+  appRef.current = app;
+
+  const transcribe = async (blob: Blob, mime: string): Promise<string> => {
+    const { settings, secrets } = appRef.current;
+    if (settings.sttEngine === 'device') {
+      try {
+        const pcm = await decodeTo16k(blob);
+        return await api.transcribeOnDevice(pcm16Base64(pcm), navigator.language || null);
+      } catch (e) {
+        if (!(isApiError(e) && e.code === 'not_found')) throw e;
+        // The speech model isn't downloaded: use the service if one is set up.
+        const service =
+          secrets.some((s) => s.name === 'stt_api_key' && s.set) ||
+          /^https?:\/\/(localhost|127\.0\.0\.1)[:/]/.test(settings.sttBaseUrl);
+        if (!service)
+          throw new Error(
+            'To talk to Lumo, download its speech model in Settings → Voice. It’s free and runs on this computer.',
+            { cause: e },
+          );
+      }
+    }
+    return api.transcribeAudio(await blobToBase64(blob), mime);
+  };
 
   const supported =
     typeof navigator !== 'undefined' &&
@@ -173,7 +202,7 @@ export function useVoice(onText: (text: string) => void): Voice {
         }
         setStatus('transcribing');
         try {
-          const text = await api.transcribeAudio(await blobToBase64(blob), r.mime);
+          const text = await transcribe(blob, r.mime);
           if (text.trim()) textCb.current(text.trim());
           else setError('No speech was recognized.');
         } catch (e) {

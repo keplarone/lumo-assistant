@@ -27,7 +27,7 @@ import { navigate } from '../lib/router';
 import type { RunLive, Segment } from '../lib/runState';
 import { buildTranscript, planFor, segmentsFor, type Turn } from '../lib/transcript';
 import { useApp } from '../state/app';
-import { startedHere, useConversationRuns } from '../state/runs';
+import { markStartedHere, speakReplies, startedHere, useConversationRuns } from '../state/runs';
 import { speech } from '../lib/speech';
 import { SpeakingControl } from './SpeakingControl';
 import { Composer, type ComposerHandle } from './Composer';
@@ -151,11 +151,12 @@ export function ConversationView({
   // Runs that started but whose user message isn't in the loaded transcript yet.
   const orphanLive = liveRuns.filter((r) => !turns.some((t) => t.runId === r.runId));
 
-  // Read finished replies aloud (only in the window that started the run).
+  // Read finished replies aloud (only in the window that started the run), always for replies to
+  // something the user said in voice mode.
   useEffect(() => {
-    if (!app.settings.ttsEnabled) return;
     for (const r of liveRuns) {
       if (
+        !(app.settings.ttsEnabled || speakReplies.has(r.runId)) ||
         r.status !== 'done' ||
         !startedHere.has(r.runId) ||
         r.finishedAt === null ||
@@ -186,7 +187,7 @@ export function ConversationView({
         text,
         attachments: attachments.map((a) => a.token),
       });
-      startedHere.add(started.runId);
+      markStartedHere(started.runId);
       stick.current = true;
       await load();
     } catch (e) {

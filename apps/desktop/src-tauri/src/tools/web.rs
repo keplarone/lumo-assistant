@@ -88,6 +88,56 @@ fn is_public(ip: &IpAddr) -> bool {
     }
 }
 
+/// A page fetched by `fetch_public`.
+pub struct PublicPage {
+    /// Where the page was finally read from, after redirects.
+    pub url: url::Url,
+    pub status: u16,
+    /// Lowercased Content-Type, empty if none.
+    pub content_type: String,
+    /// At most `max_bytes` of the body.
+    pub body: Vec<u8>,
+}
+
+/// GET a public http(s) URL. Every redirect hop is checked with `resolve_public`, and each request
+/// connects only to the addresses that were checked (no second DNS lookup). The body is cut at
+/// `max_bytes`. Used by fetch_url, calendar feeds and price watches.
+pub async fn fetch_public(raw: &str, accept: &str, max_bytes: usize) -> Result<PublicPage> {
+    let (mut url, mut addrs) = resolve_public(raw).await?;
+    let mut resp = None;
+    for _ in 0..5 {
+        let mut builder = reqwest::Client::builder()
+            .redirect(reqwest::redirect::Policy::none())
+            .user_agent(concat!("Lumo/", env!("CARGO_PKG_VERSION"), " (+https://github.com/keplarone/lumo-assistant)"))
+            .timeout(std::time::Duration::from_secs(20));
+        if let Some(domain) = url.domain() {
+            builder = builder.resolve_to_addrs(domain, &addrs);
+        }
+        let client = builder.build()?;
+        let r = client.get(url.clone()).header("accept", accept).send().await?;
+        if r.status().is_redirection() {
+            let loc = r.headers().get("location").and_then(|v| v.to_str().ok()).ok_or_else(|| invalid("redirect without a location"))?;
+            (url, addrs) = resolve_public(url.join(loc).map_err(|_| invalid("bad redirect"))?.as_str()).await?;
+            continue;
+        }
+        resp = Some(r);
+        break;
+    }
+    let r = resp.ok_or_else(|| invalid("too many redirects"))?;
+    let status = r.status().as_u16();
+    let content_type = r.headers().get("content-type").and_then(|v| v.to_str().ok()).unwrap_or("").to_lowercase();
+    let mut body = Vec::new();
+    let mut stream = r.bytes_stream();
+    while let Some(chunk) = stream.next().await {
+        body.extend_from_slice(&chunk?);
+        if body.len() >= max_bytes {
+            body.truncate(max_bytes);
+            break;
+        }
+    }
+    Ok(PublicPage { url, status, content_type, body })
+}
+
 pub struct FetchUrl;
 
 #[derive(Deserialize)]
@@ -112,45 +162,13 @@ impl TypedTool for FetchUrl {
         format!("Reading {host}")
     }
     async fn run(&self, ctx: &ToolCtx, i: FetchInput) -> Result<ToolOutput> {
-        let (mut url, mut addrs) = resolve_public(&i.url).await?;
-        // Follow redirects manually so every hop is checked, and connect only to the addresses that
-        // were checked (no second DNS lookup).
-        let mut resp = None;
-        for _ in 0..5 {
-            let mut builder = reqwest::Client::builder()
-                .redirect(reqwest::redirect::Policy::none())
-                .user_agent(concat!("Lumo/", env!("CARGO_PKG_VERSION")))
-                .timeout(std::time::Duration::from_secs(20));
-            if let Some(domain) = url.domain() {
-                builder = builder.resolve_to_addrs(domain, &addrs);
-            }
-            let client = builder.build()?;
-            let r = client.get(url.clone()).header("accept", "text/html,text/plain,application/json;q=0.9,*/*;q=0.5").send().await?;
-            if r.status().is_redirection() {
-                let loc =
-                    r.headers().get("location").and_then(|v| v.to_str().ok()).ok_or_else(|| invalid("redirect without a location"))?;
-                (url, addrs) = resolve_public(url.join(loc).map_err(|_| invalid("bad redirect"))?.as_str()).await?;
-                continue;
-            }
-            resp = Some(r);
-            break;
-        }
-        let r = resp.ok_or_else(|| invalid("too many redirects"))?;
-        let status = r.status();
-        let ctype = r.headers().get("content-type").and_then(|v| v.to_str().ok()).unwrap_or("").to_lowercase();
+        let page = tokio::select! {
+            p = fetch_public(&i.url, "text/html,text/plain,application/json;q=0.9,*/*;q=0.5", 5 * 1024 * 1024) => p?,
+            _ = ctx.cancel.cancelled() => return Err(LumoError::Cancelled),
+        };
+        let (url, status, ctype, body) = (page.url, page.status, page.content_type, page.body);
         if !(ctype.contains("text") || ctype.contains("json") || ctype.contains("xml") || ctype.is_empty()) {
             return Err(LumoError::Unavailable(format!("{url} is {ctype}, which Lumo cannot read as text")));
-        }
-        let mut body = Vec::new();
-        let mut stream = r.bytes_stream();
-        while let Some(chunk) = stream.next().await {
-            if ctx.cancel.is_cancelled() {
-                return Err(LumoError::Cancelled);
-            }
-            body.extend_from_slice(&chunk?);
-            if body.len() > 5 * 1024 * 1024 {
-                break;
-            }
         }
         let raw = String::from_utf8_lossy(&body).to_string();
         let text = if ctype.contains("html") || raw.trim_start().starts_with('<') {
@@ -159,10 +177,10 @@ impl TypedTool for FetchUrl {
             raw
         };
         Ok(ToolOutput {
-            text: format!("{url} (HTTP {})", status.as_u16()),
+            text: format!("{url} (HTTP {status})"),
             untrusted: Some(text),
             summary: format!("Read {}", url.host_str().unwrap_or("page")),
-            data: Some(json!({"url": url.as_str(), "status": status.as_u16()})),
+            data: Some(json!({"url": url.as_str(), "status": status})),
             ..Default::default()
         })
     }
