@@ -6,7 +6,7 @@
  * disabled "Coming soon" state that links to the releases page instead of inventing file links.
  */
 export const RELEASE = {
-  version: '0.1.0' as string | null,
+  version: '0.2.0' as string | null,
   repo: 'keplarone/lumo-assistant',
 };
 
