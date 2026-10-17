@@ -58,7 +58,7 @@ html2text = "0.17"
 async-trait = "0.1"
 parking_lot = "0.12"
 xcap = { version = "0.7", default-features = false }
-zip = { version = "2", default-features = false, features = ["deflate"] }
+zip = { version = "9", default-features = false, features = ["deflate"] }
 enigo = "0.6"
 sysinfo = { version = "0.36.1", default-features = false, features = ["system"] }
 # On-device speech-to-text: Whisper on candle (pure Rust, MIT/Apache-2.0). Pinned together;
