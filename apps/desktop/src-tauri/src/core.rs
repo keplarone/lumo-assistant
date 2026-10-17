@@ -126,6 +126,10 @@ pub struct Core {
     pub provider_override: Mutex<Option<Arc<dyn ModelProvider>>>,
     pub endpoints: Mutex<Endpoints>,
     pub api_bases: Mutex<crate::integrations::ApiBases>,
+    /// The Lumo account configuration and its in-memory access token (see account.rs).
+    pub account: Mutex<crate::account::AccountState>,
+    /// The core itself, for model calls that fetch a fresh account token each time.
+    this: std::sync::Weak<Core>,
 }
 
 impl Core {
@@ -135,7 +139,8 @@ impl Core {
             .connect_timeout(std::time::Duration::from_secs(15))
             .build()
             .expect("http client");
-        Arc::new(Core {
+        Arc::new_cyclic(|this| Core {
+            this: this.clone(),
             db,
             secrets,
             http,
@@ -146,6 +151,7 @@ impl Core {
             provider_override: Mutex::new(None),
             endpoints: Mutex::new(Endpoints::default()),
             api_bases: Mutex::new(Default::default()),
+            account: Mutex::new(crate::account::AccountState::new(crate::account::AccountConfig::from_build())),
         })
     }
 
@@ -164,12 +170,11 @@ impl Core {
             .lumo_api
             .clone()
             .ok_or_else(|| crate::error::LumoError::Unavailable("Lumo's models aren't available in this build.".into()))?;
-        Ok(Arc::new(crate::model::cloud::LumoCloud::new(
-            self.http.clone(),
-            &base,
-            crate::models::install_id(self)?,
-            crate::models::license_key(self),
-        )))
+        let install = crate::models::install_id(self)?;
+        if crate::account::uses_account(self) {
+            return Ok(Arc::new(crate::model::cloud::LumoCloud::for_account(self.http.clone(), &base, install, self.this.clone())));
+        }
+        Ok(Arc::new(crate::model::cloud::LumoCloud::new(self.http.clone(), &base, install, crate::models::license_key(self))))
     }
 }
 

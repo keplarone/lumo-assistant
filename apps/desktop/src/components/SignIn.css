@@ -1,0 +1,74 @@
+/* Sign-in screen (components/SignIn.tsx). Layout only; colors and type come from the design tokens. */
+.lm-signin {
+  display: grid;
+  place-items: center;
+  min-height: 100%;
+  padding: var(--lu-space-8) var(--lu-space-4);
+}
+
+.lm-signin-card {
+  display: grid;
+  justify-items: center;
+  gap: var(--lu-space-4);
+  width: min(420px, 100%);
+  text-align: center;
+}
+
+.lm-signin-title {
+  margin: 0;
+  font-size: 1.6rem;
+  color: var(--lu-text);
+}
+
+.lm-signin-sub,
+.lm-signin-waiting p,
+.lm-signin-note {
+  margin: 0;
+  color: var(--lu-text-secondary);
+}
+
+.lm-signin-actions {
+  display: grid;
+  gap: var(--lu-space-2);
+  width: 100%;
+}
+
+.lm-signin-waiting {
+  display: grid;
+  justify-items: center;
+  gap: var(--lu-space-3);
+}
+
+.lm-signin-note {
+  display: flex;
+  gap: var(--lu-space-2);
+  align-items: flex-start;
+  font-size: 0.85rem;
+  text-align: left;
+}
+
+.lm-signin-note svg {
+  flex: none;
+  width: 16px;
+  height: 16px;
+  margin-top: 2px;
+}
+
+/* Two-step setup (screens/settings/Account.tsx) */
+.lm-twostep {
+  display: grid;
+  gap: var(--lu-space-3);
+  justify-items: start;
+}
+
+.lm-twostep-qr {
+  justify-self: center;
+  border-radius: 8px;
+  background: #fff;
+  padding: var(--lu-space-2);
+}
+
+.lm-twostep-secret {
+  user-select: all;
+  word-break: break-all;
+}

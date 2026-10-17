@@ -48,9 +48,11 @@ pub fn license_key(core: &Core) -> Option<String> {
     core.secrets.get(crate::license::SECRET).ok().flatten()
 }
 
-fn request(core: &Core, rb: reqwest::RequestBuilder) -> Result<reqwest::RequestBuilder> {
+async fn request(core: &Core, rb: reqwest::RequestBuilder) -> Result<reqwest::RequestBuilder> {
     let rb = rb.header("X-Lumo-Install", install_id(core)?).timeout(Duration::from_secs(15));
-    Ok(match license_key(core) {
+    let bearer =
+        if crate::account::uses_account(core) { Some(crate::account::gateway_token(core, false).await?) } else { license_key(core) };
+    Ok(match bearer {
         Some(k) => rb.bearer_auth(k),
         None => rb,
     })
@@ -143,7 +145,7 @@ pub struct ServerUsage {
 /// How much of this month's allowance is used, from the gateway. When the gateway says the license
 /// grants a different plan (it lapsed, or changed on Whop), the app follows it.
 pub async fn usage(core: &Core) -> Result<ServerUsage> {
-    let resp = request(core, core.http.get(format!("{}/api/usage", base(core)?)))?.send().await?;
+    let resp = request(core, core.http.get(format!("{}/api/usage", base(core)?))).await?.send().await?;
     let status = resp.status().as_u16();
     let body: serde_json::Value = resp.json().await.unwrap_or_default();
     if status == 403 && body["code"] == "license_invalid" {

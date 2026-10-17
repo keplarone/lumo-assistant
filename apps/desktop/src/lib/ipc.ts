@@ -80,6 +80,39 @@ export interface Settings {
   /** "free", "lite" or "pro". Set only by Rust's license check; saving settings keeps it. */
   plan: string;
   planCheckedAt: string | null;
+  /** The signed-in Lumo account. Set only by Rust's sign-in; saving settings keeps it. */
+  account: AccountInfo | null;
+}
+
+/** account.rs AccountInfo. */
+export interface AccountInfo {
+  userId: string;
+  email: string | null;
+  name: string | null;
+  twoStep: boolean;
+  licenseLinked: boolean;
+  /** How they last signed in, as AuthKit reports it ("GoogleOAuth", "Password", "Passkey", ...). */
+  method: string | null;
+  checkedAt: string | null;
+}
+
+/** account.rs AccountStatus. */
+export interface AccountStatus {
+  /** False in builds without accounts (development); sign-in isn't required then. */
+  configured: boolean;
+  signedIn: boolean;
+  signingIn: boolean;
+  account: AccountInfo | null;
+  recommendPasskey: boolean;
+  recommendTwoStep: boolean;
+}
+
+export type SignInMode = 'google' | 'email' | 'sign_up';
+
+/** account.rs TwoStepSetup: what to put in an authenticator app. */
+export interface TwoStepSetup {
+  qrCode: string | null;
+  secret: string;
 }
 
 export interface AppInfo {
@@ -566,6 +599,19 @@ export const api = {
   // Voice: the recording goes to the user's speech-to-text endpoint; Rust attaches the key.
   transcribeAudio: (audioBase64: string, mimeType: string) =>
     call<string>('transcribe_audio', { audioBase64, mimeType }),
+
+  // Account. Sign-in happens in the browser; these resolve when it finishes there.
+  accountStatus: () => call<AccountStatus>('account_status'),
+  accountSignIn: (mode: SignInMode) => call<AccountStatus>('account_sign_in', { mode }),
+  accountCancelSignIn: () => call<void>('account_cancel_sign_in'),
+  accountRefresh: () => call<AccountStatus>('account_refresh'),
+  accountSignOut: () => call<AccountStatus>('account_sign_out'),
+  /** Rust asks for confirmation in a native dialog first. */
+  accountDelete: () => call<AccountStatus>('account_delete'),
+  twoStepStart: () => call<TwoStepSetup>('account_two_step_start'),
+  twoStepConfirm: (code: string) => call<AccountStatus>('account_two_step_confirm', { code }),
+  twoStepCancel: () => call<AccountStatus>('account_two_step_cancel'),
+  twoStepOff: (code: string) => call<AccountStatus>('account_two_step_off', { code }),
 
   // Plans and licenses
   licenseStatus: () => call<LicenseStatus>('license_status'),

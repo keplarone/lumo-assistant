@@ -6,15 +6,21 @@
 //   Redis (see store.js) required: without it nothing can be metered, so chat is refused.
 //   WHOP_API_KEY and friends (see validate.js) to check paid licenses.
 //
-// Who is asking: paid users send their license key as `Authorization: Bearer <key>`; every install
-// also sends `X-Lumo-Install: <32 hex chars>`, a random id it made on first run, which is all Free
-// users have until accounts arrive.
+// Who is asking: a signed-in person sends their Lumo account's access token as `Authorization: Bearer
+// <AuthKit JWT>` (see accounts.js); usage then counts per account and the plan is the one linked to the
+// account. Builds without accounts send a license key as the bearer instead (refused once that key is
+// linked to an account), or nothing on Free. Every install also sends `X-Lumo-Install: <32 hex chars>`,
+// a random id it made on first run. LUMO_REQUIRE_ACCOUNT=1 refuses callers that aren't signed in.
 
 import { createHash } from 'node:crypto';
 import { MODELS, plan as planById, publicCatalog, freeRoster } from './catalog.js';
 import { validate } from './validate.js';
+import { ACCOUNT_PLAN_TTL, accountPlanKey, accountTier } from './accounts.js';
+import { membershipKey } from './links.js';
+import { AuthError, verifyAccessToken } from './workos.js';
 
 const INSTALL_ID = /^[a-f0-9]{32}$/;
+const JWT = /^[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+$/;
 const MAX_OUTPUT_TOKENS = 8192;
 const MAX_BODY_BYTES = 4_000_000;
 const MICRO = 1_000_000;
@@ -56,13 +62,23 @@ async function liveModels(env, fetchImpl, now) {
 /**
  * @returns {Promise<{ok: true, plan: import('./catalog.js').Plan, subject: string} | {ok: false, response: Response}>}
  */
-async function identify(request, env, { store, fetchImpl }) {
+async function identify(request, env, { store, fetchImpl, links, key }) {
   const install = (request.headers.get('x-lumo-install') || '').toLowerCase();
   if (!INSTALL_ID.test(install))
     return { ok: false, response: fail(400, 'invalid', 'This copy of Lumo did not identify itself.') };
   const auth = request.headers.get('authorization') || '';
-  const licenseKey = auth.startsWith('Bearer ') ? auth.slice(7).trim() : '';
+  const bearer = auth.startsWith('Bearer ') ? auth.slice(7).trim() : '';
+  if (bearer && JWT.test(bearer)) return identifyAccount(auth, env, { store, fetchImpl, links, key });
+  if (env.LUMO_REQUIRE_ACCOUNT === '1')
+    return { ok: false, response: fail(401, 'sign_in_required', 'Sign in to Lumo to continue.') };
+  const licenseKey = bearer;
   if (!licenseKey) return { ok: true, plan: planById('free'), subject: `i:${install}` };
+  // A license that belongs to an account works only for that account, so a shared key is useless.
+  if (links && (await links.read(membershipKey(licenseKey)).catch(() => null)))
+    return {
+      ok: false,
+      response: fail(403, 'sign_in_required', 'This license belongs to a Lumo account. Sign in to use it.'),
+    };
 
   const cacheKey = `lic:${sha(licenseKey)}`;
   let tier = await store.get(cacheKey);
@@ -85,6 +101,33 @@ async function identify(request, env, { store, fetchImpl }) {
     };
   }
   return { ok: true, plan: planById(tier), subject: `m:${sha(licenseKey).slice(0, 32)}` };
+}
+
+/** A signed-in person: usage counts per account, and the plan is the account's linked membership. */
+async function identifyAccount(auth, env, { store, fetchImpl, links, key }) {
+  let who;
+  try {
+    who = await verifyAccessToken(auth, env, key);
+  } catch (e) {
+    return e instanceof AuthError
+      ? { ok: false, response: fail(401, 'sign_in_required', e.message) }
+      : { ok: false, response: fail(503, 'unavailable', 'Accounts are not set up on the server.') };
+  }
+  const cacheKey = accountPlanKey(who.userId);
+  let tier = await store.get(cacheKey);
+  if (tier === null) {
+    if (!links)
+      return { ok: false, response: fail(503, 'unavailable', 'Accounts are not set up on the server.') };
+    tier = await accountTier(who.userId, { env, store: links, fetch: fetchImpl }).catch(() => null);
+    if (tier === null)
+      return {
+        ok: false,
+        response: fail(503, 'unavailable', 'The license check is down. Try again in a moment.'),
+      };
+    await store.set(cacheKey, tier, ACCOUNT_PLAN_TTL);
+  }
+  if (!['free', 'lite', 'pro'].includes(tier)) tier = 'free';
+  return { ok: true, plan: planById(tier), subject: `u:${who.userId}` };
 }
 
 // ---- Usage -----------------------------------------------------------------------------------
@@ -250,6 +293,9 @@ function deps(overrides = {}) {
   return {
     fetchImpl: overrides.fetchImpl ?? fetch,
     store: overrides.store,
+    // Account links (links.js) and, in tests, the keys access tokens are signed with.
+    links: overrides.links ?? null,
+    key: overrides.key,
     now: overrides.now ?? (() => new Date()),
   };
 }

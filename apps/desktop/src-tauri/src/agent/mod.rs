@@ -88,6 +88,8 @@ pub fn prepare(
     if text.len() > 100_000 {
         return Err(invalid("the message is too long"));
     }
+    // Lumo works only for a signed-in person (in builds with accounts).
+    crate::account::require_signed_in(core)?;
     let settings = core.settings();
     let existing = match &req.conversation_id {
         Some(id) => {

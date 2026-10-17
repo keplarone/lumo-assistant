@@ -3,12 +3,16 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
-  "description": "Lumo's server: checks Whop memberships (api/validate.js) and forwards the app's model calls to OpenRouter with each plan's limits (api/chat.js, api/usage.js, api/models.js). Deployed on Vercel as lumo-license.",
+  "description": "Lumo's server: Lumo accounts (api/account.js), Whop membership checks (api/validate.js) and forwards the app's model calls to OpenRouter with each plan's limits (api/chat.js, api/usage.js, api/models.js). Deployed on Vercel as lumo-license.",
   "scripts": {
     "test": "node --test test/*.test.js",
     "check-models": "node scripts/check-models.mjs"
   },
   "engines": {
     "node": ">=22"
+  },
+  "dependencies": {
+    "@vercel/blob": "^2.8.2",
+    "jose": "^6.2.12"
   }
 }

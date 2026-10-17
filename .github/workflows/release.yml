@@ -82,6 +82,8 @@ jobs:
           # Whop license server URL. Defaults to the deployed lumo-license project; override with a repository variable.
           LUMO_LICENSE_SERVER: ${{ vars.LUMO_LICENSE_SERVER || 'https://lumo-license.vercel.app/api/validate' }}
           # Optional Whop checkout URL overrides (repository variables); default is whop.com/checkout/<plan>.
+          LUMO_WORKOS_CLIENT_ID: ${{ vars.LUMO_WORKOS_CLIENT_ID }}
+          LUMO_ACCOUNT_SERVER: ${{ vars.LUMO_ACCOUNT_SERVER }}
           LUMO_WHOP_CHECKOUT_LITE: ${{ vars.LUMO_WHOP_CHECKOUT_LITE }}
           LUMO_WHOP_CHECKOUT_PRO: ${{ vars.LUMO_WHOP_CHECKOUT_PRO }}
           # Signing secrets (updater, Apple) arrive through GITHUB_ENV from the step above when configured.

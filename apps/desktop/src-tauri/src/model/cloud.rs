@@ -18,13 +18,34 @@ pub struct LumoCloud {
     /// The gateway's base address, e.g. https://lumo-license.vercel.app.
     base_url: String,
     install_id: String,
-    /// Paid plans only; Free is counted by the install id.
-    license_key: Option<String>,
+    auth: GatewayAuth,
+}
+
+/** Who the gateway is told is asking. */
+enum GatewayAuth {
+    /// Builds without accounts: the license key on paid plans; Free is counted by the install id.
+    License(Option<String>),
+    /// The signed-in Lumo account: a fresh access token on every call (see account.rs).
+    Account(std::sync::Weak<crate::core::Core>),
 }
 
 impl LumoCloud {
     pub fn new(http: reqwest::Client, base_url: &str, install_id: String, license_key: Option<String>) -> Self {
-        LumoCloud { http, base_url: base_url.trim_end_matches('/').to_string(), install_id, license_key }
+        LumoCloud { http, base_url: base_url.trim_end_matches('/').to_string(), install_id, auth: GatewayAuth::License(license_key) }
+    }
+
+    pub fn for_account(http: reqwest::Client, base_url: &str, install_id: String, core: std::sync::Weak<crate::core::Core>) -> Self {
+        LumoCloud { http, base_url: base_url.trim_end_matches('/').to_string(), install_id, auth: GatewayAuth::Account(core) }
+    }
+
+    async fn bearer(&self, fresh: bool) -> Result<Option<String>> {
+        match &self.auth {
+            GatewayAuth::License(k) => Ok(k.clone()),
+            GatewayAuth::Account(core) => {
+                let core = core.upgrade().ok_or(LumoError::Cancelled)?;
+                crate::account::gateway_token(&core, fresh).await.map(Some)
+            }
+        }
     }
 }
 
@@ -155,9 +176,10 @@ impl ModelProvider for LumoCloud {
         }
 
         let mut attempt = 0;
+        let mut fresh_token = false;
         let resp = loop {
             let mut rb = self.http.post(format!("{}/api/chat", self.base_url)).header("X-Lumo-Install", &self.install_id).json(&body);
-            if let Some(k) = &self.license_key {
+            if let Some(k) = self.bearer(fresh_token).await? {
                 rb = rb.bearer_auth(k);
             }
             let r = tokio::select! {
@@ -170,6 +192,11 @@ impl ModelProvider for LumoCloud {
                     let status = r.status().as_u16();
                     let ra = r.headers().get("retry-after").and_then(|v| v.to_str().ok()).map(String::from);
                     let text = r.text().await.unwrap_or_default();
+                    // An access token can expire between the check and the call: refresh it once.
+                    if status == 401 && !fresh_token && matches!(self.auth, GatewayAuth::Account(_)) {
+                        fresh_token = true;
+                        continue;
+                    }
                     let err = gateway_error(status, &text);
                     // Busy models and short outages are retried; plan limits and bad requests are not.
                     if matches!(err, LumoError::Unavailable(_)) && matches!(status, 429 | 500 | 502 | 503 | 504) && attempt < 3 {

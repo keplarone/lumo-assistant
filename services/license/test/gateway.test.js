@@ -285,3 +285,89 @@ test('the public catalog lists Free, Lite and Pro only, with vision flags', asyn
   assert.ok(PLANS.every((p) => p.id !== 'unlimited'));
   assert.equal(nextReset(new Date('2026-12-31T23:59:00Z')), '2027-01-01T00:00:00.000Z');
 });
+
+// ---- Signed-in accounts ------------------------------------------------------------------------
+
+const { SignJWT, exportJWK, generateKeyPair, createLocalJWKSet } = await import('jose');
+const { memoryLinkStore, membershipKey, userKey } = await import('../links.js');
+const keys = await generateKeyPair('RS256');
+const key = createLocalJWKSet({ keys: [{ ...(await exportJWK(keys.publicKey)), kid: 'k1', alg: 'RS256' }] });
+const accessToken = (sub, signWith = keys.privateKey) =>
+  new SignJWT({ sid: 'session_1' })
+    .setProtectedHeader({ alg: 'RS256', kid: 'k1' })
+    .setSubject(sub)
+    .setIssuedAt()
+    .setExpirationTime('5m')
+    .sign(signWith);
+
+test('a signed-in account is counted per account and gets its linked plan', async () => {
+  const store = memoryStore();
+  const links = memoryLinkStore();
+  const { fetchImpl, calls } = network();
+  const token = await accessToken('user_A');
+
+  // No plan linked: Free, counted against the account rather than this install.
+  let res = await chat(request(hello, { license: token }), env, { store, fetchImpl, now, links, key });
+  assert.equal(res.status, 200);
+  assert.equal(res.headers.get('X-Lumo-Plan'), 'free');
+  await res.text();
+  assert.equal(calls.chat[0].user, 'u:user_A');
+  assert.equal(store.data.get('tok:u:user_A:2026-10'), '1200');
+  assert.equal(calls.whop, 0);
+
+  // Linking a Lite membership (accounts.js writes the plan through to the cache).
+  await links.write(userKey('user_A'), { membershipId: 'mem_LITE_0001' });
+  await links.write(membershipKey('mem_LITE_0001'), { userId: 'user_A' });
+  store.data.delete('acct:user_A');
+  res = await usage(request(hello, { license: token }), env, { store, fetchImpl, now, links, key });
+  assert.equal((await res.json()).plan, 'lite');
+  assert.equal(calls.whop, 1);
+  res = await usage(request(hello, { license: token }), env, { store, fetchImpl, now, links, key });
+  assert.equal((await res.json()).plan, 'lite');
+  assert.equal(calls.whop, 1, 'the plan is cached for a while');
+
+  // The linked key can't be used on its own any more, so sharing it gets nobody anything.
+  res = await chat(request(hello, { license: 'mem_LITE_0001' }), env, { store, fetchImpl, now, links, key });
+  assert.equal(res.status, 403);
+  assert.equal((await res.json()).code, 'sign_in_required');
+});
+
+test('forged tokens are refused and signing in can be required', async () => {
+  const store = memoryStore();
+  const links = memoryLinkStore();
+  const { fetchImpl, calls } = network();
+  const forged = await accessToken('user_A', (await generateKeyPair('RS256')).privateKey);
+  let res = await chat(request(hello, { license: forged }), env, { store, fetchImpl, now, links, key });
+  assert.equal(res.status, 401);
+  assert.equal((await res.json()).code, 'sign_in_required');
+  assert.equal(calls.chat.length, 0);
+
+  const strict = { ...env, LUMO_REQUIRE_ACCOUNT: '1' };
+  res = await chat(request(hello), strict, { store, fetchImpl, now, links, key });
+  assert.equal(res.status, 401);
+  res = await chat(request(hello, { license: await accessToken('user_B') }), strict, {
+    store,
+    fetchImpl,
+    now,
+    links,
+    key,
+  });
+  assert.equal(res.status, 200);
+  await res.text();
+});
+
+test('Whop being down does not downgrade a signed-in account', async () => {
+  const store = memoryStore();
+  const links = memoryLinkStore();
+  await links.write(userKey('user_C'), { membershipId: 'mem_PRO_00001' });
+  const fetchImpl = async () => new Response('down', { status: 500 });
+  const res = await usage(request(hello, { license: await accessToken('user_C') }), env, {
+    store,
+    fetchImpl,
+    now,
+    links,
+    key,
+  });
+  assert.equal(res.status, 503);
+  assert.equal(store.data.get('acct:user_C'), undefined, 'nothing is cached from a failed check');
+});

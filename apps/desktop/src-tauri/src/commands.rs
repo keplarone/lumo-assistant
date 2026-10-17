@@ -80,6 +80,7 @@ pub async fn save_settings(app: AppHandle, state: S<'_>, mut settings: Settings)
     // The plan comes only from a verified license, never from the webview.
     settings.plan = old.plan.clone();
     settings.plan_checked_at = old.plan_checked_at.clone();
+    settings.account = old.account.clone();
     settings.validate()?;
     // A saved key is only sent to a new server after the user confirms it natively.
     settings::confirm_key_destinations(&state.core, &old, &settings).await?;
@@ -761,6 +762,68 @@ pub async fn transcribe_audio(app: AppHandle, state: S<'_>, audio_base64: String
     Ok(crate::voice::transcribe(&state.core, &audio_base64, &mime_type).await?)
 }
 
+// ---- Account ----------------------------------------------------------------------------------
+
+#[tauri::command]
+pub fn account_status(state: S) -> crate::account::AccountStatus {
+    crate::account::status(&state.core)
+}
+
+/// Open the sign-in page in the browser and wait until the person finishes there.
+/// `mode` is "google", "email" or "sign_up".
+#[tauri::command]
+pub async fn account_sign_in(app: AppHandle, state: S<'_>, mode: String) -> ApiResult<crate::account::AccountStatus> {
+    let out = crate::account::sign_in(&state.core, &mode).await?;
+    let _ = app.emit("settings-changed", ());
+    Ok(out)
+}
+
+#[tauri::command]
+pub fn account_cancel_sign_in(state: S) {
+    crate::account::cancel_sign_in(&state.core)
+}
+
+#[tauri::command]
+pub async fn account_refresh(app: AppHandle, state: S<'_>) -> ApiResult<crate::account::AccountStatus> {
+    let out = crate::account::refresh(&state.core).await;
+    let _ = app.emit("settings-changed", ());
+    Ok(out?)
+}
+
+#[tauri::command]
+pub async fn account_sign_out(app: AppHandle, state: S<'_>) -> ApiResult<crate::account::AccountStatus> {
+    let out = crate::account::sign_out(&state.core).await?;
+    let _ = app.emit("settings-changed", ());
+    Ok(out)
+}
+
+#[tauri::command]
+pub async fn account_delete(app: AppHandle, state: S<'_>) -> ApiResult<crate::account::AccountStatus> {
+    let out = crate::account::delete(&state.core).await?;
+    let _ = app.emit("settings-changed", ());
+    Ok(out)
+}
+
+#[tauri::command]
+pub async fn account_two_step_start(state: S<'_>) -> ApiResult<crate::account::TwoStepSetup> {
+    Ok(crate::account::two_step_start(&state.core).await?)
+}
+
+#[tauri::command]
+pub async fn account_two_step_confirm(state: S<'_>, code: String) -> ApiResult<crate::account::AccountStatus> {
+    Ok(crate::account::two_step_confirm(&state.core, &code).await?)
+}
+
+#[tauri::command]
+pub async fn account_two_step_cancel(state: S<'_>) -> ApiResult<crate::account::AccountStatus> {
+    Ok(crate::account::two_step_cancel(&state.core).await?)
+}
+
+#[tauri::command]
+pub async fn account_two_step_off(state: S<'_>, code: String) -> ApiResult<crate::account::AccountStatus> {
+    Ok(crate::account::two_step_off(&state.core, &code).await?)
+}
+
 // ---- Plans and licenses (Whop) --------------------------------------------------------------
 
 #[tauri::command]
@@ -774,8 +837,8 @@ pub async fn activate_license(state: S<'_>, license_key: String) -> ApiResult<cr
 }
 
 #[tauri::command]
-pub fn remove_license(state: S) -> ApiResult<crate::license::LicenseStatus> {
-    Ok(crate::license::deactivate(&state.core)?)
+pub async fn remove_license(state: S<'_>) -> ApiResult<crate::license::LicenseStatus> {
+    Ok(crate::license::remove(&state.core).await?)
 }
 
 /// This month's model usage and what every plan includes. Display only: model use is enforced by

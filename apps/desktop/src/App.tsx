@@ -5,6 +5,7 @@ import { ConversationView } from './components/ConversationView';
 import { InputControlBanner } from './components/InputControlBanner';
 import { LumoMark } from './components/Mascot';
 import { Sidebar } from './components/Sidebar';
+import { SignIn } from './components/SignIn';
 import { api, errorMessage, hasBridge, on } from './lib/ipc';
 import { navigate, useRoute, type Route } from './lib/router';
 import { applyTheme } from './lib/theme';
@@ -48,10 +49,10 @@ export function App() {
 
   useEffect(() => {
     if (!bridge) return;
-    Promise.all([api.getSettings(), api.appInfo()])
-      .then(([settings, info]) => {
+    Promise.all([api.getSettings(), api.appInfo(), api.accountStatus().catch(() => null)])
+      .then(([settings, info, account]) => {
         applyTheme(settings.theme);
-        setBoot({ settings, info });
+        setBoot({ settings, info, accountsRequired: account?.configured === true });
       })
       .catch((e) => setError(errorMessage(e)));
   }, [bridge]);
@@ -86,18 +87,21 @@ export function App() {
     <ToastProvider>
       <TooltipProvider>
         <AppProvider boot={boot}>
-          <Root />
+          <Root accountsRequired={boot.accountsRequired} />
         </AppProvider>
       </TooltipProvider>
     </ToastProvider>
   );
 }
 
-function Root() {
+function Root({ accountsRequired }: { accountsRequired: boolean }) {
   const app = useApp();
   const route = useRoute();
+  // Lumo needs a signed-in account (Rust enforces this too). Signing in reloads the settings, which
+  // carry the account, so this lifts by itself.
+  const needsSignIn = accountsRequired && !app.settings.account;
   if (route.name === 'compact') {
-    if (!app.settings.onboarded) {
+    if (needsSignIn || !app.settings.onboarded) {
       return (
         <div className="lm-boot">
           <LumoMark size={24} />
@@ -115,6 +119,7 @@ function Root() {
       </>
     );
   }
+  if (needsSignIn) return <SignIn onSignedIn={() => void app.reloadSettings()} />;
   if (!app.settings.onboarded) return <Onboarding />;
   return <Shell route={route} />;
 }
