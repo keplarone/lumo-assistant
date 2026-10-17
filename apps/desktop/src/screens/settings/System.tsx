@@ -2,7 +2,7 @@ import { Badge, Button, Callout, Input, Spinner } from '@lumo/ui';
 import { FileText, RefreshCw } from 'lucide-react';
 import { useCallback, useEffect, useState } from 'react';
 import { dateTime } from '../../lib/format';
-import { api, errorMessage, type AuditEntry, type IntegrationStatus } from '../../lib/ipc';
+import { api, errorMessage, type AuditEntry, type IntegrationStatus, type OrderingApp } from '../../lib/ipc';
 import { routeHref } from '../../lib/router';
 import { useApp } from '../../state/app';
 import appIcon from '../../assets/app-icon-512.png';
@@ -55,7 +55,153 @@ export function IntegrationsSection() {
           />
         ))}
       </ul>
+      <OrderingAppsSection />
     </>
+  );
+}
+
+// ---- Ordering apps ------------------------------------------------------------------------------
+
+const CATEGORY: Record<string, string> = {
+  food: 'Food delivery',
+  groceries: 'Groceries',
+  shopping: 'Shopping',
+  rides: 'Rides',
+  tables: 'Restaurant tables',
+};
+
+/** Apps Lumo orders with in the user's own browser. Lumo fills the cart; the user places the order. */
+function OrderingAppsSection() {
+  const [apps, setApps] = useState<OrderingApp[] | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const reload = useCallback(async () => {
+    try {
+      setApps(await api.orderingApps());
+    } catch (e) {
+      setError(errorMessage(e));
+    }
+  }, []);
+  useEffect(() => void reload(), [reload]);
+  const groups = Object.keys(CATEGORY)
+    .map((c) => ({ c, items: apps?.filter((a) => a.category === c) ?? [] }))
+    .filter((g) => g.items.length > 0);
+
+  return (
+    <div className="lm-ordering-apps">
+      <SectionHeader
+        title="Ordering apps"
+        description="Sign in to an app in your browser and Lumo can order there for you: it fills the cart, then you check it and place the order. Your password and card stay with the app; Lumo never sees them."
+      />
+      {error && <Callout tone="danger">{error}</Callout>}
+      {!apps && !error && <Spinner label="Loading ordering apps" />}
+      {groups.map((g) => (
+        <section key={g.c} aria-label={CATEGORY[g.c]}>
+          <h3 className="lm-ordering-group">{CATEGORY[g.c]}</h3>
+          <ul className="lm-integrations">
+            {g.items.map((a) => (
+              <OrderingAppRow key={a.id} app={a} onChanged={reload} />
+            ))}
+          </ul>
+        </section>
+      ))}
+    </div>
+  );
+}
+
+function OrderingAppRow({ app, onChanged }: { app: OrderingApp; onChanged: () => Promise<void> }) {
+  const [payment, setPayment] = useState(app.payment ?? '');
+  const [busy, setBusy] = useState<string | null>(null);
+  const [message, setMessage] = useState<{ ok: boolean; text: string } | null>(null);
+  const run = async (what: string, f: () => Promise<void>, ok?: string) => {
+    setBusy(what);
+    setMessage(null);
+    try {
+      await f();
+      if (ok) setMessage({ ok: true, text: ok });
+    } catch (e) {
+      setMessage({ ok: false, text: errorMessage(e) });
+    } finally {
+      setBusy(null);
+      await onChanged();
+    }
+  };
+
+  return (
+    <li className="lm-card lm-integration" data-status={app.connected ? 'connected' : 'not_connected'}>
+      <div className="lm-integration-head">
+        <span className="lm-integration-name">{app.name}</span>
+        <Badge tone={app.connected ? 'success' : 'neutral'}>
+          {app.connected ? 'Signed in' : 'Not set up'}
+        </Badge>
+        <span className="lm-row-meta">{app.regions}</span>
+      </div>
+      {!app.connected ? (
+        <div className="lm-row-actions">
+          <Button
+            size="sm"
+            variant="secondary"
+            onClick={() => void run('open', () => api.openOrderingApp(app.id))}
+          >
+            Open {app.name} to sign in
+          </Button>
+          <Button
+            size="sm"
+            variant="primary"
+            loading={busy === 'connect'}
+            onClick={() => void run('connect', () => api.setOrderingAppConnected(app.id, true))}
+          >
+            I'm signed in
+          </Button>
+        </div>
+      ) : (
+        <>
+          <form
+            className="lm-secret-form"
+            onSubmit={(e) => {
+              e.preventDefault();
+              void run(
+                'payment',
+                () => api.setOrderingAppPayment(app.id, payment),
+                payment.trim()
+                  ? `Lumo will pick ${payment.trim()} at checkout.`
+                  : 'Lumo will leave payment as it is.',
+              );
+            }}
+          >
+            <Input
+              value={payment}
+              maxLength={40}
+              autoComplete="off"
+              spellCheck={false}
+              onChange={(e) => setPayment(e.target.value)}
+              placeholder="Payment to pick, e.g. Apple Pay or Visa ending 4242"
+              aria-label={`Payment method to pick in ${app.name}`}
+            />
+            <Button type="submit" variant="secondary" loading={busy === 'payment'}>
+              Save
+            </Button>
+          </form>
+          <p className="lm-integration-detail">
+            Add your card in {app.name} itself. Lumo only needs its name so it can choose it at checkout.
+          </p>
+          <div className="lm-row-actions">
+            <Button
+              size="sm"
+              variant="ghost"
+              loading={busy === 'disconnect'}
+              onClick={() => void run('disconnect', () => api.setOrderingAppConnected(app.id, false))}
+            >
+              Remove
+            </Button>
+          </div>
+        </>
+      )}
+      {message && (
+        <p className={message.ok ? 'lm-inline-ok' : 'lm-inline-error'} role={message.ok ? 'status' : 'alert'}>
+          {message.text}
+        </p>
+      )}
+    </li>
   );
 }
 

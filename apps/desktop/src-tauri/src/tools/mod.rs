@@ -12,6 +12,7 @@ pub mod files;
 pub mod journal;
 pub mod location;
 pub mod memory;
+pub mod ordering;
 pub mod places;
 pub mod projects;
 pub mod publish;
@@ -107,6 +108,10 @@ pub trait TypedTool: Send + Sync + 'static {
     const NAME: &'static str;
     const DESCRIPTION: &'static str;
     fn schema(&self) -> Value;
+    /// Refuse a call before anything is asked or run (e.g. it can never be allowed right now).
+    fn check(&self, _ctx: &ToolCtx, _input: &Self::Input) -> Result<()> {
+        Ok(())
+    }
     fn risk(&self, ctx: &ToolCtx, input: &Self::Input) -> Risk;
     /// Present-tense activity label, e.g. "Reading notes.md".
     fn label(&self, input: &Self::Input) -> String;
@@ -136,6 +141,7 @@ impl<T: TypedTool> Tool for Typed<T> {
     }
     fn prepare(&self, ctx: &ToolCtx, input: &Value) -> Result<Prepared> {
         let i: T::Input = parse(T::NAME, input)?;
+        self.0.check(ctx, &i)?;
         let risk = self.0.risk(ctx, &i);
         let label = self.0.label(&i);
         let preview = if matches!(risk, Risk::Write | Risk::Sensitive) {
@@ -181,6 +187,8 @@ impl Registry {
             Arc::new(Typed(places::FindPlaces)),
             Arc::new(Typed(location::GetCurrentLocation)),
             Arc::new(Typed(places::PrepareCheckoutHandoff)),
+            Arc::new(Typed(ordering::StartOrder)),
+            Arc::new(Typed(ordering::CartReady)),
             Arc::new(Typed(clipboard::ReadClipboard)),
             Arc::new(Typed(clipboard::WriteClipboard)),
             Arc::new(Typed(system::Notify)),

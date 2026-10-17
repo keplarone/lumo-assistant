@@ -99,6 +99,8 @@ pub struct Pending {
     pub input_sessions: Mutex<std::collections::HashSet<String>>,
     /// Geometry of the last screenshot, per run.
     pub screens: Mutex<HashMap<String, Screenshot>>,
+    /// Orders Lumo is filling in the user's browser, per run.
+    pub orders: Mutex<HashMap<String, crate::tools::ordering::OrderSession>>,
     /// Where the user is, per conversation, after they let Lumo detect it. Memory only; `find_places`
     /// searches around it when no place is named.
     pub current_locations: Mutex<HashMap<String, crate::settings::Location>>,

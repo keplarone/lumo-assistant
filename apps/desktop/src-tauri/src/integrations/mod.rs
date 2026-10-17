@@ -1,6 +1,7 @@
 //! Third-party services. Each is real and tested against its documented API with mocks; none is
 //! shown as connected unless the user supplied credentials and Lumo verified them.
 
+pub mod apps;
 pub mod brave;
 pub mod github;
 pub mod netlify;
@@ -96,9 +97,9 @@ pub fn status(core: &Core) -> Vec<IntegrationStatus> {
         IntegrationStatus {
             id: "food_shopping".into(),
             name: "Food ordering and shopping".into(),
-            status: "handoff".into(),
+            status: "built_in".into(),
             account: None,
-            detail: "Lumo finds options and prepares the order, then opens the merchant's site where you order and pay. Direct ordering needs partner API access (DoorDash, Uber Eats) that Lumo doesn't have yet.".into(),
+            detail: "Uber Eats, DoorDash, Instacart, Amazon and more, under Ordering apps below. Lumo fills the cart in your browser and you place the order. Lumo never sees your password or card.".into(),
             secret: None,
         },
         IntegrationStatus {

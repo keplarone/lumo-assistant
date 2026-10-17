@@ -229,6 +229,7 @@ pub async fn drive(core: Arc<Core>, registry: Arc<Registry>, spec: RunSpec, sink
     tools::computer::end_session(&core, &spec.run_id);
     crate::plans::refresh_in_background(core.clone());
     core.pending.screens.lock().remove(&spec.run_id);
+    core.pending.orders.lock().remove(&spec.run_id);
     let _ = store::finish_run(&core, &spec.run_id, &outcome.status, outcome.summary.as_deref(), outcome.error.as_deref(), &usage);
     core.pending.runs.lock().remove(&spec.run_id);
     sink.emit(AgentEvent::RunFinished {

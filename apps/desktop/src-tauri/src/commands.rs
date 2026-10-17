@@ -753,6 +753,39 @@ pub fn disconnect_integration(state: S, id: String) -> ApiResult<()> {
     Ok(crate::integrations::disconnect(&state.core, &id)?)
 }
 
+// ---- Ordering apps --------------------------------------------------------------------------
+
+#[tauri::command]
+pub fn ordering_apps(state: S) -> Vec<crate::integrations::apps::AppStatus> {
+    crate::integrations::apps::list(&state.core)
+}
+
+/// Opens the app's own sign-in page in the user's browser (a fixed https page, never a link from the webview).
+#[tauri::command]
+pub fn open_ordering_app(state: S, id: String) -> ApiResult<()> {
+    Ok(crate::integrations::apps::open_sign_in(&state.core, &id)?)
+}
+
+#[tauri::command]
+pub fn set_ordering_app_connected(state: S, id: String, connected: bool) -> ApiResult<()> {
+    Ok(crate::integrations::apps::set_connected(&state.core, &id, connected)?)
+}
+
+#[tauri::command]
+pub fn set_ordering_app_payment(state: S, id: String, label: String) -> ApiResult<()> {
+    Ok(crate::integrations::apps::set_payment_label(&state.core, &id, &label)?)
+}
+
+#[tauri::command]
+pub fn recent_orders(state: S) -> ApiResult<Vec<crate::integrations::apps::RecentOrder>> {
+    Ok(crate::integrations::apps::recent_orders(&state.core, 6)?)
+}
+
+#[tauri::command]
+pub fn forget_recent_order(state: S, id: String) -> ApiResult<()> {
+    Ok(crate::integrations::apps::forget_order(&state.core, &id)?)
+}
+
 // ---- Voice ----------------------------------------------------------------------------------
 
 #[tauri::command]

@@ -364,6 +364,30 @@ export interface IntegrationStatus {
   secret: string | null;
 }
 
+export type OrderingCategory = 'food' | 'groceries' | 'shopping' | 'rides' | 'tables';
+
+/** An app Lumo can order with in the user's browser (integrations/apps.rs). */
+export interface OrderingApp {
+  id: string;
+  name: string;
+  category: OrderingCategory | string;
+  home: string;
+  regions: string;
+  /** The user said they are signed in there. */
+  connected: boolean;
+  /** Which saved payment method to pick at checkout, e.g. "Apple Pay". A label only. */
+  payment: string | null;
+}
+
+export interface RecentOrder {
+  id: string;
+  app: string;
+  appName: string;
+  store: string | null;
+  items: { name: string; quantity: number }[];
+  createdAt: string;
+}
+
 // ---- Agent events (agent/events.rs) -------------------------------------------------------------
 
 export type Mood = 'neutral' | 'warm' | 'happy' | 'calm' | 'concerned' | 'celebrating' | (string & {});
@@ -586,6 +610,15 @@ export const api = {
   integrationsStatus: () => call<IntegrationStatus[]>('integrations_status'),
   verifyIntegration: (id: string) => call<string>('verify_integration', { id }),
   disconnectIntegration: (id: string) => call<void>('disconnect_integration', { id }),
+
+  // Ordering apps
+  orderingApps: () => call<OrderingApp[]>('ordering_apps'),
+  openOrderingApp: (id: string) => call<void>('open_ordering_app', { id }),
+  setOrderingAppConnected: (id: string, connected: boolean) =>
+    call<void>('set_ordering_app_connected', { id, connected }),
+  setOrderingAppPayment: (id: string, label: string) => call<void>('set_ordering_app_payment', { id, label }),
+  recentOrders: () => call<RecentOrder[]>('recent_orders'),
+  forgetRecentOrder: (id: string) => call<void>('forget_recent_order', { id }),
 };
 
 export type Api = typeof api;

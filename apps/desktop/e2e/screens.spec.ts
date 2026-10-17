@@ -180,6 +180,8 @@ const base: Fixtures = {
   read_project_file: html,
   project_history: [],
   integrations_status: [],
+  ordering_apps: [],
+  recent_orders: [],
   list_grants: [],
   list_capabilities: [],
   license_status: {
