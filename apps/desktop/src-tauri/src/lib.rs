@@ -1,4 +1,4 @@
-//! Lumo's Rust core and desktop shell.
+//! Lumo's Rust core and app shell. One core for computers and phones; `device` says what each has.
 
 pub mod agent;
 pub mod audit;
@@ -7,6 +7,7 @@ pub mod commands;
 pub mod core;
 pub mod db;
 pub mod desktop;
+pub mod device;
 pub mod error;
 pub mod integrations;
 pub mod license;
@@ -25,13 +26,26 @@ use std::sync::Arc;
 use tauri::{Emitter, Manager};
 
 /// The updater's public key, set at build time by the release workflow (see docs/release.md).
+/// Phones never self-update: their app store does.
 pub fn updater_configured() -> bool {
-    option_env!("LUMO_UPDATER_PUBKEY").map(|k| !k.is_empty()).unwrap_or(false)
+    device::current().self_update && option_env!("LUMO_UPDATER_PUBKEY").map(|k| !k.is_empty()).unwrap_or(false)
 }
 
+#[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
-    let mut builder = tauri::Builder::default()
-        .plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| desktop::show_main(app)))
+    let mut builder = tauri::Builder::default();
+    #[cfg(desktop)]
+    {
+        builder = builder
+            .plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| desktop::show_main(app)))
+            .plugin(tauri_plugin_window_state::Builder::new().with_denylist(&["compact"]).build())
+            .plugin(tauri_plugin_global_shortcut::Builder::new().build());
+        if updater_configured() {
+            builder =
+                builder.plugin(tauri_plugin_updater::Builder::new().pubkey(option_env!("LUMO_UPDATER_PUBKEY").unwrap_or_default()).build());
+        }
+    }
+    builder = builder
         .plugin(
             tauri_plugin_log::Builder::new()
                 .level(log::LevelFilter::Info)
@@ -39,16 +53,10 @@ pub fn run() {
                 .max_file_size(5_000_000)
                 .build(),
         )
-        .plugin(tauri_plugin_window_state::Builder::new().with_denylist(&["compact"]).build())
-        .plugin(tauri_plugin_global_shortcut::Builder::new().build())
         .plugin(tauri_plugin_notification::init())
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_clipboard_manager::init())
         .plugin(tauri_plugin_opener::init());
-    if updater_configured() {
-        builder =
-            builder.plugin(tauri_plugin_updater::Builder::new().pubkey(option_env!("LUMO_UPDATER_PUBKEY").unwrap_or_default()).build());
-    }
 
     builder
         .register_asynchronous_uri_scheme_protocol("preview", |ctx, request, responder| {
@@ -96,10 +104,13 @@ pub fn run() {
             let registry = Arc::new(tools::Registry::standard());
             app.manage(commands::AppState { core: core.clone(), registry: registry.clone() });
 
-            desktop::build_tray(&handle, &core)?;
-            let shortcut = core.settings().global_shortcut;
-            if let Err(e) = desktop::register_shortcut(&handle, &shortcut) {
-                log::warn!("{e}");
+            #[cfg(desktop)]
+            {
+                desktop::build_tray(&handle, &core)?;
+                let shortcut = core.settings().global_shortcut;
+                if let Err(e) = desktop::register_shortcut(&handle, &shortcut) {
+                    log::warn!("{e}");
+                }
             }
             tauri::async_runtime::spawn(automations::scheduler(core.clone(), registry));
 
@@ -107,7 +118,7 @@ pub fn run() {
                 let core2 = core.clone();
                 let h2 = handle.clone();
                 w.on_window_event(move |ev| match ev {
-                    tauri::WindowEvent::CloseRequested { api, .. } if core2.settings().close_to_tray => {
+                    tauri::WindowEvent::CloseRequested { api, .. } if crate::device::current().tray && core2.settings().close_to_tray => {
                         api.prevent_close();
                         if let Some(w) = h2.get_webview_window("main") {
                             let _ = w.hide();

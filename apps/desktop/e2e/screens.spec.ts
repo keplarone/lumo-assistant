@@ -149,6 +149,16 @@ const base: Fixtures = {
     dataDir: '/home/ada/.local/share/one.keplar.lumo',
     logDir: '/home/ada/.local/share/one.keplar.lumo/logs',
     updaterConfigured: false,
+    device: {
+      formFactor: 'desktop',
+      computerControl: true,
+      runCommands: true,
+      systemTrash: true,
+      tray: true,
+      globalShortcut: true,
+      selfUpdate: true,
+      folderPicker: true,
+    },
   },
   secrets_status: [
     { name: 'brave_search_api_key', label: 'Brave Search API key', set: false },

@@ -75,6 +75,48 @@ jobs:
       - run: cargo clippy --all-targets -- -D warnings
       - run: cargo test --lib
 
+  # Lumo's core also builds for phones (see src/device.rs). This keeps it compiling for them, so a
+  # future phone app starts from working code. It checks the Rust core only; no app is packaged.
+  phone:
+    name: Rust for phones (${{ matrix.name }})
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: Android
+            os: ubuntu-24.04
+            target: aarch64-linux-android
+          - name: iPhone
+            os: macos-14
+            target: aarch64-apple-ios
+    runs-on: ${{ matrix.os }}
+    defaults:
+      run:
+        working-directory: apps/desktop/src-tauri
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+          components: clippy
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: apps/desktop/src-tauri
+          key: ${{ matrix.target }}
+      - run: mkdir -p ../dist && echo '<!doctype html>' > ../dist/index.html
+        shell: bash
+      - if: matrix.name == 'Android'
+        uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-ndk
+      # The runner image ships the NDK and sets ANDROID_NDK_ROOT; cargo-ndk reads ANDROID_NDK_HOME.
+      - name: Clippy (Android)
+        if: matrix.name == 'Android'
+        run: ANDROID_NDK_HOME="$ANDROID_NDK_ROOT" cargo ndk --platform 26 -t arm64-v8a clippy --lib -- -D warnings
+      - name: Clippy (iPhone)
+        if: matrix.name == 'iPhone'
+        run: cargo clippy --lib --target ${{ matrix.target }} -- -D warnings
+
   audit:
     name: Dependency audit
     runs-on: ubuntu-24.04

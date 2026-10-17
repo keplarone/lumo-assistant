@@ -90,6 +90,20 @@ export interface AppInfo {
   dataDir: string;
   logDir: string;
   updaterConfigured: boolean;
+  /** What this device can do. Phones have no tray, global shortcut, screen control or commands. */
+  device: DeviceCaps;
+}
+
+/** Mirrors `DeviceCaps` in src-tauri/src/device.rs. */
+export interface DeviceCaps {
+  formFactor: 'desktop' | 'phone';
+  computerControl: boolean;
+  runCommands: boolean;
+  systemTrash: boolean;
+  tray: boolean;
+  globalShortcut: boolean;
+  selfUpdate: boolean;
+  folderPicker: boolean;
 }
 
 export interface SecretStatus {

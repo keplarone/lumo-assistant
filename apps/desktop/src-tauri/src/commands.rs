@@ -55,6 +55,8 @@ pub struct AppInfo {
     data_dir: String,
     log_dir: String,
     updater_configured: bool,
+    /// What this device can do (phones have no tray, shortcut, screen control or commands).
+    device: crate::device::DeviceCaps,
 }
 
 #[tauri::command]
@@ -66,6 +68,7 @@ pub fn app_info(state: S) -> AppInfo {
         data_dir: state.core.paths.data_dir.display().to_string(),
         log_dir: state.core.paths.log_dir.display().to_string(),
         updater_configured: crate::updater_configured(),
+        device: crate::device::current(),
     }
 }
 
@@ -84,6 +87,7 @@ pub async fn save_settings(app: AppHandle, state: S<'_>, mut settings: Settings)
     // A saved key is only sent to a new server after the user confirms it natively.
     settings::confirm_key_destinations(&state.core, &old, &settings).await?;
     settings::save(&state.core.db, &settings)?;
+    #[cfg(desktop)]
     if old.global_shortcut != settings.global_shortcut {
         if let Err(e) = desktop::register_shortcut(&app, &settings.global_shortcut) {
             // Restore the old one so the user isn't left without a shortcut.
@@ -707,9 +711,21 @@ pub fn show_main_window(app: AppHandle) {
 
 #[tauri::command]
 pub fn toggle_compact_window(app: AppHandle) {
+    // Phones have no floating window; the app itself is always one tap away.
+    #[cfg(desktop)]
     desktop::toggle_compact(&app);
+    #[cfg(mobile)]
+    let _ = app;
 }
 
+#[cfg(mobile)]
+#[tauri::command]
+pub async fn check_for_updates(app: AppHandle) -> ApiResult<Option<String>> {
+    let _ = app;
+    Err(LumoError::Unavailable("On a phone, Lumo is updated by your app store.".into()).into())
+}
+
+#[cfg(desktop)]
 #[tauri::command]
 pub async fn check_for_updates(app: AppHandle) -> ApiResult<Option<String>> {
     if !crate::updater_configured() {
@@ -727,6 +743,14 @@ pub async fn check_for_updates(app: AppHandle) -> ApiResult<Option<String>> {
     }
 }
 
+#[cfg(mobile)]
+#[tauri::command]
+pub async fn install_update(app: AppHandle) -> ApiResult<()> {
+    let _ = app;
+    Err(LumoError::Unavailable("On a phone, Lumo is updated by your app store.".into()).into())
+}
+
+#[cfg(desktop)]
 #[tauri::command]
 pub async fn install_update(app: AppHandle) -> ApiResult<()> {
     use tauri_plugin_updater::UpdaterExt;

@@ -197,7 +197,12 @@ impl Registry {
             Arc::new(Typed(publish::PublishToGithub)),
             Arc::new(Typed(publish::DeployToNetlify)),
         ];
-        Registry { tools }
+        Registry::for_device(tools, crate::device::current())
+    }
+
+    /// Keep only the tools this device supports (phones have no screen control, commands or Trash).
+    pub fn for_device(tools: Vec<Arc<dyn Tool>>, caps: crate::device::DeviceCaps) -> Registry {
+        Registry { tools: tools.into_iter().filter(|t| caps.allows_tool(t.name())).collect() }
     }
 
     pub fn get(&self, name: &str) -> Option<&Arc<dyn Tool>> {
