@@ -1,13 +1,13 @@
 /*
  * Lumo design tokens.
  *
- * Concept: "a calm night with one warm light". Surfaces are near-neutral with a faint indigo tint taken
- * from the mascot's body, so the owl always looks at home. Interaction uses one restrained blue. The
- * mascot's gold ("lumen") is reserved for Lumo's own presence: the mark, the mascot, and moments of
- * completion. It is never used for ordinary chrome, which keeps it meaningful.
+ * Concept: "white marble and a blue jetpack". Light is the main theme: white surfaces floating over a
+ * living white-marble backdrop, one friendly blue for everything you can press, and soft blue-tinted
+ * shadows. Buttons are slightly 3D (a darker bottom edge they press down into). The star's gold
+ * ("lumen") is reserved for Lumo's own presence: the mascot's star and moments of completion.
  *
- * Dark is the default theme. Light is a full theme, not an inversion. Every text/background pairing
- * used by components is checked for WCAG 2.2 AA contrast in packages/ui/test/contrast.test.ts.
+ * Dark is a full theme too, not an inversion. Every text/background pairing used by components is
+ * checked for WCAG 2.2 AA contrast in packages/ui/test/contrast.test.ts.
  */
 
 :root,
@@ -35,9 +35,15 @@
   --lu-text-on-accent: oklch(0.99 0 0);
 
   /* Accent: restrained blue. */
-  --lu-accent: oklch(0.54 0.165 263);
-  --lu-accent-hover: oklch(0.56 0.17 263);
-  --lu-accent-pressed: oklch(0.5 0.16 263);
+  --lu-accent: oklch(0.54 0.2 264);
+  --lu-accent-hover: oklch(0.5 0.2 264);
+  --lu-accent-pressed: oklch(0.46 0.19 264);
+  /* 3D buttons: lighter top of the gradient, the darker edge they sit on, and their glow. */
+  --lu-accent-top: oklch(0.62 0.19 262);
+  --lu-accent-edge: oklch(0.36 0.16 266);
+  --lu-accent-glow: oklch(0.55 0.2 264 / 0.45);
+  --lu-edge: oklch(0.1 0.01 270);
+  --lu-button-top: oklch(0.27 0.02 270);
   --lu-accent-text: oklch(0.79 0.11 263);
   --lu-accent-subtle: oklch(0.6 0.165 263 / 0.16);
   --lu-accent-subtle-hover: oklch(0.6 0.165 263 / 0.24);
@@ -67,42 +73,48 @@
   --lu-shadow-2: 0 8px 24px -6px oklch(0 0 0 / 0.55), 0 0 0 1px var(--lu-line);
   --lu-shadow-3: 0 24px 64px -12px oklch(0 0 0 / 0.65), 0 0 0 1px var(--lu-line);
 
-  /* The mascot stage (matches docs/reference/lumo-mascot.html). */
-  --lu-stage: radial-gradient(ellipse 70% 60% at 50% 42%, #1c2056 0%, #10123a 45%, #090a1c 100%);
+  /* Behind the mascot when the marble backdrop is not drawn. */
+  --lu-stage: radial-gradient(ellipse 70% 60% at 50% 42%, #1d2540 0%, #131a2c 50%, #0c111c 100%);
+  --lu-glass: oklch(0.2 0.015 270 / 0.82);
 }
 
 [data-theme='light'] {
   color-scheme: light;
 
-  --lu-bg-sunken: oklch(0.955 0.005 275);
-  --lu-bg: oklch(0.985 0.003 275);
+  --lu-bg-sunken: oklch(0.966 0.008 262);
+  --lu-bg: oklch(0.982 0.006 262);
   --lu-surface-1: oklch(1 0 0);
   --lu-surface-2: oklch(1 0 0);
-  --lu-surface-3: oklch(0.965 0.005 275);
-  --lu-surface-overlay: oklch(1 0 0 / 0.94);
+  --lu-surface-3: oklch(0.962 0.012 262);
+  --lu-surface-overlay: oklch(1 0 0 / 0.9);
 
-  --lu-line-subtle: oklch(0.25 0.02 275 / 0.07);
-  --lu-line: oklch(0.25 0.02 275 / 0.11);
-  --lu-line-strong: oklch(0.25 0.02 275 / 0.18);
+  --lu-line-subtle: oklch(0.45 0.08 262 / 0.07);
+  --lu-line: oklch(0.45 0.08 262 / 0.12);
+  --lu-line-strong: oklch(0.45 0.08 262 / 0.2);
 
-  --lu-text: oklch(0.2 0.015 275);
-  --lu-text-secondary: oklch(0.42 0.015 275);
-  --lu-text-tertiary: oklch(0.52 0.015 275);
-  --lu-text-disabled: oklch(0.68 0.01 275);
-  --lu-text-on-accent: oklch(0.99 0 0);
+  --lu-text: oklch(0.24 0.05 268);
+  --lu-text-secondary: oklch(0.43 0.04 266);
+  --lu-text-tertiary: oklch(0.51 0.035 266);
+  --lu-text-disabled: oklch(0.7 0.02 266);
+  --lu-text-on-accent: oklch(0.995 0 0);
 
-  --lu-accent: oklch(0.53 0.18 263);
-  --lu-accent-hover: oklch(0.49 0.18 263);
-  --lu-accent-pressed: oklch(0.45 0.17 263);
-  --lu-accent-text: oklch(0.48 0.18 263);
-  --lu-accent-subtle: oklch(0.53 0.18 263 / 0.1);
-  --lu-accent-subtle-hover: oklch(0.53 0.18 263 / 0.16);
-  --lu-focus: oklch(0.53 0.18 263);
+  --lu-accent: oklch(0.56 0.21 264);
+  --lu-accent-hover: oklch(0.52 0.21 264);
+  --lu-accent-pressed: oklch(0.47 0.2 264);
+  --lu-accent-text: oklch(0.5 0.2 264);
+  --lu-accent-subtle: oklch(0.56 0.21 264 / 0.1);
+  --lu-accent-subtle-hover: oklch(0.56 0.21 264 / 0.16);
+  --lu-focus: oklch(0.56 0.21 264);
+  --lu-accent-top: oklch(0.66 0.17 258);
+  --lu-accent-edge: oklch(0.42 0.19 266);
+  --lu-accent-glow: oklch(0.56 0.21 264 / 0.4);
+  --lu-edge: oklch(0.86 0.04 262);
+  --lu-button-top: oklch(1 0 0);
 
-  --lu-lumen: oklch(0.72 0.14 75);
-  --lu-lumen-subtle: oklch(0.8 0.13 79 / 0.18);
+  --lu-lumen: oklch(0.8 0.15 85);
+  --lu-lumen-subtle: oklch(0.85 0.14 85 / 0.2);
   --lu-lumen-text: oklch(0.5 0.12 75);
-  --lu-aurora: oklch(0.6 0.11 210);
+  --lu-aurora: oklch(0.6 0.13 235);
 
   --lu-success: oklch(0.5 0.13 158);
   --lu-success-subtle: oklch(0.6 0.13 158 / 0.12);
@@ -115,18 +127,22 @@
   --lu-danger-text: oklch(0.5 0.19 26);
   --lu-live: oklch(0.6 0.2 38);
 
-  --lu-shadow-1: 0 1px 2px oklch(0.2 0.02 275 / 0.08);
-  --lu-shadow-2: 0 8px 24px -6px oklch(0.2 0.02 275 / 0.16), 0 0 0 1px var(--lu-line);
-  --lu-shadow-3: 0 24px 64px -12px oklch(0.2 0.02 275 / 0.24), 0 0 0 1px var(--lu-line);
+  --lu-shadow-1: 0 1px 2px oklch(0.35 0.1 264 / 0.1);
+  --lu-shadow-2: 0 10px 28px -8px oklch(0.4 0.15 264 / 0.2), 0 0 0 1px var(--lu-line);
+  --lu-shadow-3: 0 28px 70px -14px oklch(0.4 0.15 264 / 0.28), 0 0 0 1px var(--lu-line);
+
+  --lu-stage: radial-gradient(ellipse 70% 60% at 50% 45%, #ffffff 0%, #f1f5fd 60%, #e6edfb 100%);
+  --lu-glass: oklch(1 0 0 / 0.78);
 }
 
 /* Apps resolve the 'system' theme in script and set data-theme, so there is one source per theme. */
 
 :root {
-  /* Typography. Inter for UI (excellent at 12-14px), Bricolage Grotesque for display (carried from the
-     mascot reference), IBM Plex Mono for code and key labels. */
-  --lu-font-ui: 'Inter Variable', 'Inter', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;
-  --lu-font-display: 'Bricolage Grotesque Variable', 'Bricolage Grotesque', var(--lu-font-ui);
+  /* Typography. Montserrat (self-hosted variable font) for UI and display, IBM Plex Mono for code and
+     key labels. */
+  --lu-font-ui:
+    'Montserrat Variable', 'Montserrat', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --lu-font-display: var(--lu-font-ui);
   --lu-font-mono: 'IBM Plex Mono', ui-monospace, 'SF Mono', 'Cascadia Code', Menlo, monospace;
 
   /* Size scale (px values at 100% zoom). Desktop UI density: 13px is the default control size. */
@@ -174,12 +190,12 @@
   --lu-space-20: 5rem; /* 80 */
   --lu-space-24: 6rem; /* 96 */
 
-  /* Radii. Small and consistent; nothing larger than 16px except pills. */
-  --lu-radius-xs: 4px;
-  --lu-radius-sm: 6px;
-  --lu-radius-md: 8px;
-  --lu-radius-lg: 12px;
-  --lu-radius-xl: 16px;
+  /* Radii. Soft and friendly. */
+  --lu-radius-xs: 6px;
+  --lu-radius-sm: 9px;
+  --lu-radius-md: 12px;
+  --lu-radius-lg: 16px;
+  --lu-radius-xl: 22px;
   --lu-radius-full: 999px;
 
   /* Control heights */
@@ -187,7 +203,7 @@
   --lu-control-md: 2rem; /* 32 */
   --lu-control-lg: 2.5rem; /* 40 */
 
-  /* Motion. UI motion is quick and never overshoots; springs are reserved for the mascot. */
+  /* Motion. Quick; buttons and page changes get a small spring (--lu-ease-spring). */
   --lu-duration-instant: 80ms;
   --lu-duration-fast: 120ms;
   --lu-duration-base: 180ms;
@@ -197,6 +213,7 @@
   --lu-ease-enter: cubic-bezier(0.05, 0.7, 0.1, 1);
   --lu-ease-exit: cubic-bezier(0.3, 0, 0.8, 0.15);
   --lu-ease-linear: linear;
+  --lu-ease-spring: cubic-bezier(0.3, 1.5, 0.5, 1);
 
   /* Layers */
   --lu-z-base: 0;

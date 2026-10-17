@@ -17,7 +17,7 @@ const now = new Date(Date.now() - 2 * 3600_000).toISOString();
 const settings = {
   onboarded: true,
   userName: 'Ada',
-  theme: 'dark',
+  theme: 'light',
   model: 'auto',
   memoryEnabled: true,
   webSearchEnabled: true,
@@ -31,6 +31,10 @@ const settings = {
   sttModel: 'whisper-1',
   ttsEnabled: false,
   mascotEnabled: true,
+  buddyEnabled: true,
+  soundsEnabled: false,
+  animatedIcon: true,
+  mode: 'lumo',
   reducedMotion: false,
   plan: 'free',
   planCheckedAt: null,
@@ -499,14 +503,61 @@ test('compact window', async ({ page }) => {
   await shot(page, 'compact');
 });
 
-test('onboarding needs no model setup', async ({ page }) => {
+test('onboarding: a short tour, and no model setup', async ({ page }) => {
   await boot(page, {
     route: '#/',
     fixtures: { get_settings: { ...settings, onboarded: false, userName: null } },
   });
-  await page.getByRole('button', { name: 'Get started' }).click();
+  await settle(page);
+  await shot(page, 'onboarding-welcome');
+  // Welcome, then three tour cards (asking, staying safe, Lumo on the desktop).
+  for (const name of ['ask', 'safe', 'desktop', null]) {
+    await page
+      .getByRole('button', { name: /Get started|Continue|Next/ })
+      .first()
+      .click();
+    if (name) {
+      await page.waitForTimeout(2600);
+      await shot(page, `onboarding-${name}`);
+    }
+  }
   await expect(page.getByText('What should Lumo call you?')).toBeVisible();
   await expect(page.getByText(/API key|on-device|Ollama/i)).toHaveCount(0);
   await settle(page);
   await shot(page, 'onboarding-you');
+});
+
+test.describe('phone-sized window', () => {
+  test.use({ viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true });
+
+  test('home, menu drawer and first run fit a phone and use big touch targets', async ({ page }) => {
+    await boot(page, { route: '#/' });
+    await expect(page.getByRole('heading', { level: 1 })).toContainText('Ada');
+    await settle(page, 2500);
+    await shot(page, 'phone-home');
+    // No sideways scrolling.
+    expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(390);
+
+    const menu = page.getByRole('button', { name: 'Open menu' });
+    const box = await menu.boundingBox();
+    expect(box!.width).toBeGreaterThanOrEqual(44);
+    await menu.tap();
+    const settingsLink = page.getByRole('link', { name: 'Settings' });
+    await expect(settingsLink).toBeVisible();
+    expect((await settingsLink.boundingBox())!.height).toBeGreaterThanOrEqual(44);
+    await settle(page, 600);
+    await shot(page, 'phone-menu');
+    await settingsLink.tap();
+    await expect(page.getByRole('button', { name: 'Open menu' })).toBeVisible();
+  });
+
+  test('first run on a phone', async ({ page }) => {
+    await boot(page, {
+      route: '#/',
+      fixtures: { get_settings: { ...settings, onboarded: false, userName: null } },
+    });
+    await settle(page);
+    await shot(page, 'phone-onboarding');
+    expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(390);
+  });
 });

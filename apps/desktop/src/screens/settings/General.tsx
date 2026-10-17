@@ -2,6 +2,7 @@ import { Button, Field, Input, SegmentedControl, Select, Switch } from '@lumo/ui
 import { LocateFixed, Monitor, Moon, Sun } from 'lucide-react';
 import { useState } from 'react';
 import { api, errorMessage, type ThemeSetting } from '../../lib/ipc';
+import { capabilities } from '../../lib/platform';
 import { useApp } from '../../state/app';
 import { SectionHeader, SettingRow, useSave } from './parts';
 
@@ -102,7 +103,7 @@ export function GeneralSection() {
       </SettingRow>
       <SettingRow
         label="Animated Lumo"
-        description="Show the animated owl. When off, a small mark takes its place."
+        description="Show Lumo in 3D. When off, a small mark takes its place."
       >
         <Switch
           checked={s.mascotEnabled}
@@ -110,9 +111,40 @@ export function GeneralSection() {
           aria-label="Animated Lumo"
         />
       </SettingRow>
+      {capabilities.desktopBuddy && (
+        <>
+          <SettingRow
+            label="Lumo on your desktop"
+            description="Lumo keeps you company on your desktop, shows you where he is working, and says hi now and then."
+          >
+            <Switch
+              checked={s.buddyEnabled}
+              onCheckedChange={(v) => void save({ buddyEnabled: v })}
+              aria-label="Lumo on your desktop"
+            />
+          </SettingRow>
+          <SettingRow
+            label="Animated icon"
+            description="While Lumo runs, his tray, taskbar and Dock icon blinks, flutters while he works, and waves when a reply is ready."
+          >
+            <Switch
+              checked={s.animatedIcon}
+              onCheckedChange={(v) => void save({ animatedIcon: v })}
+              aria-label="Animated icon"
+            />
+          </SettingRow>
+        </>
+      )}
+      <SettingRow label="Sounds" description="Little chirps and boops when Lumo reacts.">
+        <Switch
+          checked={s.soundsEnabled}
+          onCheckedChange={(v) => void save({ soundsEnabled: v })}
+          aria-label="Sounds"
+        />
+      </SettingRow>
       <SettingRow
         label="Reduce motion"
-        description="Calmer animation for the owl, in addition to your system setting."
+        description="Calmer animation everywhere, in addition to your system setting."
       >
         <Switch
           checked={s.reducedMotion}
@@ -120,38 +152,40 @@ export function GeneralSection() {
           aria-label="Reduce motion"
         />
       </SettingRow>
-      <SettingRow
-        label="Quick-ask shortcut"
-        description={
-          shortcutError ??
-          'Opens the floating Lumo window from anywhere, for example Alt+Space or CommandOrControl+Shift+L.'
-        }
-        htmlFor="set-shortcut"
-      >
-        <form
-          className="lm-inline-form"
-          onSubmit={(e) => {
-            e.preventDefault();
-            void saveShortcut();
-          }}
+      {capabilities.globalShortcut && (
+        <SettingRow
+          label="Quick-ask shortcut"
+          description={
+            shortcutError ??
+            'Opens the floating Lumo window from anywhere, for example Alt+Space or CommandOrControl+Shift+L.'
+          }
+          htmlFor="set-shortcut"
         >
-          <Input
-            id="set-shortcut"
-            value={shortcut}
-            onChange={(e) => setShortcut(e.target.value)}
-            spellCheck={false}
-            aria-invalid={shortcutError ? true : undefined}
-          />
-          <Button
-            type="submit"
-            size="md"
-            variant="secondary"
-            disabled={shortcut.trim() === s.globalShortcut || !shortcut.trim()}
+          <form
+            className="lm-inline-form"
+            onSubmit={(e) => {
+              e.preventDefault();
+              void saveShortcut();
+            }}
           >
-            Save
-          </Button>
-        </form>
-      </SettingRow>
+            <Input
+              id="set-shortcut"
+              value={shortcut}
+              onChange={(e) => setShortcut(e.target.value)}
+              spellCheck={false}
+              aria-invalid={shortcutError ? true : undefined}
+            />
+            <Button
+              type="submit"
+              size="md"
+              variant="secondary"
+              disabled={shortcut.trim() === s.globalShortcut || !shortcut.trim()}
+            >
+              Save
+            </Button>
+          </form>
+        </SettingRow>
+      )}
       <SettingRow
         label="Keep running when the window is closed"
         description="Lumo stays in the tray or menu bar so automations keep running."

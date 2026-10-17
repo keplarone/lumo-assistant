@@ -3065,6 +3065,7 @@ dependencies = [
  "log",
  "mime_guess",
  "objc2",
+ "objc2-app-kit",
  "objc2-core-location",
  "objc2-foundation",
  "parking_lot",

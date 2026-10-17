@@ -12,18 +12,11 @@ export interface LicenseEntry {
 
 export const FONTS: LicenseEntry[] = [
   {
-    name: 'Inter',
+    name: 'Montserrat',
     license: 'SIL Open Font License 1.1',
-    url: 'https://github.com/rsms/inter',
-    use: 'Interface and body text',
-    copyright: 'Copyright 2020 The Inter Project Authors',
-  },
-  {
-    name: 'Bricolage Grotesque',
-    license: 'SIL Open Font License 1.1',
-    url: 'https://github.com/ateliertriay/bricolage',
-    use: 'Display headings',
-    copyright: 'Copyright 2022 The Bricolage Grotesque Project Authors',
+    url: 'https://github.com/JulietaUla/Montserrat',
+    use: 'Interface, body text and display headings',
+    copyright: 'Copyright 2011 The Montserrat Project Authors',
   },
   {
     name: 'IBM Plex Mono',

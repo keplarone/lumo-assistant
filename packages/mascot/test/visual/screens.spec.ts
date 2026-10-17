@@ -1,6 +1,6 @@
 /**
- * Screenshots of the port (with product layers) in key states, written to test-results/screens/
- * for review. Deterministic: seeded random and fixed update steps, like the parity test.
+ * Screenshots of Lumo in key states, written to test-results/screens/ for review. Deterministic:
+ * a fixed seed and fixed update steps. Each shot must draw something and differ from idle.
  */
 import { expect, test } from '@playwright/test';
 import { openRender, writeResult } from './util';
@@ -18,7 +18,8 @@ const SHOTS: Shot[] = [
   { name: 'think', mood: 'think', steps: 90 },
   { name: 'speak', mood: 'speak', steps: 90 },
   { name: 'happy', mood: 'happy', steps: 90 },
-  { name: 'majestic', mood: 'majestic', steps: 90 },
+  { name: 'love', mood: 'love', steps: 90 },
+  { name: 'concern', mood: 'concern', steps: 90 },
   { name: 'sleep', mood: 'sleep', steps: 120 },
   { name: 'listen', mood: 'listen', steps: 90 },
   { name: 'process', mood: 'process', steps: 90 },
@@ -30,8 +31,10 @@ const SHOTS: Shot[] = [
   { name: 'celebrate-apex', mood: 'happy', steps: 22, actions: [{ at: 0, method: 'celebrate' }] },
   { name: 'recover-droop', mood: 'recover', steps: 60 },
   { name: 'recover-shake', mood: 'recover', steps: 92 },
-  { name: 'walk-anticipate', steps: 10, actions: [{ at: 0, method: 'walkTo', args: [0.9] }] },
-  { name: 'walk-hop', steps: 34, actions: [{ at: 0, method: 'walkTo', args: [0.9] }] },
+  { name: 'fly-sideways', steps: 20, actions: [{ at: 0, method: 'walkTo', args: [0.9] }] },
+  { name: 'overlay-flight', steps: 40, actions: [{ at: 0, method: 'setFlight', args: [-3, 1.5] }] },
+  { name: 'boop-giggle', steps: 18, actions: [{ at: 0, method: 'boop', args: ['giggle'] }] },
+  { name: 'boop-jump', steps: 14, actions: [{ at: 0, method: 'boop', args: ['jump'] }] },
   { name: 'turn-mid', steps: 22, actions: [{ at: 0, method: 'turnAround' }] },
   { name: 'turned-around', steps: 90, actions: [{ at: 0, method: 'turnAround' }] },
   { name: 'look-far-right', mood: 'idle', steps: 60, actions: [{ at: 0, method: 'gaze', args: [1, 0.35] }] },
@@ -40,7 +43,7 @@ const SHOTS: Shot[] = [
 
 for (const s of SHOTS) {
   test(`screen: ${s.name}`, async ({ page }) => {
-    await openRender(page, 'companion', s.calm ? '&calm' : '');
+    await openRender(page, s.calm ? 'calm' : '');
     const r = await page.evaluate(
       (s) =>
         (window as unknown as { __lumo: { run(o: object): { calls: number; state: string } } }).__lumo.run(s),

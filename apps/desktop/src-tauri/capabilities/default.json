@@ -1,8 +1,8 @@
 {
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "default",
-  "description": "The webviews may only call Lumo's own commands and the few window/event APIs the UI uses. No core:default: it would also let the webview create or remove tray icons and menus, read image files by path and list windows. Plugins are driven from Rust, never from the webview.",
-  "windows": ["main", "compact"],
+  "description": "The webviews (main, the compact assistant and the desktop buddy) may only call Lumo's own commands and the few window/event APIs the UI uses. No core:default: it would also let the webview create or remove tray icons and menus, read image files by path and list windows. Plugins are driven from Rust, never from the webview.",
+  "windows": ["main", "compact", "buddy"],
   "permissions": [
     "core:event:allow-listen",
     "core:event:allow-unlisten",

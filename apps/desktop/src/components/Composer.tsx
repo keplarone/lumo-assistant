@@ -5,6 +5,7 @@ import { api, errorMessage, isPlanLimit, on, type AgentDef, type AttachmentInfo 
 import { formatBytes } from '../lib/format';
 import { formatElapsed } from '../lib/voice';
 import { useApp } from '../state/app';
+import { reactToMessage } from '../state/companion';
 import { mascotBus, useListening } from '../state/mascot';
 import { useVoice } from '../state/useVoice';
 import { PlanLimitNotice, UsageNudge } from './PlanLimit';
@@ -147,7 +148,9 @@ export const Composer = forwardRef<ComposerHandle, ComposerProps>(function Compo
     setError(null);
     setLimit(null);
     try {
-      await onSend(text.trim(), attachments, agentId || null);
+      const sent = text.trim();
+      await onSend(sent, attachments, agentId || null);
+      reactToMessage(sent);
       setText('');
       setAttachments([]);
     } catch (e) {
@@ -285,7 +288,7 @@ export const Composer = forwardRef<ComposerHandle, ComposerProps>(function Compo
               <span>Transcribing…</span>
             </span>
           ) : (
-            <span className="lm-composer-hint" aria-hidden>
+            <span className="lm-composer-hint" aria-hidden data-keys={running ? undefined : true}>
               {running ? 'Lumo is working' : 'Enter to send · Shift+Enter for a new line'}
             </span>
           )}

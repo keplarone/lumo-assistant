@@ -82,7 +82,7 @@ export function planFeatures(plans: PlanInfo[], index: number): string[] {
         : `${p.automations} automation${p.automations === 1 ? '' : 's'}`,
     );
   if (p.computerControl && !prev?.computerControl) out.push('Lumo can use your mouse and keyboard');
-  if (!prev) out.push('Conversations, files, places and order handoff', 'The Lumo owl');
+  if (!prev) out.push('Conversations, files, places and order handoff', 'Lumo, your desktop buddy');
   return out;
 }
 

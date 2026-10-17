@@ -2,21 +2,27 @@ import { Badge, Button, Input, Kbd, StatusDot } from '@lumo/ui';
 import {
   Activity,
   CircleHelp,
+  Code2,
   FolderKanban,
+  Heart,
   Plus,
   Search,
   Settings as SettingsIcon,
   Timer,
 } from 'lucide-react';
 import { forwardRef, useEffect, useState } from 'react';
-import { api, type Conversation } from '../lib/ipc';
+import appIcon from '../assets/app-icon-512.png';
+import { api, type AppMode, type Conversation } from '../lib/ipc';
+import { chirp } from '../state/mascot';
 import { modKey, relativeTime } from '../lib/format';
 import { navigate, routeHref, type Route } from '../lib/router';
 import { useApp } from '../state/app';
 import { useRuns } from '../state/runs';
-import { LumoMark } from './Mascot';
 
-export const Sidebar = forwardRef<HTMLInputElement, { route: Route }>(function Sidebar({ route }, searchRef) {
+export const Sidebar = forwardRef<HTMLInputElement, { route: Route; open?: boolean }>(function Sidebar(
+  { route, open },
+  searchRef,
+) {
   const app = useApp();
   const runs = useRuns();
   const [query, setQuery] = useState('');
@@ -50,11 +56,12 @@ export const Sidebar = forwardRef<HTMLInputElement, { route: Route }>(function S
   const mod = modKey();
 
   return (
-    <nav className="lm-sidebar" aria-label="Lumo">
-      <div className="lm-brand">
-        <LumoMark size={16} />
-        <span>Lumo</span>
+    <nav className="lm-sidebar" id="lm-sidebar" aria-label="Lumo" data-open={open || undefined}>
+      <div className="lm-brand" data-tauri-drag-region>
+        <img className="lm-brand-icon" src={appIcon} width={24} height={24} alt="" />
+        <span>{app.settings.mode === 'linx' ? 'Linx Code' : 'Lumo'}</span>
       </div>
+      <ModeSwitch />
       <Button
         className="lm-new-task"
         variant="secondary"
@@ -104,12 +111,14 @@ export const Sidebar = forwardRef<HTMLInputElement, { route: Route }>(function S
         )}
       </ul>
       <ul className="lm-nav">
-        <NavItem
-          href={routeHref({ name: 'projects' })}
-          icon={<FolderKanban />}
-          label="Projects"
-          current={route.name === 'projects' || route.name === 'project'}
-        />
+        {app.settings.mode === 'linx' && (
+          <NavItem
+            href={routeHref({ name: 'projects' })}
+            icon={<FolderKanban />}
+            label="Projects"
+            current={route.name === 'projects' || route.name === 'project'}
+          />
+        )}
         <NavItem
           href={routeHref({ name: 'automations' })}
           icon={<Timer />}
@@ -139,6 +148,47 @@ export const Sidebar = forwardRef<HTMLInputElement, { route: Route }>(function S
     </nav>
   );
 });
+
+const MODES: { id: AppMode; label: string; hint: string; icon: React.ReactNode }[] = [
+  { id: 'lumo', label: 'Lumo', hint: 'Your personal assistant', icon: <Heart /> },
+  { id: 'linx', label: 'Linx Code', hint: 'Work and build tools', icon: <Code2 /> },
+];
+
+/** Lumo (personal, the default) or Linx Code (work and building), like a product switcher. */
+function ModeSwitch() {
+  const app = useApp();
+  const mode = app.settings.mode ?? 'lumo';
+  const pick = async (m: AppMode) => {
+    if (m === mode) return;
+    chirp('whoosh');
+    try {
+      await app.updateSettings({ mode: m });
+      if (m === 'lumo' && (location.hash.startsWith('#/projects') || location.hash === ''))
+        navigate({ name: 'home' });
+    } catch (e) {
+      app.reportError(e, 'Couldn’t switch');
+    }
+  };
+  return (
+    <div className="lm-mode" role="radiogroup" aria-label="Mode" data-mode={mode}>
+      <span className="lm-mode-thumb" aria-hidden="true" />
+      {MODES.map((m) => (
+        <button
+          key={m.id}
+          type="button"
+          role="radio"
+          aria-checked={mode === m.id}
+          title={m.hint}
+          className="lm-mode-option"
+          onClick={() => void pick(m.id)}
+        >
+          {m.icon}
+          <span>{m.label}</span>
+        </button>
+      ))}
+    </div>
+  );
+}
 
 function NavItem({
   href,

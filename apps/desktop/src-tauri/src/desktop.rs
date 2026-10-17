@@ -7,11 +7,12 @@ use crate::error::{LumoError, Result};
 use crate::tools::computer::InputAction;
 use async_trait::async_trait;
 use parking_lot::Mutex;
+use serde::Serialize;
 use std::path::PathBuf;
 use std::sync::Arc;
 use tauri::menu::{CheckMenuItem, Menu, MenuItem, PredefinedMenuItem};
 use tauri::tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent};
-use tauri::{AppHandle, Emitter, Manager, WebviewUrl, WebviewWindowBuilder};
+use tauri::{AppHandle, Emitter, Manager, PhysicalPosition, WebviewUrl, WebviewWindow, WebviewWindowBuilder};
 use tauri_plugin_clipboard_manager::ClipboardExt;
 use tauri_plugin_dialog::{DialogExt, MessageDialogButtons, MessageDialogKind};
 use tauri_plugin_global_shortcut::{GlobalShortcutExt, ShortcutState};
@@ -86,31 +87,18 @@ impl Platform for TauriPlatform {
     }
 
     fn capture_screen(&self) -> Result<Screenshot> {
-        let monitors = xcap::Monitor::all().map_err(|e| LumoError::Unavailable(format!("screen capture is not available: {e}")))?;
-        let m = monitors
-            .iter()
-            .find(|m| m.is_primary().unwrap_or(false))
-            .or(monitors.first())
-            .ok_or_else(|| LumoError::Unavailable("no display found".into()))?;
-        let img = m.capture_image().map_err(|e| {
-            LumoError::Unavailable(format!(
-                "Lumo could not capture the screen ({e}). On macOS, allow Lumo under System Settings → Privacy & Security → Screen Recording."
-            ))
-        })?;
-        // Logical size of the display, which is what input coordinates use.
-        let (sw, sh) = (m.width().unwrap_or(img.width()), m.height().unwrap_or(img.height()));
-        let (ox, oy) = (m.x().unwrap_or(0), m.y().unwrap_or(0));
-        // Downscale large displays: fewer tokens, same usefulness.
-        let img = if img.width() > 1568 {
-            let h = (img.height() as f64 * 1568.0 / img.width() as f64) as u32;
-            xcap::image::imageops::resize(&img, 1568, h, xcap::image::imageops::FilterType::Triangle)
-        } else {
-            img
-        };
-        let (w, h) = (img.width(), img.height());
-        let mut png = std::io::Cursor::new(Vec::new());
-        img.write_to(&mut png, xcap::image::ImageFormat::Png).map_err(|e| LumoError::Other(e.into()))?;
-        Ok(Screenshot { png: png.into_inner(), width: w, height: h, origin_x: ox, origin_y: oy, screen_width: sw, screen_height: sh })
+        // Keep the desktop buddy out of Lumo's own screenshots.
+        let buddy = visible_buddy(&self.app);
+        if let Some(w) = &buddy {
+            let _ = w.hide();
+            std::thread::sleep(std::time::Duration::from_millis(80));
+        }
+        let shot = capture_primary();
+        if let Some(w) = buddy {
+            // show() does not focus it; the window was also built unfocused.
+            let _ = w.show();
+        }
+        shot
     }
 
     fn perform_input(&self, actions: &[InputAction]) -> Result<()> {
@@ -123,6 +111,14 @@ impl Platform for TauriPlatform {
         let err = |e: enigo::InputError| LumoError::Unavailable(format!("input failed: {e}"));
         let pause = || std::thread::sleep(std::time::Duration::from_millis(60));
         for a in actions {
+            // Let the buddy fly to where Lumo is about to act, so the user sees it coming.
+            match a {
+                InputAction::MoveTo { x, y }
+                | InputAction::Click { x, y, .. }
+                | InputAction::Drag { from_x: x, from_y: y, .. }
+                | InputAction::Scroll { x, y, .. } => point_buddy(&self.app, *x, *y),
+                _ => {}
+            }
             match a {
                 InputAction::MoveTo { x, y } => e.move_mouse(*x, *y, Coordinate::Abs).map_err(err)?,
                 InputAction::Click { x, y, button, count } => {
@@ -220,6 +216,34 @@ impl Platform for TauriPlatform {
     }
 }
 
+fn capture_primary() -> Result<Screenshot> {
+    let monitors = xcap::Monitor::all().map_err(|e| LumoError::Unavailable(format!("screen capture is not available: {e}")))?;
+    let m = monitors
+        .iter()
+        .find(|m| m.is_primary().unwrap_or(false))
+        .or(monitors.first())
+        .ok_or_else(|| LumoError::Unavailable("no display found".into()))?;
+    let img = m.capture_image().map_err(|e| {
+        LumoError::Unavailable(format!(
+            "Lumo could not capture the screen ({e}). On macOS, allow Lumo under System Settings → Privacy & Security → Screen Recording."
+        ))
+    })?;
+    // Logical size of the display, which is what input coordinates use.
+    let (sw, sh) = (m.width().unwrap_or(img.width()), m.height().unwrap_or(img.height()));
+    let (ox, oy) = (m.x().unwrap_or(0), m.y().unwrap_or(0));
+    // Downscale large displays: fewer tokens, same usefulness.
+    let img = if img.width() > 1568 {
+        let h = (img.height() as f64 * 1568.0 / img.width() as f64) as u32;
+        xcap::image::imageops::resize(&img, 1568, h, xcap::image::imageops::FilterType::Triangle)
+    } else {
+        img
+    };
+    let (w, h) = (img.width(), img.height());
+    let mut png = std::io::Cursor::new(Vec::new());
+    img.write_to(&mut png, xcap::image::ImageFormat::Png).map_err(|e| LumoError::Other(e.into()))?;
+    Ok(Screenshot { png: png.into_inner(), width: w, height: h, origin_x: ox, origin_y: oy, screen_width: sw, screen_height: sh })
+}
+
 /// Note the focused window before Lumo takes focus (for `get_active_window`).
 pub fn remember_front_window(platform: &TauriPlatform) {
     let found = xcap::Window::all().ok().and_then(|ws| {
@@ -260,7 +284,7 @@ pub fn toggle_compact(app: &AppHandle) {
         .skip_taskbar(true)
         .resizable(true)
         .center()
-        .background_color(tauri::window::Color(16, 17, 24, 255))
+        .background_color(tauri::window::Color(247, 249, 253, 255))
         .build();
     match built {
         Ok(w) => {
@@ -268,6 +292,214 @@ pub fn toggle_compact(app: &AppHandle) {
         }
         Err(e) => log::error!("could not open the compact window: {e}"),
     }
+}
+
+/// The desktop buddy's window label. Only this window may call the `buddy_*` commands.
+pub const BUDDY: &str = "buddy";
+/// The buddy window's size in logical pixels, and its margin from the screen edges.
+const BUDDY_SIZE: (f64, f64) = (220.0, 240.0);
+const BUDDY_MARGIN: f64 = 24.0;
+
+/// The buddy window, if it exists and is on screen.
+fn visible_buddy(app: &AppHandle) -> Option<WebviewWindow> {
+    app.get_webview_window(BUDDY).filter(|w| w.is_visible().unwrap_or(false))
+}
+
+/// Tell the buddy where Lumo is about to act (the logical coordinates enigo uses) and give him a
+/// moment to fly there. Only when he is on screen; the event goes to his window alone.
+fn point_buddy(app: &AppHandle, x: i32, y: i32) {
+    if visible_buddy(app).is_none() {
+        return;
+    }
+    let _ = app.emit_to(BUDDY, "buddy-point", serde_json::json!({ "x": x, "y": y }));
+    std::thread::sleep(std::time::Duration::from_millis(280));
+}
+
+/// Keep the tray's "Lumo on desktop" check in step with the saved setting.
+fn sync_buddy_menu(app: &AppHandle) {
+    if let (Some(item), Some(state)) = (app.try_state::<BuddyMenuItem>(), app.try_state::<crate::commands::AppState>()) {
+        let _ = item.0.set_checked(state.core.settings().buddy_enabled);
+    }
+}
+
+struct BuddyMenuItem(CheckMenuItem<tauri::Wry>);
+
+/// Show or remove the desktop buddy: a small transparent, always-on-top window the mascot lives in.
+pub fn set_buddy_visible(app: &AppHandle, on: bool) {
+    sync_buddy_menu(app);
+    let existing = app.get_webview_window(BUDDY);
+    if !on {
+        if let Some(w) = existing {
+            let _ = w.destroy();
+        }
+        return;
+    }
+    if let Some(w) = existing {
+        let _ = w.show();
+        return;
+    }
+    let built = WebviewWindowBuilder::new(app, BUDDY, WebviewUrl::App("index.html#/buddy".into()))
+        .title("Lumo")
+        .inner_size(BUDDY_SIZE.0, BUDDY_SIZE.1)
+        .transparent(true)
+        .decorations(false)
+        .always_on_top(true)
+        .skip_taskbar(true)
+        .resizable(false)
+        .shadow(false)
+        .focused(false)
+        .visible_on_all_workspaces(true)
+        .visible(false)
+        .build();
+    let w = match built {
+        Ok(w) => w,
+        Err(e) => {
+            log::error!("could not open the desktop buddy: {e}");
+            return;
+        }
+    };
+    // Bottom-right of the primary display's work area.
+    if let Ok(Some(m)) = w.primary_monitor() {
+        let area = m.work_area();
+        let scale = m.scale_factor();
+        let size = w.outer_size().unwrap_or(tauri::PhysicalSize::new((BUDDY_SIZE.0 * scale) as u32, (BUDDY_SIZE.1 * scale) as u32));
+        let margin = (BUDDY_MARGIN * scale).round() as i64;
+        let x = area.position.x as i64 + area.size.width as i64 - size.width as i64 - margin;
+        let y = area.position.y as i64 + area.size.height as i64 - size.height as i64 - margin;
+        let rect = Rect { x: area.position.x, y: area.position.y, width: area.size.width, height: area.size.height };
+        let (x, y) = clamp_into(&[rect], sat(x), sat(y), size.width, size.height);
+        let _ = w.set_position(PhysicalPosition::new(x, y));
+    }
+    let _ = w.show();
+}
+
+fn sat(v: i64) -> i32 {
+    v.clamp(i32::MIN as i64, i32::MAX as i64) as i32
+}
+
+/// A rectangle in physical pixels.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Rect {
+    pub x: i32,
+    pub y: i32,
+    pub width: u32,
+    pub height: u32,
+}
+
+/// A point in physical pixels.
+#[derive(Debug, Clone, Copy, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Point {
+    pub x: f64,
+    pub y: f64,
+}
+
+/// Where the buddy may go, in physical pixels.
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct BuddyScreen {
+    /// Each display's work area (the screen minus taskbars and menu bars).
+    pub monitors: Vec<Rect>,
+    /// Scale factor of the display the buddy is on.
+    pub scale: f64,
+    /// The buddy window's outer position and size.
+    pub window: Rect,
+    /// The mouse pointer, when the system reports it.
+    pub cursor: Option<Point>,
+}
+
+/// Squared distance from a point to a rectangle (0 inside).
+fn dist2(r: &Rect, px: i64, py: i64) -> i64 {
+    let (x0, y0) = (r.x as i64, r.y as i64);
+    let (x1, y1) = (x0 + r.width as i64, y0 + r.height as i64);
+    let dx = if px < x0 {
+        x0 - px
+    } else if px >= x1 {
+        px - x1 + 1
+    } else {
+        0
+    };
+    let dy = if py < y0 {
+        y0 - py
+    } else if py >= y1 {
+        py - y1 + 1
+    } else {
+        0
+    };
+    dx * dx + dy * dy
+}
+
+fn clamp_axis(pos: i64, len: i64, start: i64, avail: i64) -> i64 {
+    if len >= avail {
+        start
+    } else {
+        pos.clamp(start, start + avail - len)
+    }
+}
+
+/// Clamp a window's requested top-left (`x`, `y`, size `w`×`h`) so the whole window stays inside the
+/// work area of the display that contains, or is nearest to, its centre. All in physical pixels.
+/// A window bigger than the area is pinned to the area's top-left. With no displays, unchanged.
+pub fn clamp_into(areas: &[Rect], x: i32, y: i32, w: u32, h: u32) -> (i32, i32) {
+    let (cx, cy) = (x as i64 + w as i64 / 2, y as i64 + h as i64 / 2);
+    let Some(area) = areas.iter().min_by_key(|r| dist2(r, cx, cy)) else {
+        return (x, y);
+    };
+    let nx = clamp_axis(x as i64, w as i64, area.x as i64, area.width as i64);
+    let ny = clamp_axis(y as i64, h as i64, area.y as i64, area.height as i64);
+    (sat(nx), sat(ny))
+}
+
+fn work_areas(w: &WebviewWindow) -> Vec<Rect> {
+    w.available_monitors()
+        .unwrap_or_default()
+        .iter()
+        .map(|m| {
+            let a = m.work_area();
+            Rect { x: a.position.x, y: a.position.y, width: a.size.width, height: a.size.height }
+        })
+        .collect()
+}
+
+fn require_buddy(w: &WebviewWindow) -> Result<()> {
+    if w.label() == BUDDY {
+        Ok(())
+    } else {
+        Err(crate::error::denied("only the desktop buddy can do this"))
+    }
+}
+
+/// The displays, the buddy window and the pointer, for the buddy to plan where to fly.
+pub fn buddy_screen(w: &WebviewWindow) -> Result<BuddyScreen> {
+    require_buddy(w)?;
+    let err = |e: tauri::Error| LumoError::Unavailable(format!("could not read the window: {e}"));
+    let pos = w.outer_position().map_err(err)?;
+    let size = w.outer_size().map_err(err)?;
+    let scale = match w.current_monitor() {
+        Ok(Some(m)) => m.scale_factor(),
+        _ => w.scale_factor().unwrap_or(1.0),
+    };
+    let cursor = w.app_handle().cursor_position().ok().map(|p| Point { x: p.x, y: p.y });
+    Ok(BuddyScreen { monitors: work_areas(w), scale, window: Rect { x: pos.x, y: pos.y, width: size.width, height: size.height }, cursor })
+}
+
+/// Move the buddy, kept fully on one display's work area.
+pub fn buddy_move(w: &WebviewWindow, x: i32, y: i32) -> Result<()> {
+    require_buddy(w)?;
+    let size = w.outer_size().map_err(|e| LumoError::Unavailable(format!("could not read the window: {e}")))?;
+    let (x, y) = clamp_into(&work_areas(w), x, y, size.width, size.height);
+    w.set_position(PhysicalPosition::new(x, y)).map_err(|e| LumoError::Unavailable(format!("could not move the window: {e}")))
+}
+
+/// Toggle the buddy setting from the tray (or anywhere outside the settings screen) and apply it.
+pub fn set_buddy_enabled(app: &AppHandle, core: &Core, enabled: bool) -> Result<()> {
+    let mut s = core.settings();
+    s.buddy_enabled = enabled;
+    crate::settings::save(&core.db, &s)?;
+    let _ = app.emit("settings-changed", ());
+    set_buddy_visible(app, s.onboarded && s.buddy_enabled);
+    Ok(())
 }
 
 static MAIN_SHORTCUT: Mutex<Option<String>> = Mutex::new(None);
@@ -293,10 +525,14 @@ pub fn register_shortcut(app: &AppHandle, shortcut: &str) -> Result<()> {
 pub fn build_tray(app: &AppHandle, core: &Arc<Core>) -> tauri::Result<()> {
     let open = MenuItem::with_id(app, "open", "Open Lumo", true, None::<&str>)?;
     let ask = MenuItem::with_id(app, "ask", "Ask Lumo…", true, None::<&str>)?;
+    let buddy = CheckMenuItem::with_id(app, "buddy", "Lumo on desktop", true, core.settings().buddy_enabled, None::<&str>)?;
     let pause = CheckMenuItem::with_id(app, "pause", "Pause automations", true, core.settings().automations_paused, None::<&str>)?;
     let quit = MenuItem::with_id(app, "quit", "Quit Lumo", true, None::<&str>)?;
-    let menu =
-        Menu::with_items(app, &[&open, &ask, &PredefinedMenuItem::separator(app)?, &pause, &PredefinedMenuItem::separator(app)?, &quit])?;
+    let menu = Menu::with_items(
+        app,
+        &[&open, &ask, &PredefinedMenuItem::separator(app)?, &buddy, &pause, &PredefinedMenuItem::separator(app)?, &quit],
+    )?;
+    app.manage(BuddyMenuItem(buddy));
     let core2 = core.clone();
     TrayIconBuilder::with_id("lumo")
         .icon(app.default_window_icon().cloned().expect("app icon"))
@@ -306,6 +542,13 @@ pub fn build_tray(app: &AppHandle, core: &Arc<Core>) -> tauri::Result<()> {
         .on_menu_event(move |app, ev| match ev.id().as_ref() {
             "open" => show_main(app),
             "ask" => toggle_compact(app),
+            "buddy" => {
+                let on = !core2.settings().buddy_enabled;
+                if let Err(e) = set_buddy_enabled(app, &core2, on) {
+                    log::warn!("could not change the desktop buddy setting: {e}");
+                }
+                sync_buddy_menu(app);
+            }
             "pause" => {
                 let mut s = core2.settings();
                 s.automations_paused = !s.automations_paused;
@@ -401,6 +644,48 @@ fn to_key(p: &str) -> enigo::Key {
 mod tests {
     use super::*;
     use crate::core::testing::{core_with, FakePlatform};
+
+    fn r(x: i32, y: i32, width: u32, height: u32) -> Rect {
+        Rect { x, y, width, height }
+    }
+
+    #[test]
+    fn buddy_stays_inside_one_display() {
+        let one = [r(0, 0, 1920, 1040)];
+        // Inside: unchanged.
+        assert_eq!(clamp_into(&one, 100, 200, 220, 240), (100, 200));
+        // Past the right/bottom edges: pulled back fully on screen.
+        assert_eq!(clamp_into(&one, 1900, 1030, 220, 240), (1700, 800));
+        // Past the top/left: pushed to the origin.
+        assert_eq!(clamp_into(&one, -500, -9000, 220, 240), (0, 0));
+        // Extreme values don't overflow.
+        assert_eq!(clamp_into(&one, i32::MAX, i32::MIN, 220, 240), (1700, 0));
+    }
+
+    #[test]
+    fn buddy_picks_the_display_under_or_nearest_its_centre() {
+        // A display to the left at negative coordinates, the primary, and one above-right.
+        let areas = [r(-1280, 0, 1280, 1024), r(0, 0, 1920, 1080), r(1920, -600, 1600, 900)];
+        // Centre on the left display: clamped within it, not jumped to the primary.
+        assert_eq!(clamp_into(&areas, -150, 100, 220, 240), (-220, 100));
+        // Centre well off the left display: stays on the left display.
+        assert_eq!(clamp_into(&areas, -3000, 500, 220, 240), (-1280, 500));
+        // Centre on the top-right display, window straddling its bottom edge.
+        assert_eq!(clamp_into(&areas, 2000, 250, 220, 240), (2000, 60));
+        // Centre in the gap below the top-right display (x > 1920, y > 300): nearest is it.
+        assert_eq!(clamp_into(&areas, 3000, 1200, 220, 240), (3000, 60));
+        // No displays: left alone.
+        assert_eq!(clamp_into(&[], 5, 6, 220, 240), (5, 6));
+    }
+
+    #[test]
+    fn a_window_bigger_than_the_area_is_pinned_to_its_top_left() {
+        let tiny = [r(-100, -50, 200, 100)];
+        assert_eq!(clamp_into(&tiny, 400, 400, 220, 240), (-100, -50));
+        // Only one axis too big: the other is still clamped normally.
+        let wide = [r(0, 0, 200, 1000)];
+        assert_eq!(clamp_into(&wide, 50, 900, 220, 240), (0, 760));
+    }
 
     #[test]
     fn previews_are_sandboxed_without_top_navigation_or_same_origin() {

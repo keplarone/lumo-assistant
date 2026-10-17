@@ -15,7 +15,7 @@ crate-type = ["staticlib", "cdylib", "rlib"]
 tauri-build = { version = "2.7", features = [] }
 
 [dependencies]
-tauri = { version = "2.12", features = ["tray-icon", "image-png"] }
+tauri = { version = "2.12", features = ["tray-icon", "image-png", "macos-private-api"] }
 tauri-plugin-global-shortcut = "2.4"
 tauri-plugin-notification = "2.7"
 tauri-plugin-dialog = "2.8"
@@ -63,9 +63,10 @@ enigo = "0.6"
 sysinfo = { version = "0.36.1", default-features = false, features = ["system"] }
 
 [target.'cfg(target_os = "macos")'.dependencies]
-# Current location (src/location/macos.rs): CoreLocation.
+# Current location (src/location/macos.rs): CoreLocation. The live Dock icon (live_icon.rs): AppKit.
 objc2 = "0.6"
-objc2-foundation = { version = "0.3", default-features = false, features = ["std", "NSArray", "NSDate", "NSError", "NSObjCRuntime", "NSObject", "NSRunLoop", "NSString"] }
+objc2-foundation = { version = "0.3", default-features = false, features = ["std", "NSArray", "NSData", "NSDate", "NSError", "NSObjCRuntime", "NSObject", "NSRunLoop", "NSString"] }
+objc2-app-kit = { version = "0.3", default-features = false, features = ["std", "NSApplication", "NSImage", "NSResponder"] }
 objc2-core-location = { version = "0.3", default-features = false, features = ["std", "CLError", "CLLocation", "CLLocationManager", "CLLocationManagerDelegate"] }
 
 # Current location (src/location/windows.rs): Windows.Devices.Geolocation. Same version Tauri uses.

@@ -18,6 +18,9 @@
  *   changes. While a transient plays (celebration, recovery, greeting) it stays where it is.
  * - Facing: `face` turns Lumo (e.g. to show its back); any new working phase or sleep faces the
  *   viewer again.
+ * - Reactions (`react`) are short feelings about what the person said or did: love (hearts), cheer
+ *   (a celebration), laugh, or quiet concern. They play like outcomes, then return to the base mood;
+ *   a reaction never interrupts real work (while working it is skipped).
  */
 export type AgentPhase =
   | 'idle'
@@ -40,6 +43,8 @@ export interface Point {
 
 export type Facing = 'viewer' | 'away' | 'left' | 'right';
 
+export type Reaction = 'love' | 'cheer' | 'laugh' | 'concern';
+
 export type MascotEvent =
   | { type: 'boot' }
   | { type: 'agent'; phase: AgentPhase }
@@ -50,6 +55,8 @@ export type MascotEvent =
   /** Go to a station by name, or to x in -1..1 across the canvas. */
   | { type: 'move'; to: string | number }
   | { type: 'face'; facing: Facing }
+  /** A feeling about what the person said or did. */
+  | { type: 'react'; reaction: Reaction }
   | { type: 'tick' };
 
 export interface MascotConfig {
@@ -59,6 +66,8 @@ export interface MascotConfig {
   recoverMs: number;
   greetMs: number;
   attentionMs: number;
+  reactMs: number;
+  concernMs: number;
   /** Named positions, x in -1..1 across the mascot's canvas. Must include home and workspace. */
   stations: Record<string, number> & { home: number; workspace: number };
   /** Base moods that take Lumo to the workspace. */
@@ -72,6 +81,8 @@ export const DEFAULT_CONFIG: MascotConfig = {
   recoverMs: 2600,
   greetMs: 1800,
   attentionMs: 1800,
+  reactMs: 2400,
+  concernMs: 6000,
   stations: { home: 0, workspace: 0.6 },
   workspaceMoods: ['work', 'type'],
 };
@@ -128,6 +139,15 @@ export const PHASE_MOOD: Record<AgentPhase, string> = {
   done: 'idle',
   failed: 'idle',
 };
+
+const BUSY_PHASES = new Set<AgentPhase>([
+  'thinking',
+  'planning',
+  'searching',
+  'working',
+  'typing',
+  'awaiting_approval',
+]);
 
 export function initialState(now: number, cfg: MascotConfig = DEFAULT_CONFIG): MascotState {
   return {
@@ -239,6 +259,27 @@ function step(s: MascotState, e: MascotEvent, now: number, cfg: MascotConfig): M
 
     case 'face':
       return { ...s, facing: s.asleep ? 'viewer' : e.facing, lastActivity: now };
+
+    case 'react': {
+      // Feelings never interrupt work in progress.
+      if (BUSY_PHASES.has(s.phase)) return { ...s, lastActivity: now };
+      const woke = { ...s, asleep: false, lastActivity: now };
+      switch (e.reaction) {
+        case 'love':
+          return { ...woke, transient: { mood: 'love', until: now + cfg.reactMs } };
+        case 'cheer':
+          return {
+            ...woke,
+            transient: { mood: 'happy', until: now + cfg.celebrateMs },
+            pulses: s.pulses + 1,
+          };
+        case 'laugh':
+          return { ...woke, transient: { mood: 'happy', until: now + cfg.reactMs * 0.6 } };
+        case 'concern':
+          return { ...woke, transient: { mood: 'concern', until: now + cfg.concernMs } };
+      }
+      return woke;
+    }
 
     case 'tick': {
       let next = s;

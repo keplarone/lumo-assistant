@@ -145,12 +145,13 @@ describe('mood', () => {
     expect(s.segments).toHaveLength(0);
   });
   it('maps to the closest mascot expression', () => {
-    expect(mascotEventsFor({ type: 'mood', mood: 'happy' })).toEqual([{ type: 'agent', phase: 'done' }]);
+    expect(mascotEventsFor({ type: 'mood', mood: 'happy' })).toEqual([{ type: 'react', reaction: 'laugh' }]);
+    expect(mascotEventsFor({ type: 'mood', mood: 'warm' })).toEqual([{ type: 'react', reaction: 'love' }]);
     expect(mascotEventsFor({ type: 'mood', mood: 'celebrating' })).toEqual([
-      { type: 'agent', phase: 'done' },
+      { type: 'react', reaction: 'cheer' },
     ]);
     expect(mascotEventsFor({ type: 'mood', mood: 'concerned' })).toEqual([
-      { type: 'agent', phase: 'uncertain' },
+      { type: 'react', reaction: 'concern' },
     ]);
     expect(mascotEventsFor({ type: 'mood', mood: 'calm' })).toEqual([{ type: 'agent', phase: 'idle' }]);
     expect(

@@ -1,12 +1,11 @@
 :root {
-  color-scheme: dark;
-  --night: #090a1c;
-  --panel: #14173a;
-  --ink: #ecebff;
-  --muted: #9d9fcf;
-  --line: rgba(160, 166, 255, 0.16);
-  --lumen: #ffc65c;
-  --aurora: #7ff3ff;
+  color-scheme: light;
+  --page: #f7f9fd;
+  --panel: #ffffff;
+  --ink: #18213d;
+  --muted: #5b6581;
+  --line: rgba(47, 107, 255, 0.16);
+  --blue: #2f6bff;
 }
 * {
   box-sizing: border-box;
@@ -14,7 +13,7 @@
 html,
 body {
   margin: 0;
-  background: var(--night);
+  background: var(--page);
   color: var(--ink);
   font:
     14px/1.5 -apple-system,
@@ -26,7 +25,7 @@ body {
 .stage {
   position: relative;
   overflow: hidden;
-  background: radial-gradient(ellipse 70% 60% at 50% 42%, #1c2056 0%, #10123a 45%, #090a1c 100%);
+  background: radial-gradient(ellipse 70% 60% at 50% 45%, #ffffff 0%, #f1f5fd 60%, #e6edfb 100%);
 }
 .stage canvas {
   position: absolute;

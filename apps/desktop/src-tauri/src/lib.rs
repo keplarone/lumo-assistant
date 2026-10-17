@@ -10,6 +10,7 @@ pub mod desktop;
 pub mod error;
 pub mod integrations;
 pub mod license;
+pub mod live_icon;
 pub mod location;
 pub mod model;
 pub mod models;
@@ -39,7 +40,7 @@ pub fn run() {
                 .max_file_size(5_000_000)
                 .build(),
         )
-        .plugin(tauri_plugin_window_state::Builder::new().with_denylist(&["compact"]).build())
+        .plugin(tauri_plugin_window_state::Builder::new().with_denylist(&["compact", "buddy"]).build())
         .plugin(tauri_plugin_global_shortcut::Builder::new().build())
         .plugin(tauri_plugin_notification::init())
         .plugin(tauri_plugin_dialog::init())
@@ -97,11 +98,16 @@ pub fn run() {
             app.manage(commands::AppState { core: core.clone(), registry: registry.clone() });
 
             desktop::build_tray(&handle, &core)?;
+            live_icon::start(&handle, core.clone());
             let shortcut = core.settings().global_shortcut;
             if let Err(e) = desktop::register_shortcut(&handle, &shortcut) {
                 log::warn!("{e}");
             }
             tauri::async_runtime::spawn(automations::scheduler(core.clone(), registry));
+            let s = core.settings();
+            if s.onboarded && s.buddy_enabled {
+                desktop::set_buddy_visible(&handle, true);
+            }
 
             if let Some(w) = app.get_webview_window("main") {
                 let core2 = core.clone();
@@ -180,6 +186,9 @@ pub fn run() {
             commands::open_logs,
             commands::show_main_window,
             commands::toggle_compact_window,
+            commands::buddy_screen,
+            commands::buddy_move,
+            commands::buddy_hide,
             commands::check_for_updates,
             commands::install_update,
             commands::integrations_status,

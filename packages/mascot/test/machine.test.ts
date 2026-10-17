@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import {
   DEFAULT_CONFIG as C,
+  DEFAULT_CONFIG,
+  MascotMachine,
   initialState,
   output,
   reduce,
@@ -189,5 +191,30 @@ describe('typing, attention to elements, locomotion and facing', () => {
     s = reduce(s, { type: 'tick' }, C.sleepAfterMs + 1);
     s = { ...s, attend: { target: 'composer', until: Infinity } };
     expect(output(s).attend).toBeNull();
+  });
+});
+
+describe('reactions', () => {
+  it('show a feeling, then return to the base mood', () => {
+    let now = 0;
+    const m = new MascotMachine(DEFAULT_CONFIG, () => now);
+    m.send({ type: 'tick' });
+    expect(m.send({ type: 'react', reaction: 'love' }).mood).toBe('love');
+    now += DEFAULT_CONFIG.reactMs + 10;
+    expect(m.send({ type: 'tick' }).mood).toBe('idle');
+    expect(m.send({ type: 'react', reaction: 'concern' }).mood).toBe('concern');
+    const before = m.output.pulses;
+    m.send({ type: 'react', reaction: 'cheer' });
+    expect(m.output.mood).toBe('happy');
+    expect(m.output.pulses).toBe(before + 1);
+  });
+
+  it('never interrupt work in progress', () => {
+    let now = 0;
+    const m = new MascotMachine(DEFAULT_CONFIG, () => now);
+    m.send({ type: 'agent', phase: 'working' });
+    now += 1000;
+    m.send({ type: 'tick' });
+    expect(m.send({ type: 'react', reaction: 'love' }).mood).toBe('work');
   });
 });
