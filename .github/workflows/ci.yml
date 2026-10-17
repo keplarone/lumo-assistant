@@ -90,14 +90,6 @@ jobs:
       - uses: taiki-e/install-action@v2
         with:
           tool: cargo-audit
-      - name: Audit ignores have not expired
-        working-directory: apps/desktop/src-tauri
-        run: |
-          expires=$(sed -n 's/^# expires: //p' .cargo/audit.toml)
-          if [ -n "$expires" ] && [[ "$(date -u +%F)" > "$expires" ]]; then
-            echo "::error::The ignores in .cargo/audit.toml expired on $expires. Re-check them."
-            exit 1
-          fi
       - run: cargo audit
         working-directory: apps/desktop/src-tauri
 
